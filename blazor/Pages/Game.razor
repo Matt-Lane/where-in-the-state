@@ -8,8 +8,9 @@
 @inject SeededGameService GameService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject HeaderTitleService HeaderTitle
 
-<PageTitle>Where in the State — Oregon</PageTitle>
+<PageTitle>@PageTitleText</PageTitle>
 
 @if (_loadFailed)
 {
@@ -231,6 +232,25 @@ else if (_phase == Phase.Results)
     private string SummaryText =>
         $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}\nPlay the same game: {GameLink}";
 
+    // While playing (Round/Reveal) the header shows the in-game title,
+    // derived from the pack name so a future state gets its own title
+    // with no code change. Anywhere else it is the product name.
+    private string TitleForPhase(Phase phase) =>
+        (phase is Phase.Round or Phase.Reveal) && _pack is not null
+            ? $"Where in the {_pack.Name}?!"
+            : "Where in the State";
+
+    private string PageTitleText =>
+        (_phase is Phase.Round or Phase.Reveal) && _pack is not null
+            ? TitleForPhase(_phase)
+            : "Where in the State — Oregon";
+
+    private void SetPhase(Phase phase)
+    {
+        _phase = phase;
+        HeaderTitle.SetTitle(TitleForPhase(phase));
+    }
+
     protected override async Task OnInitializedAsync()
     {
         // Resolve the state/seed from the URL. The path form wins
@@ -335,7 +355,7 @@ else if (_phase == Phase.Results)
         _guessLat = null;
         _guessLon = null;
         _copyMessage = null;
-        _phase = Phase.Round;
+        SetPhase(Phase.Round);
 
         // Write the seed into the URL so the game is shareable / refresh-safe.
         // ToAbsoluteUri resolves the relative path against the app's base
@@ -366,7 +386,7 @@ else if (_phase == Phase.Results)
         int points = DistanceService.ScoreForDistance(distance);
         _results.Add(new RoundResult(city, _guessLat, _guessLon, distance, points));
         _totalScore += points;
-        _phase = Phase.Reveal;
+        SetPhase(Phase.Reveal);
     }
 
     private void Pass()
@@ -375,7 +395,7 @@ else if (_phase == Phase.Results)
         _results.Add(new RoundResult(city, null, null, null, 0));
         _guessLat = null;
         _guessLon = null;
-        _phase = Phase.Reveal;
+        SetPhase(Phase.Reveal);
     }
 
     private void NextRound()
@@ -391,12 +411,12 @@ else if (_phase == Phase.Results)
             // and the results screen already handles null.
             _bestGuess = scored.Count > 0 ? scored.MinBy(r => r.DistanceMiles) : null;
             _hardest = scored.Count > 0 ? scored.MaxBy(r => r.DistanceMiles) : null;
-            _phase = Phase.Results;
+            SetPhase(Phase.Results);
         }
         else
         {
             _roundIndex++;
-            _phase = Phase.Round;
+            SetPhase(Phase.Round);
         }
     }
 
