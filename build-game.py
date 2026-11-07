@@ -540,6 +540,11 @@ __PURE_JS__
 
   /* ============ Game state ============ */
   var QUESTION_COUNT = 10;
+  /* The shareable destination is always the live site, never this page's
+     own address — in the test-page preview the origin is the preview host,
+     which is not a shareable game link. */
+  var LIVE_SITE_BASE = "https://matt-lane.github.io/where-in-the-state/";
+  function gameLink() { return LIVE_SITE_BASE + "oregon/" + encodeURIComponent(game.seed); }
   var game = null; /* { seed, cities, roundIndex, results, total } */
   var guess = null; /* { lat, lon, x, y } */
   var phase = "guess"; /* "guess" | "revealed" */
@@ -797,7 +802,7 @@ __PURE_JS__
       tbody.appendChild(tr);
     });
     document.getElementById("summary-text").value =
-      "I scored " + game.total + "/1000 on Oregon, seed " + game.seed;
+      "I scored " + game.total + "/1000 on Oregon, seed " + game.seed + "\nPlay the same game: " + gameLink();
   }
 
   function copyText(text, noteEl) {
@@ -814,7 +819,7 @@ __PURE_JS__
     document.body.removeChild(ta);
   }
   document.getElementById("btn-copy-link").addEventListener("click", function () {
-    copyText(window.location.href, document.getElementById("copy-note"));
+    copyText(gameLink(), document.getElementById("copy-note"));
   });
   document.getElementById("btn-copy-summary").addEventListener("click", function () {
     copyText(document.getElementById("summary-text").value, document.getElementById("copy-note"));
