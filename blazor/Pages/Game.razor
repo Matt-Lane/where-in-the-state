@@ -232,16 +232,17 @@ else if (_phase == Phase.Results)
     private string SummaryText =>
         $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}\nPlay the same game: {GameLink}";
 
-    // While playing (Round/Reveal) the header shows the in-game title,
-    // derived from the pack name so a future state gets its own title
-    // with no code change. Anywhere else it is the product name.
+    // Once a game starts, the header shows the in-game title, derived
+    // from the pack name so a future state gets its own title with no
+    // code change — and it stays that way through the results screen.
+    // Before a game starts it is the product name.
     private string TitleForPhase(Phase phase) =>
-        (phase is Phase.Round or Phase.Reveal) && _pack is not null
+        (phase is Phase.Round or Phase.Reveal or Phase.Results) && _pack is not null
             ? $"Where in the {_pack.Name}?!"
             : "Where in the State";
 
     private string PageTitleText =>
-        (_phase is Phase.Round or Phase.Reveal) && _pack is not null
+        (_phase is Phase.Round or Phase.Reveal or Phase.Results) && _pack is not null
             ? TitleForPhase(_phase)
             : "Where in the State — Oregon";
 
