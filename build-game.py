@@ -290,8 +290,7 @@ HTML = r"""<!doctype html>
 <body>
 <div class="wrap">
   <header>
-    <h1>Where in the State</h1>
-    <p><strong>Oregon Edition</strong></p>
+    <h1 id="game-title">Where in the State</h1>
     <p>Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin,
       the more points. Full points within 5 miles, then &minus;1 point per mile beyond that.</p>
   </header>
@@ -521,6 +520,13 @@ __PURE_JS__
     screenStart.hidden = which !== "start";
     screenGame.hidden = which !== "game";
     screenResults.hidden = which !== "results";
+    /* While playing, the header is the in-game title; anywhere else it is
+       the product name, and the browser tab follows the same rule. */
+    var title = which === "game"
+      ? "Where in the " + STATE_NAME + "?!"
+      : "Where in the State";
+    document.getElementById("game-title").textContent = title;
+    document.title = which === "game" ? title : "Where in the State — Oregon";
     window.scrollTo(0, 0);
   }
 
@@ -543,6 +549,10 @@ __PURE_JS__
 
   /* ============ Game state ============ */
   var QUESTION_COUNT = 10;
+  /* The state name, used to build the in-game title ("Where in the Oregon?!").
+     A single constant keeps the generic-derivation principle: a future
+     parameterized build only has to change this one value. */
+  var STATE_NAME = "Oregon";
   /* The shareable destination is always the live site, never this page's
      own address — in the test-page preview the origin is the preview host,
      which is not a shareable game link. */
