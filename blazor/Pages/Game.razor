@@ -184,6 +184,7 @@ else if (_phase == Phase.Results)
         <button class="primary" @onclick="PlayAgainNewSeed">Play again (new random seed)</button>
         <button @onclick="ReplaySameSeed">Replay same seed</button>
         <button @onclick="CopyGameLink">Copy game link</button>
+        <button @onclick="CopySummary">Copy summary</button>
     </div>
     @if (_copyMessage is not null)
     {
@@ -415,6 +416,19 @@ else if (_phase == Phase.Results)
         catch
         {
             _copyMessage = "Copy didn't work in this browser — copy the link in the box below instead.";
+        }
+    }
+
+    private async Task CopySummary()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", SummaryText);
+            _copyMessage = "Summary copied.";
+        }
+        catch
+        {
+            _copyMessage = "Copy didn't work in this browser — you can select the summary above to copy it by hand.";
         }
     }
 
