@@ -149,7 +149,8 @@ else if (_phase == Phase.Results)
         <div class="score-bar-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="1000" aria-label="Score out of 1000">
             <div class="score-bar-fill" style="width: @(_totalScore / 10)%"></div>
         </div>
-        <p>@SummaryText</p>
+        <p>I scored @_totalScore/1000 on @(_pack?.Name ?? "Oregon"), seed @_seed</p>
+        <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
     </div>
 
     <table class="results-table">
@@ -225,7 +226,7 @@ else if (_phase == Phase.Results)
             $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}").ToString();
 
     private string SummaryText =>
-        $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}";
+        $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}\nPlay the same game: {GameLink}";
 
     protected override async Task OnInitializedAsync()
     {
