@@ -152,7 +152,7 @@ HTML = r"""<!doctype html>
   .muted { color: var(--muted); }
   .small { font-size: 13.5px; }
 
-  label.field-label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .field-label { display: block; font-weight: 600; margin-bottom: 6px; }
   input[type="text"], textarea {
     font: inherit; width: 100%; padding: 12px 14px; min-height: 48px;
     border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
@@ -273,7 +273,10 @@ HTML = r"""<!doctype html>
   .badge.hardest { background: #8a3b2e; color: #fff; }
   .total-big { font-family: Georgia, serif; font-size: 44px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .total-big small { font-size: 20px; color: var(--muted); }
-  .summary-box { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13.5px; }
+  /* The summary is read-only, so it is a styled box, not a text field.
+     pre-line keeps the line break between the score line and the link;
+     the long URL wraps instead of overflowing the box. */
+  .summary-box { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13.5px; width: 100%; padding: 12px 14px; min-height: 48px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); white-space: pre-line; overflow-wrap: break-word; }
   .copied { color: var(--truth); font-weight: 600; font-size: 13.5px; }
   footer { margin-top: 22px; color: var(--faint); font-size: 12.5px; line-height: 1.6; max-width: 900px; }
   footer code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
@@ -412,10 +415,10 @@ HTML = r"""<!doctype html>
         <button type="button" class="btn-primary" id="btn-again">Play again (new seed)</button>
         <span class="copied" id="copy-note" hidden>Copied!</span>
       </div>
-      <label class="field-label" for="summary-text" style="margin-top:16px">Summary to paste into chat or email</label>
-      <textarea class="summary-box" id="summary-text" rows="2" readonly></textarea>
+      <p class="field-label" style="margin-top:16px">Send a challenge!</p>
+      <div class="summary-box" id="summary-text"></div>
       <div class="btn-row">
-        <button type="button" id="btn-copy-summary">Copy summary</button>
+        <button type="button" id="btn-copy-summary">Copy</button>
       </div>
     </div>
   </section>
@@ -801,7 +804,7 @@ __PURE_JS__
       tr.appendChild(tdN); tr.appendChild(tdCity); tr.appendChild(tdD); tr.appendChild(tdP);
       tbody.appendChild(tr);
     });
-    document.getElementById("summary-text").value =
+    document.getElementById("summary-text").textContent =
       "I scored " + game.total + "/1000 on Oregon, seed " + game.seed + "\nPlay the same game: " + gameLink();
   }
 
@@ -822,7 +825,7 @@ __PURE_JS__
     copyText(gameLink(), document.getElementById("copy-note"));
   });
   document.getElementById("btn-copy-summary").addEventListener("click", function () {
-    copyText(document.getElementById("summary-text").value, document.getElementById("copy-note"));
+    copyText(document.getElementById("summary-text").textContent, document.getElementById("copy-note"));
   });
   document.getElementById("btn-replay").addEventListener("click", function () {
     startGame(game.seed);
