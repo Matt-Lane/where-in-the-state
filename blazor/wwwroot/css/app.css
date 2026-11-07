@@ -214,8 +214,15 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     margin: 0.25rem 0 0.6rem;
 }
 .question { font-size: 1.4rem; margin: 0 0 0.6rem; }
-.progress-track {
+/* The bar fills by total score (out of 1000). The wrapper carries the
+   flex sizing so the max-score tick can sit beside the track: the tick is
+   taller than the track, and the track's overflow: hidden would clip it
+   if the tick were a child of the track. */
+.progress-wrap {
+    position: relative;
     flex: 1;
+}
+.progress-track {
     height: 0.6rem;
     background: #e2ddc9;
     border-radius: 999px;
@@ -226,6 +233,19 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     background: var(--green);
     border-radius: 999px;
     transition: width 0.3s ease;
+}
+/* Tick marking the best total the player could have once the question on
+   screen is scored: (question number) x 100. Terracotta, taller than the
+   track, so it still reads where the fill meets it on a perfect game. */
+.progress-max {
+    position: absolute;
+    top: 50%;
+    width: 3px;
+    height: 1rem;
+    transform: translate(-50%, -50%);
+    background: var(--rust);
+    border-radius: 999px;
+    transition: left 0.3s ease;
 }
 .score-chip {
     margin: 0;
