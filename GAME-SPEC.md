@@ -231,6 +231,7 @@ public static double HaversineMiles(double lat1, double lon1, double lat2, doubl
 - **Keyboard / accessibility.** The question is a real heading; buttons are real buttons; the map has a text alternative for the round ("Question 3 of 10: Where is Baker City?") and the reveal is announced in text, not only visually on the map. A keyboard-only path to place a pin is a nice-to-have for v1 — at minimum, results and navigation must be fully keyboard-usable.
 - **No city labels on the map at any point during a round.** Labels would give the game away. Landmark labels (e.g. "I-5", "Willamette River") are fine and help orientation; city names are not.
 - **Performance.** The map data for a state should load once per game start, not per round. Keep the total GeoJSON per state well under ~1 MB after simplification.
+- **Design language (fun but professional).** Warm paper background, deep forest green as the primary color, terracotta as a sparing accent, serif headings with plain system text. Cards with soft shadows, pill toggles, a progress bar and score chip during play, stat cards on the reveal, and a big score with a score bar on results. Subtle fade-up on screen changes, disabled entirely under `prefers-reduced-motion`. No external fonts or images — everything is CSS.
 
 ---
 
