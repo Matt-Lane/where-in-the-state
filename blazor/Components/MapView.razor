@@ -1,0 +1,150 @@
+@using OregonGeographyGame.Models
+@using OregonGeographyGame.Services
+
+<svg viewBox="0 0 1000 757.4"
+     class="map-svg"
+     role="img"
+     aria-label="Blank map of the state. No city names are shown."
+     @onpointerdown="OnMapPointerDown">
+    @* State outline *@
+    @foreach (var feature in Outline)
+    {
+        @foreach (var ring in feature.Parts)
+        {
+            <polygon points="@PointsAttribute(ring)"
+                     class="map-outline" />
+        }
+    }
+
+    @* Landmarks, by layer (toggles are display-only; they never affect scoring) *@
+    @foreach (var feature in Landmarks)
+    {
+        if (!IsLayerVisible(feature.Layer))
+        {
+            continue;
+        }
+
+        @foreach (var part in feature.Parts)
+        {
+            if (feature.Kind == "Polygon")
+            {
+                <polygon points="@PointsAttribute(part)"
+                         class="map-lake" />
+            }
+            else
+            {
+                <polyline points="@PointsAttribute(part)"
+                          fill="none"
+                          class="@LandmarkCssClass(feature.Layer)" />
+            }
+        }
+    }
+
+    @* Reveal: dashed line between guess and true location *@
+    @if (Revealed && GuessLatitude is not null && GuessLongitude is not null
+        && TrueLatitude is not null && TrueLongitude is not null)
+    {
+        var (gx, gy) = MapProjection.LatLonToSvg(GuessLatitude.Value, GuessLongitude.Value);
+        var (tx, ty) = MapProjection.LatLonToSvg(TrueLatitude.Value, TrueLongitude.Value);
+        <line x1="@gx" y1="@gy" x2="@tx" y2="@ty" class="map-connect-line" />
+    }
+
+    @* True location pin (green) — only after reveal *@
+    @if (Revealed && TrueLatitude is not null && TrueLongitude is not null)
+    {
+        var (tx, ty) = MapProjection.LatLonToSvg(TrueLatitude.Value, TrueLongitude.Value);
+        <g class="pin pin-true">
+            <circle cx="@tx" cy="@ty" r="9" />
+            <circle cx="@tx" cy="@ty" r="3.5" class="pin-dot" />
+        </g>
+    }
+
+    @* Guess pin: provisional (blue) while placing, revealed guess (red) after confirm *@
+    @if (GuessLatitude is not null && GuessLongitude is not null)
+    {
+        var (gx, gy) = MapProjection.LatLonToSvg(GuessLatitude.Value, GuessLongitude.Value);
+        <g class="@(Revealed ? "pin pin-guess" : "pin pin-provisional")">
+            <circle cx="@gx" cy="@gy" r="9" />
+            <circle cx="@gx" cy="@gy" r="3.5" class="pin-dot" />
+        </g>
+    }
+</svg>
+
+@code {
+    [Parameter] public IReadOnlyList<MapFeature> Outline { get; set; } = [];
+    [Parameter] public IReadOnlyList<MapFeature> Landmarks { get; set; } = [];
+
+    [Parameter] public bool ShowInterstates { get; set; } = true;
+    [Parameter] public bool ShowHighways { get; set; } = true;
+    [Parameter] public bool ShowRivers { get; set; } = true;
+    [Parameter] public bool ShowLakes { get; set; } = true;
+
+    /// <summary>Provisional (or confirmed) guess, if the player has placed a pin.</summary>
+    [Parameter] public double? GuessLatitude { get; set; }
+    [Parameter] public double? GuessLongitude { get; set; }
+
+    /// <summary>True city location; only rendered once <see cref="Revealed"/> is true.</summary>
+    [Parameter] public double? TrueLatitude { get; set; }
+    [Parameter] public double? TrueLongitude { get; set; }
+
+    [Parameter] public bool Revealed { get; set; }
+    [Parameter] public bool Interactive { get; set; } = true;
+
+    /// <summary>
+    /// The SVG's rendered (CSS-pixel) size. Pointer offsets are in CSS
+    /// pixels, so they are scaled to viewBox units by
+    /// ViewBoxWidth / RenderedWidth. The default (1000 × 757.4) is the
+    /// viewBox size itself, i.e. the SVG displayed at its natural size;
+    /// if the page CSS scales the SVG, pass the actual rendered size.
+    /// </summary>
+    [Parameter] public double RenderedWidth { get; set; } = 1000.0;
+    [Parameter] public double RenderedHeight { get; set; } = 757.4;
+
+    [Parameter] public EventCallback<(double Latitude, double Longitude)> OnMapClicked { get; set; }
+
+    private async Task OnMapPointerDown(PointerEventArgs e)
+    {
+        if (!Interactive || Revealed)
+        {
+            return;
+        }
+
+        // CSS pixels -> viewBox units -> lat/lon, using the SAME
+        // projection that drew the map (MapProjection.SvgToLatLon is the
+        // exact inverse of MapProjection.LatLonToSvg).
+        double svgX = e.OffsetX * MapProjection.ViewBoxWidth / RenderedWidth;
+        double svgY = e.OffsetY * MapProjection.ViewBoxHeight / RenderedHeight;
+        var (latitude, longitude) = MapProjection.SvgToLatLon(svgX, svgY);
+        await OnMapClicked.InvokeAsync((latitude, longitude));
+    }
+
+    private bool IsLayerVisible(string layer) => layer switch
+    {
+        "interstate" => ShowInterstates,
+        "highway" => ShowHighways,
+        "river" => ShowRivers,
+        "lake" => ShowLakes,
+        _ => true
+    };
+
+    private static string LandmarkCssClass(string layer) => layer switch
+    {
+        "interstate" => "map-interstate",
+        "highway" => "map-highway",
+        "river" => "map-river",
+        _ => "map-landmark"
+    };
+
+    private static string PointsAttribute(IReadOnlyList<(double Lon, double Lat)> points)
+    {
+        // Project every point with the same function used for clicks.
+        var parts = new string[points.Count];
+        for (int i = 0; i < points.Count; i++)
+        {
+            var (x, y) = MapProjection.LatLonToSvg(points[i].Lat, points[i].Lon);
+            parts[i] = $"{x:F1},{y:F1}";
+        }
+
+        return string.Join(" ", parts);
+    }
+}

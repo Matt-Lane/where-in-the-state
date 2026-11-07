@@ -1,0 +1,44 @@
+html, body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
+.page { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+.content { padding: 0; }
+h1 { font-size: 1.5rem; }
+button { min-height: 44px; min-width: 44px; padding: 0.5rem 1rem; cursor: pointer; }
+button.primary { font-weight: 600; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+input[type="text"] { min-height: 44px; padding: 0.25rem 0.5rem; }
+label { display: block; margin: 0.5rem 0; }
+fieldset { margin: 1rem 0; }
+.button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+.toggles { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0.5rem 0; }
+.toggles label { display: inline; margin: 0; }
+.hint { color: #555; font-size: 0.9rem; }
+.link-box { width: 100%; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+table { border-collapse: collapse; margin: 1rem 0; }
+th, td { border: 1px solid #ccc; padding: 0.4rem 0.75rem; text-align: left; }
+tr.best { background: #e6f4ea; }
+tr.hardest { background: #fce8e6; }
+.reveal-panel { border: 1px solid #ccc; padding: 1rem; margin: 1rem 0; }
+
+/* Map */
+.map-svg { width: 1000px; max-width: 100%; height: auto; display: block; background: #f7f3e8; touch-action: manipulation; }
+.map-outline { fill: #fffdf5; stroke: #333; stroke-width: 2; }
+.map-interstate { stroke: #c0392b; stroke-width: 3; }
+.map-highway { stroke: #7f8c8d; stroke-width: 1.5; }
+.map-river { stroke: #2980b9; stroke-width: 2; }
+.map-lake { fill: #aed6f1; stroke: #2980b9; stroke-width: 1; }
+.map-landmark { stroke: #888; stroke-width: 1; }
+.map-connect-line { stroke: #333; stroke-width: 2; stroke-dasharray: 6 4; }
+.pin circle { stroke: #fff; stroke-width: 2; }
+.pin-provisional circle { fill: #2980b9; }
+.pin-guess circle { fill: #c0392b; }
+.pin-true circle { fill: #27ae60; }
+.pin-dot { fill: #fff !important; stroke: none !important; }
+
+#blazor-error-ui { background: lightyellow; bottom: 0; box-shadow: 0 -1px 2px rgba(0,0,0,.2); display: none; left: 0; padding: .6rem 1.25rem .7rem; position: fixed; width: 100%; z-index: 1000; }
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: .75rem; top: .5rem; }
+.loading-progress { position: relative; display: block; width: 8rem; height: 8rem; margin: 20vh auto 1rem; }
+.loading-progress circle { fill: none; stroke: #e0e0e0; stroke-width: .6rem; transform-origin: 50% 50%; transform: rotate(-90deg); }
+.loading-progress circle:last-child { stroke: #1b6ec2; stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 130%; transition: stroke-dasharray .05s ease-in-out; }
+.loading-progress-text { position: absolute; text-align: center; font-weight: bold; inset: calc(20vh + 3.25rem) 0 auto .2rem; }
+.loading-progress-text:after { content: var(--blazor-load-percentage-text, "Loading"); }

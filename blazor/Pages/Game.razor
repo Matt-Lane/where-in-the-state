@@ -1,0 +1,348 @@
+@page "/"
+@page "/game"
+@using OregonGeographyGame.Models
+@using OregonGeographyGame.Services
+@inject StatePackLoader PackLoader
+@inject SeededGameService GameService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Where in the State — Oregon</PageTitle>
+
+@if (_pack is null)
+{
+    <p>Loading the map…</p>
+}
+else if (_phase == Phase.Start)
+{
+    <h1>Where in the State</h1>
+    <p><strong>Oregon Edition</strong></p>
+    <p>
+        A blank map of <strong>@_pack.Name</strong> will be shown — outline and landmarks,
+        but no city names. Each round names one city; click or tap the map where
+        you think it is. 100 points for a guess within 5 miles, then −1 point per
+        mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
+    </p>
+
+    <div class="start-panel">
+        <label>
+            State
+            <input type="text" value="@_pack.Name" disabled />
+        </label>
+
+        <label>
+            Seed
+            <input type="text" @bind="_seed" @bind:event="oninput" />
+        </label>
+        <p class="hint">Same seed = same cities, same order. Share it to play the same game as a co-worker. Seeds are case-sensitive.</p>
+
+        <div class="button-row">
+            <button @onclick="UseRandomSeed">Random seed</button>
+            <button @onclick="UseDailySeed">Use today's daily seed</button>
+        </div>
+
+        <fieldset>
+            <legend>Landmarks (display only — they don't affect scoring)</legend>
+            <label><input type="checkbox" @bind="_showInterstates" /> Interstates</label>
+            <label><input type="checkbox" @bind="_showHighways" /> Highways</label>
+            <label><input type="checkbox" @bind="_showRivers" /> Rivers</label>
+            <label><input type="checkbox" @bind="_showLakes" /> Lakes</label>
+        </fieldset>
+
+        <p>Questions: <strong>10</strong> (fixed in v1, so games with the same seed stay comparable).</p>
+
+        <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
+            Start game
+        </button>
+    </div>
+}
+else if (_phase == Phase.Round || _phase == Phase.Reveal)
+{
+    var city = _gameCities[_roundIndex];
+    <h1>Question @(_roundIndex + 1) of @_gameCities.Count — Where is <strong>@city.Name</strong>?</h1>
+    <p>Running total: <strong>@_totalScore</strong> points</p>
+    <p class="sr-only">Question @(_roundIndex + 1) of @_gameCities.Count: Where is @city.Name?</p>
+
+    <div class="toggles">
+        <label><input type="checkbox" @bind="_showInterstates" /> Interstates</label>
+        <label><input type="checkbox" @bind="_showHighways" /> Highways</label>
+        <label><input type="checkbox" @bind="_showRivers" /> Rivers</label>
+        <label><input type="checkbox" @bind="_showLakes" /> Lakes</label>
+    </div>
+
+    <MapView Outline="@_pack.Outline"
+             Landmarks="@_pack.Landmarks"
+             ShowInterstates="@_showInterstates"
+             ShowHighways="@_showHighways"
+             ShowRivers="@_showRivers"
+             ShowLakes="@_showLakes"
+             GuessLatitude="@_guessLat"
+             GuessLongitude="@_guessLon"
+             TrueLatitude="@(_phase == Phase.Reveal ? city.Latitude : null)"
+             TrueLongitude="@(_phase == Phase.Reveal ? city.Longitude : null)"
+             Revealed="@(_phase == Phase.Reveal)"
+             Interactive="@(_phase == Phase.Round)"
+             OnMapClicked="OnMapClicked" />
+
+    @if (_phase == Phase.Round)
+    {
+        <div class="button-row">
+            <button class="primary" @onclick="ConfirmGuess" disabled="@(_guessLat is null)">
+                Confirm guess
+            </button>
+            <button @onclick="Pass">Pass (0 points)</button>
+        </div>
+        @if (_guessLat is null)
+        {
+            <p class="hint">Click or tap the map to place a pin. You can click again to move it before confirming.</p>
+        }
+    }
+    else
+    {
+        var result = _results[_roundIndex];
+        <div class="reveal-panel" role="status">
+            @if (result.DistanceMiles is null)
+            {
+                <p>You passed on <strong>@city.Name</strong>. Its real location is the green pin.</p>
+                <p>Points: <strong>0</strong></p>
+            }
+            else
+            {
+                <p>
+                    <strong>@city.Name</strong> is @result.DistanceMiles.Value.ToString("F1") miles
+                    from your guess — <strong>@result.Points points</strong>.
+                </p>
+            }
+            <p>Running total: <strong>@_totalScore</strong> points</p>
+            <button class="primary" @onclick="NextRound">
+                @(_roundIndex + 1 >= _gameCities.Count ? "See results" : "Next city")
+            </button>
+        </div>
+    }
+}
+else if (_phase == Phase.Results)
+{
+    <h1>Results — @_totalScore / 1000</h1>
+    <p>@SummaryText</p>
+
+    <table>
+        <thead>
+            <tr><th>#</th><th>City</th><th>Distance</th><th>Points</th></tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < _results.Count; i++)
+            {
+                var r = _results[i];
+                <tr class="@(r == _bestGuess ? "best" : r == _hardest ? "hardest" : "")">
+                    <td>@(i + 1)</td>
+                    <td>@r.City.Name</td>
+                    <td>@(r.DistanceMiles is null ? "—" : $"{r.DistanceMiles.Value:F1} mi")</td>
+                    <td>@r.Points</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (_bestGuess is not null)
+    {
+        <p>Best guess: <strong>@_bestGuess.City.Name</strong> (@_bestGuess.DistanceMiles?.ToString("F1") mi, @_bestGuess.Points points).</p>
+    }
+    @if (_hardest is not null)
+    {
+        <p>Hardest city: <strong>@_hardest.City.Name</strong> (@(_hardest.DistanceMiles?.ToString("F1") ?? "—") mi, @_hardest.Points points).</p>
+    }
+
+    <div class="button-row">
+        <button class="primary" @onclick="PlayAgainNewSeed">Play again (new random seed)</button>
+        <button @onclick="ReplaySameSeed">Replay same seed</button>
+        <button @onclick="CopyGameLink">Copy game link</button>
+    </div>
+    @if (_copyMessage is not null)
+    {
+        <p role="status">@_copyMessage</p>
+    }
+    <p class="hint">Shareable link: <input type="text" readonly value="@GameLink" class="link-box" /></p>
+}
+
+@code {
+    private enum Phase { Start, Round, Reveal, Results }
+
+    private StatePack? _pack;
+    private string _stateId = "oregon";
+    private string _seed = "";
+    private Phase _phase = Phase.Start;
+
+    private bool _showInterstates = true;
+    private bool _showHighways = true;
+    private bool _showRivers = true;
+    private bool _showLakes = true;
+
+    private List<City> _gameCities = [];
+    private int _roundIndex;
+    private double? _guessLat;
+    private double? _guessLon;
+    private List<RoundResult> _results = [];
+    private int _totalScore;
+    private RoundResult? _bestGuess;
+    private RoundResult? _hardest;
+    private string? _copyMessage;
+
+    private string GameLink =>
+        Navigation.ToAbsoluteUri($"?state={Uri.EscapeDataString(_stateId)}&seed={Uri.EscapeDataString(_seed)}").ToString();
+
+    private string SummaryText =>
+        $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // A shared link (?state=oregon&seed=...) pre-fills the start screen
+        // with that state/seed; the player still presses Start.
+        var uri = new Uri(Navigation.Uri);
+        var query = ParseQuery(uri.Query);
+        if (query.TryGetValue("state", out var state) && !string.IsNullOrWhiteSpace(state))
+        {
+            _stateId = state;
+        }
+
+        _pack = await PackLoader.LoadAsync(_stateId);
+
+        if (query.TryGetValue("seed", out var seed) && !string.IsNullOrWhiteSpace(seed))
+        {
+            _seed = seed;
+        }
+        else
+        {
+            _seed = GameService.DailySeed(_pack.Abbreviation);
+        }
+
+        // Landmark defaults come from the pack manifest.
+        foreach (var layer in _pack.Layers)
+        {
+            switch (layer.Id)
+            {
+                case "interstate": _showInterstates = layer.VisibleByDefault; break;
+                case "highway": _showHighways = layer.VisibleByDefault; break;
+                case "river": _showRivers = layer.VisibleByDefault; break;
+                case "lake": _showLakes = layer.VisibleByDefault; break;
+            }
+        }
+    }
+
+    private void UseRandomSeed() => _seed = GameService.RandomSeed(_pack!.Abbreviation);
+
+    private void UseDailySeed() => _seed = GameService.DailySeed(_pack!.Abbreviation);
+
+    private void StartGame()
+    {
+        if (_pack is null || string.IsNullOrWhiteSpace(_seed))
+        {
+            return;
+        }
+
+        _seed = _seed.Trim();
+        _gameCities = GameService.SelectCities(_pack.Cities, _seed, count: 10).ToList();
+        _roundIndex = 0;
+        _results = [];
+        _totalScore = 0;
+        _bestGuess = null;
+        _hardest = null;
+        _guessLat = null;
+        _guessLon = null;
+        _copyMessage = null;
+        _phase = Phase.Round;
+
+        // Write the seed into the URL so the game is shareable / refresh-safe.
+        Navigation.NavigateTo($"?state={Uri.EscapeDataString(_stateId)}&seed={Uri.EscapeDataString(_seed)}");
+    }
+
+    private void OnMapClicked((double Latitude, double Longitude) point)
+    {
+        // Provisional pin: click again to move it; nothing is scored yet.
+        _guessLat = point.Latitude;
+        _guessLon = point.Longitude;
+    }
+
+    private void ConfirmGuess()
+    {
+        if (_guessLat is null || _guessLon is null)
+        {
+            return;
+        }
+
+        var city = _gameCities[_roundIndex];
+        double distance = DistanceService.HaversineMiles(
+            _guessLat.Value, _guessLon.Value, city.Latitude, city.Longitude);
+        int points = DistanceService.ScoreForDistance(distance);
+        _results.Add(new RoundResult(city, _guessLat, _guessLon, distance, points));
+        _totalScore += points;
+        _phase = Phase.Reveal;
+    }
+
+    private void Pass()
+    {
+        var city = _gameCities[_roundIndex];
+        _results.Add(new RoundResult(city, null, null, null, 0));
+        _guessLat = null;
+        _guessLon = null;
+        _phase = Phase.Reveal;
+    }
+
+    private void NextRound()
+    {
+        _guessLat = null;
+        _guessLon = null;
+        if (_roundIndex + 1 >= _gameCities.Count)
+        {
+            var scored = _results.Where(r => r.DistanceMiles is not null).ToList();
+            _bestGuess = scored.MinBy(r => r.DistanceMiles);
+            _hardest = scored.MaxBy(r => r.DistanceMiles);
+            _phase = Phase.Results;
+        }
+        else
+        {
+            _roundIndex++;
+            _phase = Phase.Round;
+        }
+    }
+
+    private void PlayAgainNewSeed()
+    {
+        _seed = GameService.RandomSeed(_pack!.Abbreviation);
+        StartGame();
+    }
+
+    private void ReplaySameSeed() => StartGame();
+
+    private async Task CopyGameLink()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", GameLink);
+            _copyMessage = "Game link copied.";
+        }
+        catch
+        {
+            _copyMessage = "Copy didn't work in this browser — copy the link in the box below instead.";
+        }
+    }
+
+    private static Dictionary<string, string> ParseQuery(string query)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(query))
+        {
+            return result;
+        }
+
+        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2)
+            {
+                result[Uri.UnescapeDataString(parts[0])] = Uri.UnescapeDataString(parts[1]);
+            }
+        }
+
+        return result;
+    }
+}
