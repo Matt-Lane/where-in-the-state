@@ -206,12 +206,26 @@ HTML = r"""<!doctype html>
   .game-controls { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
   .game-controls .btn-row { margin-top: 0; }
   .controls-hint { color: var(--muted); font-size: 13.5px; align-self: center; }
-  .reveal-line { font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; margin-right: auto; align-self: center; }
-  .map-frame { background: #f8f5ea; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .reveal-line { font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; align-self: center; }
+  .map-frame { position: relative; width: min(100%, calc(min(56vh, 620px) * 1.3203)); margin: 0 auto; background: #f8f5ea; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   /* Sized by viewport height so the whole round fits on one screen;
      the width follows from the viewBox aspect ratio (1000 / 757.4).
      Clicks use getScreenCTM, so they stay exact at any size. */
-  svg#map { display: block; width: min(100%, calc(min(56vh, 620px) * 1.3203)); height: auto; margin: 0 auto; cursor: crosshair; touch-action: none; }
+  svg#map { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: none; }
+  /* Small Confirm bubble next to the pin while placing, so the player
+     doesn't have to travel back to the controls row. The tail points
+     at the pin; near the right edge the bubble flips to the pin's left. */
+  .pin-confirm {
+    position: absolute; z-index: 2; transform: translate(14px, -50%);
+    min-height: 36px; padding: 6px 14px; font-size: 13.5px; white-space: nowrap;
+    background: var(--accent-btn); border-color: var(--accent-btn); color: #fff; border-radius: 999px;
+  }
+  .pin-confirm.flipped { transform: translate(calc(-100% - 14px), -50%); }
+  .pin-confirm::before {
+    content: ""; position: absolute; left: -5px; top: 50%;
+    width: 10px; height: 10px; background: var(--accent-btn); transform: translateY(-50%) rotate(45deg);
+  }
+  .pin-confirm.flipped::before { left: auto; right: -5px; }
   .state-shape { fill: var(--state-fill); stroke: var(--state-stroke); stroke-width: 2; stroke-linejoin: round; }
   .layer-interstate path { fill: none; stroke: var(--interstate); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .layer-highway path { fill: none; stroke: var(--highway); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
@@ -315,8 +329,8 @@ HTML = r"""<!doctype html>
           <span class="controls-hint" id="hint-text">Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.</span>
         </div>
         <div class="btn-row" id="reveal-controls" hidden>
-          <span class="reveal-line" id="reveal-line"></span>
           <button type="button" class="btn-primary" id="btn-next">Next city</button>
+          <span class="reveal-line" id="reveal-line"></span>
         </div>
       </div>
       <div class="map-frame">
@@ -339,6 +353,7 @@ HTML = r"""<!doctype html>
             <circle id="guess-pin-hole" r="3.4" fill="#ffffff"></circle>
           </g>
         </svg>
+        <button type="button" class="pin-confirm" id="pin-confirm" hidden aria-label="Confirm guess">Confirm</button>
       </div>
     </div>
   </section>
@@ -511,6 +526,7 @@ __PURE_JS__
   var btnConfirm = document.getElementById("btn-confirm");
   var btnPass = document.getElementById("btn-pass");
   var btnNext = document.getElementById("btn-next");
+  var pinConfirm = document.getElementById("pin-confirm");
 
   function pinPath(x, y) {
     return "M" + fmt(x) + "," + fmt(y) +
@@ -560,6 +576,13 @@ __PURE_JS__
     pinShape.setAttribute("fill", "#2563eb");
     showGuessPin();
     btnConfirm.disabled = false;
+    /* Show the small Confirm bubble next to the pin (flipped to the
+       pin's left near the right edge, clamped vertically so it never
+       clips out of the map frame). */
+    pinConfirm.style.left = (x / 10).toFixed(2) + "%";
+    pinConfirm.style.top = Math.min(96, Math.max(4, y / 757.4 * 100)).toFixed(2) + "%";
+    pinConfirm.classList.toggle("flipped", x > 750);
+    pinConfirm.hidden = false;
     document.getElementById("hint-text").textContent = "Pin dropped — tap again or drag to move it, then confirm your guess.";
   }
   svg.addEventListener("pointerdown", function (ev) {
@@ -595,6 +618,7 @@ __PURE_JS__
     clearPins();
     btnConfirm.disabled = true;
     btnPass.disabled = false;
+    pinConfirm.hidden = true;
     document.getElementById("reveal-controls").hidden = true;
     document.getElementById("guess-controls").hidden = false;
     document.getElementById("hint-text").textContent = "Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.";
@@ -606,6 +630,7 @@ __PURE_JS__
     phase = "revealed";
     btnConfirm.disabled = true;
     btnPass.disabled = true;
+    pinConfirm.hidden = true;
     document.getElementById("guess-controls").hidden = true;
     var dist = null, points = 0;
     if (!passed && guess) {
@@ -653,6 +678,7 @@ __PURE_JS__
 
   btnConfirm.addEventListener("click", function () { if (guess && phase === "guess") reveal(false); });
   btnPass.addEventListener("click", function () { if (phase === "guess") reveal(true); });
+  pinConfirm.addEventListener("click", function () { if (guess && phase === "guess") reveal(false); });
   btnNext.addEventListener("click", function () {
     game.roundIndex++;
     if (game.roundIndex >= QUESTION_COUNT) showResults();
