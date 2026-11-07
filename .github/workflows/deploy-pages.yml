@@ -1,0 +1,64 @@
+# Deploy the Blazor app to GitHub Pages
+# Live site: https://matt-lane.github.io/where-in-the-state/
+#
+# How it works:
+# - dotnet publish builds the Blazor WebAssembly app to release/wwwroot
+# - the published index.html gets its <base href> rewritten from "/" to
+#   "/where-in-the-state/", because this is a project Pages site, not a
+#   user site. The source wwwroot/index.html stays at "/" so local
+#   `dotnet run` keeps working unchanged.
+# - index.html is copied to 404.html so the /game route (and refreshes
+#   on it) still load the app instead of a GitHub 404.
+# - an empty .nojekyll stops GitHub Pages from running Jekyll, which
+#   would otherwise ignore the _framework folder (underscore prefix).
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish Blazor app
+        run: dotnet publish blazor/OregonGeographyGame.csproj -c Release -o release
+
+      - name: Prepare for GitHub Pages
+        run: |
+          sed -i 's|<base href="/" />|<base href="/where-in-the-state/" />|' release/wwwroot/index.html
+          cp release/wwwroot/index.html release/wwwroot/404.html
+          touch release/wwwroot/.nojekyll
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: release/wwwroot
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
