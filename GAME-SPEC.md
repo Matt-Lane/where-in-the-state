@@ -1,6 +1,6 @@
 # Where in the State — Game Spec (v1 draft)
 
-**First edition:** Oregon. The game name is generic for any state; Oregon is the first state pack.
+**First edition:** Oregon. The game name is generic for any state; Oregon is the first state pack. There is no "Oregon Edition" label in the UI; while playing (Round/Reveal) the header title is `Where in the {StateName}?!` — derived from the state pack's `Name` field (so a future state gets its own title automatically) — and the browser tab follows the same rule. Anywhere else (start screen, results, error) the title is "Where in the State".
 
 **Date:** 2026-11-06
 **Status:** Draft for Matt to review — map approach decided 2026-11-06: SVG + GeoJSON natively in Blazor (see §9, Option A). Click-test prototype built and audited 2026-11-06 (see Appendix).
