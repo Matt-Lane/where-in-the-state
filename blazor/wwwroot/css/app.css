@@ -274,17 +274,35 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
    Confirm/Pass while placing, then the distance and the Next button
    after the reveal. Landmark toggles live on the start screen only,
    so nothing below the map needs a scroll to reach. */
+/* The controls row is a single line in both states: the hint sits to the
+   right of the buttons while placing, and the reveal line takes the same
+   spot after confirming. If the row wrapped, its height would change
+   between states and the map below would bounce up and down. */
 .game-controls {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 0.5rem;
     padding-bottom: 0.75rem;
     margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--line);
 }
-.controls-hint { color: var(--muted); font-size: 0.9rem; }
+.game-controls button { flex-shrink: 0; }
+.controls-hint {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
 .reveal-line {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-weight: 700;
     font-size: 1.05rem;
     color: var(--green);

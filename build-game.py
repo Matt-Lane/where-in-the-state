@@ -214,9 +214,14 @@ HTML = r"""<!doctype html>
      after the reveal. Landmark toggles live on the start screen only,
      so nothing below the map needs a scroll to reach. */
   .game-controls { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
-  .game-controls .btn-row { margin-top: 0; }
-  .controls-hint { color: var(--muted); font-size: 13.5px; align-self: center; }
-  .reveal-line { font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; align-self: center; }
+  /* The controls row is a single line in both states: the hint sits to the
+     right of the buttons while placing, and the reveal line takes the same
+     spot after confirming. If the row wrapped, its height would change
+     between states and the map below would bounce up and down. */
+  .game-controls .btn-row { margin-top: 0; flex-wrap: nowrap; }
+  .game-controls .btn-row button { flex-shrink: 0; }
+  .controls-hint { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 13.5px; align-self: center; }
+  .reveal-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; align-self: center; }
   .map-frame { position: relative; width: min(100%, calc(min(56vh, 620px) * 1.3203)); margin: 0 auto; background: #f8f5ea; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   /* Sized by viewport height so the whole round fits on one screen;
      the width follows from the viewBox aspect ratio (1000 / 757.4).
