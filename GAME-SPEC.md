@@ -112,8 +112,9 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
 2. **Round screen (×10)**
    - Header: "Question 3 of 10 — Where is **Baker City**?" plus running total score so far.
    - The map, blank except for outline + enabled landmarks. No city labels, no pins from previous rounds (previous rounds' reveals are cleared — otherwise later rounds get easier by elimination).
-   - Player clicks / taps the map to place a pin. The pin can be dragged / re-clicked to move it before confirming. A "Confirm guess" button submits. (Accidental-click protection: a single click places a *provisional* pin; it is not scored until confirmed.)
-   - After confirming: the map shows both pins — the player's guess and the real city — connected by a line, with the distance labelled. A panel shows: distance in miles (1 decimal), points for the round, running total. A "Next city" button advances.
+   - Player clicks / taps the map to place a pin. The pin can be dragged / re-clicked to move it before confirming. A "Confirm guess" button submits. (Accidental-click protection: a single click places a *provisional* pin; it is not scored until confirmed.) A "Pass" button scores 0 for the round without a pin. Once a pin is placed, a small Confirm bubble also appears next to the pin on the map, so the player can confirm right where they guessed without traveling back to the controls row.
+   - After confirming: the map shows both pins — the player's guess and the real city — connected by a line. The controls row at the top of the map card swaps to the result: a "Next city" button first (on the left, where Confirm/Pass were, so the mouse barely moves), then the distance in miles (1 decimal) and points for the round. No separate reveal panel, and no running total below the map — the score chip at the top already shows it.
+   - One screen per round: question, controls row and map all fit in the viewport without scrolling. Landmark toggles live on the start screen only (they stay in effect during play).
    - Edge case: a player who does not want to guess can still confirm with no pin placed — treat as a pass for 0 points for that round (or, alternatively, disable Confirm until a pin is placed; decide in build — the pass option is friendlier for a learning tool).
 3. **Results screen**
    - Total score out of 1000, plus a per-round table: city, distance, points.
@@ -223,14 +224,15 @@ public static double HaversineMiles(double lat1, double lon1, double lat2, doubl
 
 ## 8. UI / UX, accessibility & mobile
 
-- **Map first.** The map is the main element on the round screen; controls are compact and out of the way. On desktop the map should fill most of the viewport; on mobile it should be full-width with the question and buttons above/below, not squeezed beside it.
-- **Pin interaction.** Click/tap places a provisional pin; drag or click again to move it; Confirm scores it. After the reveal, both pins and the connecting line are shown, and the map is not clickable until "Next" is pressed.
+- **Map first.** The map is the main element on the round screen; controls are compact and out of the way. The whole round fits on one screen — question, controls row and map in the viewport without scrolling — with the map sized by viewport height on desktop and full-width on mobile.
+- **Pin interaction.** Click/tap places a provisional pin; drag or click again to move it; Confirm scores it. After the reveal, both pins and the connecting line are shown, and the map is not clickable until "Next" is pressed. Click coordinates are converted using the SVG's measured rendered size (not an assumed display size), so pins land correctly at any map size.
 - **Feedback on every round.** Distance, points, and the reveal are shown immediately — the learning happens in that moment. Do not make the player wait until the end to see where a city was.
-- **Landmark toggles.** Interstates / Highways / Rivers / Lakes can be toggled on the start screen and, ideally, also during play (a small control on the map). Toggles are a display preference only.
+- **Landmark toggles.** Interstates / Highways / Rivers / Lakes can be toggled on the start screen; they stay in effect during play but there is no toggle control on the round screen, so the round fits on one screen. Toggles are a display preference only.
 - **Touch.** Tap targets at least 44×44 px; the map must support tap-to-place without scrolling the page (touch-action handling) and pinch-to-zoom must not accidentally place a pin. Test on a real phone, not just a desktop browser resized.
 - **Keyboard / accessibility.** The question is a real heading; buttons are real buttons; the map has a text alternative for the round ("Question 3 of 10: Where is Baker City?") and the reveal is announced in text, not only visually on the map. A keyboard-only path to place a pin is a nice-to-have for v1 — at minimum, results and navigation must be fully keyboard-usable.
 - **No city labels on the map at any point during a round.** Labels would give the game away. Landmark labels (e.g. "I-5", "Willamette River") are fine and help orientation; city names are not.
 - **Performance.** The map data for a state should load once per game start, not per round. Keep the total GeoJSON per state well under ~1 MB after simplification.
+- **Design language (fun but professional).** Warm paper background, deep forest green as the primary color, terracotta as a sparing accent, serif headings with plain system text. Cards with soft shadows, pill toggles, a progress bar and score chip during play, the round's distance and points in the map card's controls row on reveal, and a big score with a score bar on results. Subtle fade-up on screen changes, disabled entirely under `prefers-reduced-motion`. No external fonts or images — everything is CSS.
 
 ---
 

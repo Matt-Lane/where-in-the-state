@@ -1,39 +1,400 @@
-html, body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
-.page { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+/* ============================================================
+   Where in the State — design language
+   Fun but professional: warm paper, deep forest green, and a
+   terracotta accent. Serif headings, plain system text, generous
+   spacing, and soft cards. The map stays the hero; everything
+   else gets out of its way.
+   ============================================================ */
+
+:root {
+    --bg: #f2efe4;
+    --panel: #fffdf6;
+    --panel-soft: #f6f2e7;
+    --ink: #1e2a24;
+    --muted: #5c6b60;
+    --faint: #8a978d;
+    --line: #ddd5bf;
+    --green: #205c46;
+    --green-dark: #173f31;
+    --green-soft: #e3ede6;
+    --rust: #c0563a;
+    --rust-soft: #fbe9e2;
+    --gold: #a5873f;
+    --river: #4d7fa8;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(30, 42, 36, 0.06), 0 6px 18px rgba(30, 42, 36, 0.07);
+}
+
+html, body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+}
+
+.page { max-width: 1100px; margin: 0 auto; padding: 0 1rem 2rem; }
 .content { padding: 0; }
-h1 { font-size: 1.5rem; }
-button { min-height: 44px; min-width: 44px; padding: 0.5rem 1rem; cursor: pointer; }
-button.primary { font-weight: 600; }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-input[type="text"] { min-height: 44px; padding: 0.25rem 0.5rem; }
-label { display: block; margin: 0.5rem 0; }
-fieldset { margin: 1rem 0; }
+
+/* ---------- Site header / footer (MainLayout) ---------- */
+.site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 0 0.9rem;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 1.5rem;
+}
+.wordmark {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+.wordmark .wordmark-dot {
+    display: inline-block;
+    width: 0.6em;
+    height: 0.6em;
+    border-radius: 50% 50% 50% 0;
+    background: var(--rust);
+    transform: rotate(-45deg);
+    margin-right: 0.45rem;
+    vertical-align: 0.05em;
+}
+.site-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--green);
+    background: var(--green-soft);
+    border: 1px solid #c8d8cc;
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+    white-space: nowrap;
+}
+.site-footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--faint);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ---------- Headings & text ---------- */
+h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 2rem;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.5rem;
+}
+h2 { font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; margin: 0 0 0.5rem; }
+.eyebrow {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin: 0 0 0.4rem;
+}
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 44rem; margin: 0 0 1.25rem; }
+.lede strong { color: var(--ink); }
+
+/* ---------- Hero & how it works (start screen) ---------- */
+.hero { padding: 0.5rem 0 0.25rem; }
+.how-it-works {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    padding: 0;
+    margin: 0 0 1.5rem;
+}
+.how-it-works li {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.9rem 1rem;
+    box-shadow: var(--shadow);
+    font-size: 0.95rem;
+    color: var(--muted);
+}
+.how-it-works li strong { display: block; color: var(--ink); font-size: 1rem; margin-bottom: 0.15rem; }
+.how-it-works .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: var(--green);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-right: 0.4rem;
+    vertical-align: 0.1em;
+}
+
+/* ---------- Cards ---------- */
+.card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem 1.4rem;
+    margin-bottom: 1.25rem;
+    animation: fadeUp 0.35s ease both;
+}
+.card h2 {
+    font-size: 0.75rem;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 0.75rem;
+}
+
+/* ---------- Buttons ---------- */
+button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.55rem 1.1rem;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow); background: var(--panel-soft); }
+button:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+button.primary:hover:not(:disabled) { background: var(--green-dark); }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ---------- Forms ---------- */
+input[type="text"] {
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    font: inherit;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    width: 100%;
+    max-width: 26rem;
+}
+input[type="text"]:focus { outline: 3px solid var(--green); outline-offset: 1px; border-color: var(--green); }
+label { display: block; margin: 0.5rem 0; font-weight: 600; }
+fieldset { margin: 1rem 0; border: 1px solid var(--line); border-radius: 10px; padding: 0.75rem 1rem 1rem; }
+fieldset legend { font-weight: 700; font-size: 0.9rem; padding: 0 0.4rem; }
+fieldset label { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0.25rem 0.75rem 0.25rem 0; font-weight: 400; }
+fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--green); }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
-.toggles { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0.5rem 0; }
-.toggles label { display: inline; margin: 0; }
-.hint { color: #555; font-size: 0.9rem; }
-.link-box { width: 100%; }
+.hint { color: var(--muted); font-size: 0.9rem; }
+.link-box { width: 100%; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-table { border-collapse: collapse; margin: 1rem 0; }
-th, td { border: 1px solid #ccc; padding: 0.4rem 0.75rem; text-align: left; }
+
+/* ---------- Round screen: progress & score ---------- */
+/* The whole round fits on one screen: compact header, question,
+   controls row, and a map sized by viewport height — no scrolling
+   between placing a pin and seeing the result. */
+.round-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0.25rem 0 0.6rem;
+}
+.question { font-size: 1.4rem; margin: 0 0 0.6rem; }
+.progress-track {
+    flex: 1;
+    height: 0.6rem;
+    background: #e2ddc9;
+    border-radius: 999px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+}
+.score-chip {
+    margin: 0;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.3rem 0.85rem;
+    box-shadow: var(--shadow);
+}
+.score-chip strong { color: var(--green); }
+
+/* ---------- Map ---------- */
+.map-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.9rem;
+    margin-bottom: 1rem;
+    animation: fadeUp 0.35s ease both;
+}
+/* One row at the top of the map card holds the round's controls:
+   Confirm/Pass while placing, then the distance and the Next button
+   after the reveal. Landmark toggles live on the start screen only,
+   so nothing below the map needs a scroll to reach. */
+.game-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--line);
+}
+.controls-hint { color: var(--muted); font-size: 0.9rem; }
+.reveal-line {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--green);
+    font-variant-numeric: tabular-nums;
+}
+/* The map wrapper is exactly the SVG's box (same size and aspect
+   ratio), so the Confirm bubble can be positioned in percentages of
+   it and track the pin at any map size. */
+.map-wrap { position: relative; width: min(100%, calc(min(56vh, 620px) * 1.3203)); margin: 0 auto; }
+.map-svg {
+    /* Sized by viewport height so the whole round fits on one screen;
+       the width follows from the viewBox aspect ratio (1000 / 757.4).
+       The element box always matches the viewBox ratio, so clicks map
+       exactly — see MapView's live size measurement. */
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1000 / 757.4;
+    display: block;
+    background: #f8f5ea;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    touch-action: manipulation;
+    cursor: crosshair;
+}
+/* Small Confirm bubble next to the pin while placing, so the player
+   doesn't have to travel back to the controls row. The tail points
+   at the pin; near the right edge the bubble flips to the pin's left. */
+.pin-confirm {
+    position: absolute;
+    z-index: 2;
+    transform: translate(14px, -50%);
+    min-height: 36px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+}
+.pin-confirm:hover:not(:disabled) { background: var(--green-dark); }
+.pin-confirm.flipped { transform: translate(calc(-100% - 14px), -50%); }
+.pin-confirm::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    background: var(--green);
+    transform: translateY(-50%) rotate(45deg);
+}
+.pin-confirm.flipped::before { left: auto; right: -5px; }
+.map-outline { fill: #e7edda; stroke: #4a6b52; stroke-width: 2; }
+.map-interstate { stroke: var(--rust); stroke-width: 3; }
+.map-highway { stroke: var(--gold); stroke-width: 1.5; }
+.map-river { stroke: var(--river); stroke-width: 2; }
+.map-lake { fill: #bfd9ea; stroke: var(--river); stroke-width: 1; }
+.map-landmark { stroke: #888; stroke-width: 1; }
+.map-connect-halo { stroke: #fffdf6; stroke-width: 6; opacity: 0.85; }
+.map-connect-line { stroke: var(--rust); stroke-width: 3.5; stroke-dasharray: 7 5; }
+.map-label {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    fill: var(--green);
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: #fffdf6;
+    stroke-width: 4px;
+    stroke-linejoin: round;
+}
+.pin circle { stroke: #fff; stroke-width: 2; }
+.pin-halo { fill: #fff; opacity: 0.55; stroke: none; }
+.pin-cross { stroke: #177245; stroke-width: 3.5; stroke-linecap: round; }
+.pin-provisional circle { fill: var(--river); }
+.pin-guess circle { fill: var(--rust); }
+.pin-true circle { fill: #177245; }
+.pin-dot { fill: #fff !important; stroke: none !important; }
+
+/* ---------- Results ---------- */
+.results-hero { text-align: center; padding: 0.75rem 0 0.25rem; }
+.score-big {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 3.25rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--green);
+    font-variant-numeric: tabular-nums;
+}
+.score-of { font-family: Georgia, "Times New Roman", serif; font-size: 1.5rem; color: var(--muted); }
+.score-bar-track {
+    height: 0.75rem;
+    max-width: 28rem;
+    margin: 0.9rem auto 0.5rem;
+    background: #e2ddc9;
+    border-radius: 999px;
+    overflow: hidden;
+}
+.score-bar-fill { height: 100%; background: var(--green); border-radius: 999px; transition: width 0.5s ease; }
+table { border-collapse: collapse; margin: 1rem 0; width: 100%; }
+table.results-table { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+th, td { border-bottom: 1px solid #e7e2d0; padding: 0.5rem 0.75rem; text-align: left; }
+thead th { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); background: var(--panel-soft); }
+tbody tr:last-child td { border-bottom: none; }
 tr.best { background: #e6f4ea; }
 tr.hardest { background: #fce8e6; }
-.reveal-panel { border: 1px solid #ccc; padding: 1rem; margin: 1rem 0; }
 
-/* Map */
-.map-svg { width: 1000px; max-width: 100%; height: auto; display: block; background: #f7f3e8; touch-action: manipulation; }
-.map-outline { fill: #fffdf5; stroke: #333; stroke-width: 2; }
-.map-interstate { stroke: #c0392b; stroke-width: 3; }
-.map-highway { stroke: #7f8c8d; stroke-width: 1.5; }
-.map-river { stroke: #2980b9; stroke-width: 2; }
-.map-lake { fill: #aed6f1; stroke: #2980b9; stroke-width: 1; }
-.map-landmark { stroke: #888; stroke-width: 1; }
-.map-connect-line { stroke: #333; stroke-width: 2; stroke-dasharray: 6 4; }
-.pin circle { stroke: #fff; stroke-width: 2; }
-.pin-provisional circle { fill: #2980b9; }
-.pin-guess circle { fill: #c0392b; }
-.pin-true circle { fill: #27ae60; }
-.pin-dot { fill: #fff !important; stroke: none !important; }
+/* ---------- Not-found / error ---------- */
+.error-card { border-color: var(--rust); }
+.error-card h1 { color: var(--rust); }
+
+/* ---------- Motion ---------- */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 700px) {
+    h1 { font-size: 1.6rem; }
+    .question { font-size: 1.2rem; }
+    .how-it-works { grid-template-columns: 1fr; }
+    .score-big { font-size: 2.6rem; }
+    .round-status { flex-wrap: wrap; }
+}
 
 #blazor-error-ui { background: lightyellow; bottom: 0; box-shadow: 0 -1px 2px rgba(0,0,0,.2); display: none; left: 0; padding: .6rem 1.25rem .7rem; position: fixed; width: 100%; z-index: 1000; }
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: .75rem; top: .5rem; }

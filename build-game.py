@@ -125,19 +125,19 @@ HTML = r"""<!doctype html>
 <style>
   :root {
     color-scheme: light;
-    --bg: #e9edee; --panel: #ffffff; --panel-soft: #f4f6f5;
-    --ink: #1d2a30; --muted: #5b6a70; --faint: #85939a; --line: #d3dbdd;
-    --state-fill: #e9efe1; --state-stroke: #61755a;
-    --interstate: #c0503a; --highway: #a5873f; --river: #4d7fa8;
-    --lake-fill: #bfd9ea; --lake-stroke: #7ea9c9;
-    --guess-blue: #2563eb; --guess-red: #cf2e4f; --truth: #177245;
+    --bg: #f2efe4; --panel: #fffdf6; --panel-soft: #f6f2e7;
+    --ink: #1e2a24; --muted: #5c6b60; --faint: #8a978d; --line: #ddd5bf;
+    --state-fill: #e7edda; --state-stroke: #4a6b52;
+    --interstate: #c0563a; --highway: #a5873f; --river: #4d7fa8;
+    --lake-fill: #bfd9ea; --lake-stroke: #4d7fa8;
+    --guess-blue: #4d7fa8; --guess-red: #c0563a; --truth: #177245;
     --accent: #205c46; --accent-btn: #205c46;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     background: var(--bg); color: var(--ink);
-    font-family: -apple-system, "Segoe UI", "Libre Franklin", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased;
   }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 40px; }
@@ -196,12 +196,36 @@ HTML = r"""<!doctype html>
   .toggle[data-layer="lake"]       { --c: var(--river); }
   .toggle .swatch { color: var(--c, var(--muted)); }
 
-  .score-line { font-size: 16px; font-weight: 600; margin: 0 0 12px; font-variant-numeric: tabular-nums; }
+  .score-line { font-size: 16px; font-weight: 600; margin: 0 0 10px; font-variant-numeric: tabular-nums; }
+  #round-heading { font-size: 22px; margin: 0 0 6px; }
   .map-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
-  .map-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 2px 2px 12px; }
-  .toolbar-label { font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); margin-right: 2px; }
-  .map-frame { background: #fcfcfa; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  /* One row at the top of the map card holds the round's controls:
+     Confirm/Pass while placing, then the distance and the Next button
+     after the reveal. Landmark toggles live on the start screen only,
+     so nothing below the map needs a scroll to reach. */
+  .game-controls { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .game-controls .btn-row { margin-top: 0; }
+  .controls-hint { color: var(--muted); font-size: 13.5px; align-self: center; }
+  .reveal-line { font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; align-self: center; }
+  .map-frame { position: relative; width: min(100%, calc(min(56vh, 620px) * 1.3203)); margin: 0 auto; background: #f8f5ea; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  /* Sized by viewport height so the whole round fits on one screen;
+     the width follows from the viewBox aspect ratio (1000 / 757.4).
+     Clicks use getScreenCTM, so they stay exact at any size. */
   svg#map { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: none; }
+  /* Small Confirm bubble next to the pin while placing, so the player
+     doesn't have to travel back to the controls row. The tail points
+     at the pin; near the right edge the bubble flips to the pin's left. */
+  .pin-confirm {
+    position: absolute; z-index: 2; transform: translate(14px, -50%);
+    min-height: 36px; padding: 6px 14px; font-size: 13.5px; white-space: nowrap;
+    background: var(--accent-btn); border-color: var(--accent-btn); color: #fff; border-radius: 999px;
+  }
+  .pin-confirm.flipped { transform: translate(calc(-100% - 14px), -50%); }
+  .pin-confirm::before {
+    content: ""; position: absolute; left: -5px; top: 50%;
+    width: 10px; height: 10px; background: var(--accent-btn); transform: translateY(-50%) rotate(45deg);
+  }
+  .pin-confirm.flipped::before { left: auto; right: -5px; }
   .state-shape { fill: var(--state-fill); stroke: var(--state-stroke); stroke-width: 2; stroke-linejoin: round; }
   .layer-interstate path { fill: none; stroke: var(--interstate); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .layer-highway path { fill: none; stroke: var(--highway); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
@@ -212,14 +236,7 @@ HTML = r"""<!doctype html>
   .truth-marker circle { fill: none; stroke: var(--truth); stroke-width: 2.4; }
   .truth-marker line { stroke: var(--truth); stroke-width: 2.4; stroke-linecap: round; }
   .guess-pin { pointer-events: none; }
-  .map-hint { padding: 10px 2px 0; color: var(--faint); font-size: 13px; }
 
-  .reveal { border: 2px solid var(--accent); }
-  .reveal-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 12px; }
-  .stat { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-  .stat .v { font-size: 24px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .stat .v small { font-size: 13px; font-weight: 600; color: var(--muted); }
-  .stat .k { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
   .legend { font-size: 13.5px; color: var(--muted); margin: 0 0 4px; }
   .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin: 0 4px 0 10px; }
   .dot.red { background: var(--guess-red); } .dot.green { background: var(--truth); } .dot.blue { background: var(--guess-blue); }
@@ -243,8 +260,7 @@ HTML = r"""<!doctype html>
   @media (max-width: 700px) {
     .wrap { padding: 20px 14px 32px; }
     h1 { font-size: 25px; }
-    .reveal-stats { grid-template-columns: 1fr 1fr 1fr; }
-    .stat .v { font-size: 19px; }
+    #round-heading { font-size: 19px; }
   }
 </style>
 </head>
@@ -287,7 +303,7 @@ HTML = r"""<!doctype html>
         <button type="button" class="toggle" data-layer="river" aria-pressed="true"><span class="swatch"></span>Rivers</button>
         <button type="button" class="toggle" data-layer="lake" aria-pressed="true"><span class="swatch fill"></span>Lakes</button>
       </div>
-      <p class="muted small" style="margin-top:12px">Landmarks are for orientation only — they don&rsquo;t affect scoring. You can also toggle them during play.</p>
+      <p class="muted small" style="margin-top:12px">Landmarks are for orientation only — they don&rsquo;t affect scoring. Your choices stay in effect during play.</p>
     </div>
 
     <div class="card">
@@ -306,12 +322,16 @@ HTML = r"""<!doctype html>
     <p class="score-line">Score: <span id="running-total">0</span> / 1000 &nbsp;&middot;&nbsp; Seed: <span id="game-seed-label"></span></p>
 
     <div class="map-card">
-      <div class="map-toolbar" role="group" aria-label="Map layers">
-        <span class="toolbar-label">Layers</span>
-        <button type="button" class="toggle" data-layer="interstate" aria-pressed="true"><span class="swatch"></span>Interstates</button>
-        <button type="button" class="toggle" data-layer="highway" aria-pressed="true"><span class="swatch"></span>Highways</button>
-        <button type="button" class="toggle" data-layer="river" aria-pressed="true"><span class="swatch"></span>Rivers</button>
-        <button type="button" class="toggle" data-layer="lake" aria-pressed="true"><span class="swatch fill"></span>Lakes</button>
+      <div class="game-controls">
+        <div class="btn-row" id="guess-controls">
+          <button type="button" class="btn-primary" id="btn-confirm" disabled>Confirm guess</button>
+          <button type="button" id="btn-pass">Pass (0 points)</button>
+          <span class="controls-hint" id="hint-text">Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.</span>
+        </div>
+        <div class="btn-row" id="reveal-controls" hidden>
+          <button type="button" class="btn-primary" id="btn-next">Next city</button>
+          <span class="reveal-line" id="reveal-line"></span>
+        </div>
       </div>
       <div class="map-frame">
         <svg id="map" viewBox="0 0 1000 757.4" role="img" aria-label="Blank map of Oregon with interstates, highways, rivers and lakes. Tap to place a pin.">
@@ -333,26 +353,7 @@ HTML = r"""<!doctype html>
             <circle id="guess-pin-hole" r="3.4" fill="#ffffff"></circle>
           </g>
         </svg>
-      </div>
-      <div class="map-hint"><span id="hint-text">Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.</span></div>
-    </div>
-
-    <div class="btn-row" id="guess-controls">
-      <button type="button" class="btn-primary" id="btn-confirm" disabled>Confirm guess</button>
-      <button type="button" id="btn-pass">Pass (0 points)</button>
-    </div>
-
-    <div class="card reveal" id="reveal-panel" hidden aria-live="polite">
-      <h2 id="reveal-title">Result</h2>
-      <p class="legend"><span class="dot red"></span>Your guess <span class="dot green"></span><span id="reveal-city-name"></span> (true location)</p>
-      <div class="reveal-stats">
-        <div class="stat"><div class="v"><span id="r-dist">—</span> <small>mi</small></div><div class="k">Distance off</div></div>
-        <div class="stat"><div class="v"><span id="r-points">—</span> <small>/ 100</small></div><div class="k">Points this round</div></div>
-        <div class="stat"><div class="v"><span id="r-total">—</span> <small>/ 1000</small></div><div class="k">Running total</div></div>
-      </div>
-      <p id="r-verdict" class="muted"></p>
-      <div class="btn-row">
-        <button type="button" class="btn-primary" id="btn-next">Next city</button>
+        <button type="button" class="pin-confirm" id="pin-confirm" hidden aria-label="Confirm guess">Confirm</button>
       </div>
     </div>
   </section>
@@ -468,7 +469,7 @@ __PURE_JS__
     if (g) g.appendChild(makePath(geometryToPath(f.geometry)));
   });
 
-  /* ============ Landmark toggles (start screen + in play) ============ */
+  /* ============ Landmark toggles (start screen only) ============ */
   var layerState = { interstate: true, highway: true, river: true, lake: true };
   document.querySelectorAll(".toggle[data-layer]").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -525,6 +526,7 @@ __PURE_JS__
   var btnConfirm = document.getElementById("btn-confirm");
   var btnPass = document.getElementById("btn-pass");
   var btnNext = document.getElementById("btn-next");
+  var pinConfirm = document.getElementById("pin-confirm");
 
   function pinPath(x, y) {
     return "M" + fmt(x) + "," + fmt(y) +
@@ -574,6 +576,13 @@ __PURE_JS__
     pinShape.setAttribute("fill", "#2563eb");
     showGuessPin();
     btnConfirm.disabled = false;
+    /* Show the small Confirm bubble next to the pin (flipped to the
+       pin's left near the right edge, clamped vertically so it never
+       clips out of the map frame). */
+    pinConfirm.style.left = (x / 10).toFixed(2) + "%";
+    pinConfirm.style.top = Math.min(96, Math.max(4, y / 757.4 * 100)).toFixed(2) + "%";
+    pinConfirm.classList.toggle("flipped", x > 750);
+    pinConfirm.hidden = false;
     document.getElementById("hint-text").textContent = "Pin dropped — tap again or drag to move it, then confirm your guess.";
   }
   svg.addEventListener("pointerdown", function (ev) {
@@ -609,7 +618,8 @@ __PURE_JS__
     clearPins();
     btnConfirm.disabled = true;
     btnPass.disabled = false;
-    document.getElementById("reveal-panel").hidden = true;
+    pinConfirm.hidden = true;
+    document.getElementById("reveal-controls").hidden = true;
     document.getElementById("guess-controls").hidden = false;
     document.getElementById("hint-text").textContent = "Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.";
     updateRoundHeader();
@@ -620,6 +630,7 @@ __PURE_JS__
     phase = "revealed";
     btnConfirm.disabled = true;
     btnPass.disabled = true;
+    pinConfirm.hidden = true;
     document.getElementById("guess-controls").hidden = true;
     var dist = null, points = 0;
     if (!passed && guess) {
@@ -631,17 +642,24 @@ __PURE_JS__
     }
     game.total += points;
     game.results.push({ city: city, distance: dist, points: points, passed: passed });
-    document.getElementById("reveal-title").textContent =
-      passed ? "Passed — " + city.name : city.name + " revealed";
-    document.getElementById("reveal-city-name").textContent = city.name;
-    document.getElementById("r-dist").textContent = dist === null ? "—" : dist.toFixed(1);
-    document.getElementById("r-points").textContent = points;
-    document.getElementById("r-total").textContent = game.total;
-    var verdict = document.getElementById("r-verdict");
+    /* The controls row at the top of the map card swaps to the result:
+       distance and points, plus the Next button. No separate reveal
+       panel, and no running total here — the score line at the top
+       already shows it. */
+    var line = document.getElementById("reveal-line");
+    if (passed) {
+      line.textContent = "You passed — the green pin is " + city.name + ".";
+    } else if (dist < 2) {
+      line.textContent = "Dead on — " + dist.toFixed(1) + " mi off · 100 points";
+    } else if (Math.round(dist) <= 5) {
+      line.textContent = "Within 5 miles — " + dist.toFixed(1) + " mi off · 100 points";
+    } else if (points > 0) {
+      line.textContent = dist.toFixed(1) + " mi off · " + points + " points";
+    } else {
+      line.textContent = dist.toFixed(1) + " mi off · 0 points";
+    }
     if (passed) {
       guessPin.classList.add("layer-hidden");
-      verdict.textContent = "No pin placed — 0 points this round. The true location of " + city.name +
-        " is shown in green on the map. (Passing hides your guess pin, since there was none.)";
       /* For a pass there is no guess pin; still show the true location. */
       var tp = project(city.longitude, city.latitude);
       document.getElementById("truth-circle").setAttribute("cx", fmt(tp[0]));
@@ -651,22 +669,16 @@ __PURE_JS__
       setLine("truth-v1", fmt(tp[0]), fmt(tp[1] - 13), fmt(tp[0]), fmt(tp[1] - 4));
       setLine("truth-v2", fmt(tp[0]), fmt(tp[1] + 4), fmt(tp[0]), fmt(tp[1] + 13));
       truthMarker.classList.remove("layer-hidden");
-    } else if (dist < 2) {
-      verdict.textContent = "Dead on — within about 2 miles. Full 100 points.";
-    } else if (Math.round(dist) <= 5) {
-      verdict.textContent = "Within 5 miles — full 100 points.";
-    } else if (points > 0) {
-      verdict.textContent = "Full points within 5 miles, then −1 point per mile beyond that — " + points + " points this round.";
-    } else {
-      verdict.textContent = "More than 105 miles off — 0 points this round, but now you know where " + city.name + " sits.";
     }
     btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : "Next city";
-    document.getElementById("reveal-panel").hidden = false;
+    document.getElementById("guess-controls").hidden = true;
+    document.getElementById("reveal-controls").hidden = false;
     document.getElementById("running-total").textContent = game.total;
   }
 
   btnConfirm.addEventListener("click", function () { if (guess && phase === "guess") reveal(false); });
   btnPass.addEventListener("click", function () { if (phase === "guess") reveal(true); });
+  pinConfirm.addEventListener("click", function () { if (guess && phase === "guess") reveal(false); });
   btnNext.addEventListener("click", function () {
     game.roundIndex++;
     if (game.roundIndex >= QUESTION_COUNT) showResults();
