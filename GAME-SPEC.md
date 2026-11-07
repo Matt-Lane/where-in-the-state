@@ -120,7 +120,7 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
    - Total score out of 1000, plus a per-round table: city, distance, points.
    - Best guess (smallest distance) and hardest city (largest distance) highlighted — these are the learning hooks.
    - "Play again" (new random seed), "Replay same seed" (same cities/order — useful for practice), and "Copy game link" (URL with the seed, so a co-worker can play the identical game).
-   - Optional: a simple textual summary the player can copy/paste into chat/email, e.g. "I scored 742/1000 on Oregon, seed OR-2026-11-06".
+   - A two-line summary in a styled box under a "Send a challenge!" label, with a "Copy" button: "I scored 742/1000 on Oregon, seed OR-2026-11-06" followed by "Play the same game: https://matt-lane.github.io/where-in-the-state/oregon/OR-2026-11-06", so the recipient can open the same seed with one tap. The summary is read-only (no text field), and the link is clickable on the results screen.
 
 ### 4.2 State during play
 - The selected 10 cities and their order are fixed when the game starts (from the seed). They do not change on refresh if the seed is in the URL.
@@ -162,6 +162,7 @@ The same seed string must produce the same 10 cities in the same order, for any 
 
 ### 5.4 Seed in the URL
 - On start, navigate to `/<state>/<url-encoded seed>`, e.g. `/oregon/OR-2026-11-06`. The results "Copy game link" button copies this URL.
+- The results "Copy summary" button copies the two-line summary (score line + "Play the same game: <link>"), so the recipient can open the same seed with one tap. In the standalone JavaScript version the link is built from the live-site base, not the page's own address — in the test-page preview the origin is the preview host, which is not a shareable game link. Note: the preview and the live site use different random generators for the same seed, so a summary copied from the preview links to the same seed on the live site but the recipient may get a different set of 10 cities.
 - Loading the app with `/<state>/<seed>` pre-fills the start screen with that state/seed, so a shared link is one click to the same game.
 - The older `?state=…&seed=…` query form still works for links shared before the path form existed.
 - If the state in the URL doesn't exist, the app shows a "couldn't find that state" screen with a way back to Oregon instead of hanging on "Loading the map…".

@@ -149,7 +149,11 @@ else if (_phase == Phase.Results)
         <div class="score-bar-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="1000" aria-label="Score out of 1000">
             <div class="score-bar-fill" style="width: @(_totalScore / 10)%"></div>
         </div>
-        <p>@SummaryText</p>
+        <p class="challenge-label">Send a challenge!</p>
+        <div class="summary-box">
+            <p>I scored @_totalScore/1000 on @(_pack?.Name ?? "Oregon"), seed @_seed</p>
+            <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
+        </div>
     </div>
 
     <table class="results-table">
@@ -183,6 +187,7 @@ else if (_phase == Phase.Results)
         <button class="primary" @onclick="PlayAgainNewSeed">Play again (new random seed)</button>
         <button @onclick="ReplaySameSeed">Replay same seed</button>
         <button @onclick="CopyGameLink">Copy game link</button>
+        <button @onclick="CopySummary">Copy</button>
     </div>
     @if (_copyMessage is not null)
     {
@@ -225,7 +230,7 @@ else if (_phase == Phase.Results)
             $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}").ToString();
 
     private string SummaryText =>
-        $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}";
+        $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}\nPlay the same game: {GameLink}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -414,6 +419,19 @@ else if (_phase == Phase.Results)
         catch
         {
             _copyMessage = "Copy didn't work in this browser — copy the link in the box below instead.";
+        }
+    }
+
+    private async Task CopySummary()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", SummaryText);
+            _copyMessage = "Summary copied.";
+        }
+        catch
+        {
+            _copyMessage = "Copy didn't work in this browser — you can select the summary above to copy it by hand.";
         }
     }
 
