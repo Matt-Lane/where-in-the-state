@@ -43,7 +43,7 @@ else if (_phase == Phase.Start)
 
         <label>
             Seed
-            <input type="text" @bind="_seed" @bind:event="oninput" />
+            <input type="text" @bind="_seed" @bind:event="oninput" maxlength="100" />
         </label>
         <p class="hint">Same seed = same cities, same order. Share it to play the same game as a co-worker. Seeds are case-sensitive.</p>
 
@@ -229,6 +229,16 @@ else if (_phase == Phase.Results)
             _stateId = stateFromUrl.Trim().ToLowerInvariant();
         }
 
+        // State ids are pack directory names under data/states/, so they
+        // may only be lowercase letters, digits and hyphens. Anything
+        // else (e.g. "../", "%2e%2e", spaces) can never be a real pack
+        // and must not reach the loader as a path segment.
+        if (_stateId.Length == 0 || _stateId.Any(c => !(c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-')))
+        {
+            _loadFailed = true;
+            return;
+        }
+
         // If the state pack can't be loaded (unknown state, missing or
         // broken data, network error), show the not-found screen instead
         // of hanging on "Loading the map…" forever. LoadAsync throws on
@@ -244,8 +254,10 @@ else if (_phase == Phase.Results)
             return;
         }
 
-        if (_pack is null)
+        if (_pack is null || _pack.Cities.Count == 0)
         {
+            // A pack with no cities can't produce a game: StartGame would
+            // index _gameCities[0] out of range.
             _loadFailed = true;
             return;
         }
@@ -278,9 +290,9 @@ else if (_phase == Phase.Results)
         Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
     }
 
-    private void UseRandomSeed() => _seed = GameService.RandomSeed(_pack!.Abbreviation);
+    private void UseRandomSeed() => _seed = GameService.RandomSeed(_pack?.Abbreviation ?? "OR");
 
-    private void UseDailySeed() => _seed = GameService.DailySeed(_pack!.Abbreviation);
+    private void UseDailySeed() => _seed = GameService.DailySeed(_pack?.Abbreviation ?? "OR");
 
     private void StartGame()
     {
@@ -291,6 +303,10 @@ else if (_phase == Phase.Results)
 
         _seed = _seed.Trim();
         _gameCities = GameService.SelectCities(_pack.Cities, _seed, count: 10).ToList();
+        if (_gameCities.Count == 0)
+        {
+            return;
+        }
         _roundIndex = 0;
         _results = [];
         _totalScore = 0;
@@ -349,8 +365,12 @@ else if (_phase == Phase.Results)
         if (_roundIndex + 1 >= _gameCities.Count)
         {
             var scored = _results.Where(r => r.DistanceMiles is not null).ToList();
-            _bestGuess = scored.MinBy(r => r.DistanceMiles);
-            _hardest = scored.MaxBy(r => r.DistanceMiles);
+            // MinBy/MaxBy throw on an empty sequence, and scored is empty
+            // when the player passed every round — then there is no best
+            // or hardest guess to show. _bestGuess/_hardest are nullable
+            // and the results screen already handles null.
+            _bestGuess = scored.Count > 0 ? scored.MinBy(r => r.DistanceMiles) : null;
+            _hardest = scored.Count > 0 ? scored.MaxBy(r => r.DistanceMiles) : null;
             _phase = Phase.Results;
         }
         else
@@ -362,7 +382,7 @@ else if (_phase == Phase.Results)
 
     private void PlayAgainNewSeed()
     {
-        _seed = GameService.RandomSeed(_pack!.Abbreviation);
+        _seed = GameService.RandomSeed(_pack?.Abbreviation ?? "OR");
         StartGame();
     }
 
@@ -394,7 +414,17 @@ else if (_phase == Phase.Results)
             var parts = pair.Split('=', 2);
             if (parts.Length == 2)
             {
-                result[Uri.UnescapeDataString(parts[0])] = Uri.UnescapeDataString(parts[1]);
+                // A malformed % escape (e.g. ?seed=%ZZ) makes
+                // UnescapeDataString throw; skip that pair instead of
+                // crashing page initialization.
+                try
+                {
+                    result[Uri.UnescapeDataString(parts[0])] = Uri.UnescapeDataString(parts[1]);
+                }
+                catch (UriFormatException)
+                {
+                    // Ignore this pair; the defaults apply.
+                }
             }
         }
 
