@@ -63,18 +63,6 @@ html, body {
     margin-right: 0.45rem;
     vertical-align: 0.05em;
 }
-.site-badge {
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--green);
-    background: var(--green-soft);
-    border: 1px solid #c8d8cc;
-    border-radius: 999px;
-    padding: 0.3rem 0.75rem;
-    white-space: nowrap;
-}
 .site-footer {
     margin-top: 2.5rem;
     padding-top: 1rem;
