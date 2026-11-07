@@ -105,6 +105,9 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
         else
         {
             var result = _results[_roundIndex];
+            <button class="primary" @onclick="NextRound">
+                @(_roundIndex + 1 >= _gameCities.Count ? "See results" : "Next city")
+            </button>
             <span class="reveal-line">
                 @if (result.DistanceMiles is null)
                 {
@@ -115,9 +118,6 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
                     <text>@result.DistanceMiles.Value.ToString("F1") mi off · @result.Points points</text>
                 }
             </span>
-            <button class="primary" @onclick="NextRound">
-                @(_roundIndex + 1 >= _gameCities.Count ? "See results" : "Next city")
-            </button>
         }
     </div>
 
@@ -134,7 +134,8 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
              TrueName="@(_phase == Phase.Reveal ? city.Name : null)"
              Revealed="@(_phase == Phase.Reveal)"
              Interactive="@(_phase == Phase.Round)"
-             OnMapClicked="OnMapClicked" />
+             OnMapClicked="OnMapClicked"
+             OnConfirmClicked="ConfirmGuess" />
     </div>
 }
 else if (_phase == Phase.Results)

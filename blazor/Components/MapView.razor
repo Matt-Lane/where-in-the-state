@@ -2,6 +2,7 @@
 @using OregonGeographyGame.Services
 @inject IJSRuntime JS
 
+<div class="map-wrap">
 <svg viewBox="0 0 1000 757.4"
      class="map-svg"
      role="img"
@@ -84,6 +85,25 @@
     }
 </svg>
 
+@* A small Confirm bubble next to the pin while placing, so the player
+   doesn't have to travel back to the controls row. It sits to the
+   right of the pin (flipped to the left near the right edge) and is
+   positioned in percentages of the map wrapper, which is exactly the
+   SVG's box, so it tracks the pin at any map size. *@
+@if (Interactive && !Revealed && GuessLatitude is not null && GuessLongitude is not null)
+{
+    var (gx, gy) = MapProjection.LatLonToSvg(GuessLatitude.Value, GuessLongitude.Value);
+    var leftPct = gx / 10.0;
+    var topPct = Math.Clamp(gy / 757.4 * 100.0, 4, 96);
+    var flipped = gx > 750;
+    <button type="button"
+            class="pin-confirm@(flipped ? " flipped" : "")"
+            style="left: @leftPct.ToString("F2")%; top: @topPct.ToString("F2")%;"
+            aria-label="Confirm guess"
+            @onclick="OnConfirmClicked">Confirm</button>
+}
+</div>
+
 @code {
     [Parameter] public IReadOnlyList<MapFeature> Outline { get; set; } = [];
     [Parameter] public IReadOnlyList<MapFeature> Landmarks { get; set; } = [];
@@ -118,6 +138,9 @@
     [Parameter] public double RenderedHeight { get; set; } = 757.4;
 
     [Parameter] public EventCallback<(double Latitude, double Longitude)> OnMapClicked { get; set; }
+
+    /// <summary>Raised when the player taps the Confirm bubble next to the pin.</summary>
+    [Parameter] public EventCallback OnConfirmClicked { get; set; }
 
     private ElementReference _svgRef;
 

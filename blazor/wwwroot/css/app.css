@@ -269,25 +269,56 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     font-size: 1.05rem;
     color: var(--green);
     font-variant-numeric: tabular-nums;
-    margin-right: auto;
 }
+/* The map wrapper is exactly the SVG's box (same size and aspect
+   ratio), so the Confirm bubble can be positioned in percentages of
+   it and track the pin at any map size. */
+.map-wrap { position: relative; width: min(100%, calc(min(56vh, 620px) * 1.3203)); margin: 0 auto; }
 .map-svg {
     /* Sized by viewport height so the whole round fits on one screen;
-       the width follows from the viewBox aspect ratio (1000 / 757.4),
-       capped at the card width. The element box always matches the
-       viewBox ratio, so clicks map exactly — see MapView's live size
-       measurement. */
-    width: min(100%, calc(min(56vh, 620px) * 1.3203));
+       the width follows from the viewBox aspect ratio (1000 / 757.4).
+       The element box always matches the viewBox ratio, so clicks map
+       exactly — see MapView's live size measurement. */
+    width: 100%;
     height: auto;
     aspect-ratio: 1000 / 757.4;
     display: block;
-    margin: 0 auto;
     background: #f8f5ea;
     border: 1px solid var(--line);
     border-radius: 8px;
     touch-action: manipulation;
     cursor: crosshair;
 }
+/* Small Confirm bubble next to the pin while placing, so the player
+   doesn't have to travel back to the controls row. The tail points
+   at the pin; near the right edge the bubble flips to the pin's left. */
+.pin-confirm {
+    position: absolute;
+    z-index: 2;
+    transform: translate(14px, -50%);
+    min-height: 36px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+}
+.pin-confirm:hover:not(:disabled) { background: var(--green-dark); }
+.pin-confirm.flipped { transform: translate(calc(-100% - 14px), -50%); }
+.pin-confirm::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    background: var(--green);
+    transform: translateY(-50%) rotate(45deg);
+}
+.pin-confirm.flipped::before { left: auto; right: -5px; }
 .map-outline { fill: #e7edda; stroke: #4a6b52; stroke-width: 2; }
 .map-interstate { stroke: var(--rust); stroke-width: 3; }
 .map-highway { stroke: var(--gold); stroke-width: 1.5; }
