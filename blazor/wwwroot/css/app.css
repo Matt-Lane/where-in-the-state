@@ -204,12 +204,16 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ---------- Round screen: progress & score ---------- */
+/* The whole round fits on one screen: compact header, question,
+   controls row, and a map sized by viewport height — no scrolling
+   between placing a pin and seeing the result. */
 .round-status {
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin: 0.25rem 0 1rem;
+    margin: 0.25rem 0 0.6rem;
 }
+.question { font-size: 1.4rem; margin: 0 0 0.6rem; }
 .progress-track {
     flex: 1;
     height: 0.6rem;
@@ -246,28 +250,38 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     margin-bottom: 1rem;
     animation: fadeUp 0.35s ease both;
 }
-.toggles { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 0.75rem; }
-.toggles label {
-    display: inline-flex;
+/* One row at the top of the map card holds the round's controls:
+   Confirm/Pass while placing, then the distance and the Next button
+   after the reveal. Landmark toggles live on the start screen only,
+   so nothing below the map needs a scroll to reach. */
+.game-controls {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.4rem;
-    margin: 0;
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--muted);
-    background: var(--panel-soft);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--line);
 }
-.toggles label:has(input:checked) { color: var(--ink); border-color: var(--green); background: var(--green-soft); }
-.toggles input[type="checkbox"] { accent-color: var(--green); width: 1rem; height: 1rem; }
+.controls-hint { color: var(--muted); font-size: 0.9rem; }
+.reveal-line {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--green);
+    font-variant-numeric: tabular-nums;
+    margin-right: auto;
+}
 .map-svg {
-    width: 1000px;
-    max-width: 100%;
+    /* Sized by viewport height so the whole round fits on one screen;
+       the width follows from the viewBox aspect ratio (1000 / 757.4),
+       capped at the card width. The element box always matches the
+       viewBox ratio, so clicks map exactly — see MapView's live size
+       measurement. */
+    width: min(100%, calc(min(56vh, 620px) * 1.3203));
     height: auto;
+    aspect-ratio: 1000 / 757.4;
     display: block;
+    margin: 0 auto;
     background: #f8f5ea;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -280,35 +294,26 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .map-river { stroke: var(--river); stroke-width: 2; }
 .map-lake { fill: #bfd9ea; stroke: var(--river); stroke-width: 1; }
 .map-landmark { stroke: #888; stroke-width: 1; }
-.map-connect-line { stroke: var(--rust); stroke-width: 2; stroke-dasharray: 6 4; }
+.map-connect-halo { stroke: #fffdf6; stroke-width: 6; opacity: 0.85; }
+.map-connect-line { stroke: var(--rust); stroke-width: 3.5; stroke-dasharray: 7 5; }
+.map-label {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    fill: var(--green);
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: #fffdf6;
+    stroke-width: 4px;
+    stroke-linejoin: round;
+}
 .pin circle { stroke: #fff; stroke-width: 2; }
+.pin-halo { fill: #fff; opacity: 0.55; stroke: none; }
+.pin-cross { stroke: #177245; stroke-width: 3.5; stroke-linecap: round; }
 .pin-provisional circle { fill: var(--river); }
 .pin-guess circle { fill: var(--rust); }
 .pin-true circle { fill: #177245; }
 .pin-dot { fill: #fff !important; stroke: none !important; }
-
-/* ---------- Reveal panel ---------- */
-.reveal-panel {
-    background: var(--panel);
-    border: 2px solid var(--green);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 1.25rem 1.4rem;
-    margin: 1rem 0;
-    animation: fadeUp 0.35s ease both;
-}
-.reveal-panel h2 { font-family: Georgia, "Times New Roman", serif; font-size: 1.4rem; text-transform: none; letter-spacing: 0; color: var(--ink); }
-.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin: 0.75rem 0 1rem; }
-.stat {
-    background: var(--panel-soft);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 0.75rem 0.9rem;
-    text-align: center;
-}
-.stat-value { display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.stat-value small { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
-.stat-label { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-top: 0.25rem; }
 
 /* ---------- Results ---------- */
 .results-hero { text-align: center; padding: 0.75rem 0 0.25rem; }
@@ -354,9 +359,8 @@ tr.hardest { background: #fce8e6; }
 /* ---------- Small screens ---------- */
 @media (max-width: 700px) {
     h1 { font-size: 1.6rem; }
+    .question { font-size: 1.2rem; }
     .how-it-works { grid-template-columns: 1fr; }
-    .stat-grid { grid-template-columns: 1fr 1fr 1fr; }
-    .stat-value { font-size: 1.2rem; }
     .score-big { font-size: 2.6rem; }
     .round-status { flex-wrap: wrap; }
 }

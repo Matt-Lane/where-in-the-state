@@ -85,15 +85,40 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
         </div>
         <p class="score-chip">Score: <strong>@_totalScore</strong> / 1000</p>
     </div>
-    <h1>Question @(_roundIndex + 1) of @_gameCities.Count — Where is <strong>@city.Name</strong>?</h1>
+    <h1 class="question">Question @(_roundIndex + 1) of @_gameCities.Count — Where is <strong>@city.Name</strong>?</h1>
     <p class="sr-only">Question @(_roundIndex + 1) of @_gameCities.Count: Where is @city.Name?</p>
 
     <div class="map-card">
-    <div class="toggles">
-        <label><input type="checkbox" @bind="_showInterstates" /> Interstates</label>
-        <label><input type="checkbox" @bind="_showHighways" /> Highways</label>
-        <label><input type="checkbox" @bind="_showRivers" /> Rivers</label>
-        <label><input type="checkbox" @bind="_showLakes" /> Lakes</label>
+    <div class="game-controls">
+        @if (_phase == Phase.Round)
+        {
+            <button class="primary" @onclick="ConfirmGuess" disabled="@(_guessLat is null)">
+                Confirm guess
+            </button>
+            <button @onclick="Pass">Pass (0 points)</button>
+            <span class="controls-hint">
+                @(_guessLat is null
+                    ? "Click or tap the map to place your pin."
+                    : "Pin placed — click again to move it, or confirm.")
+            </span>
+        }
+        else
+        {
+            var result = _results[_roundIndex];
+            <span class="reveal-line">
+                @if (result.DistanceMiles is null)
+                {
+                    <text>You passed — the green pin is @city.Name.</text>
+                }
+                else
+                {
+                    <text>@result.DistanceMiles.Value.ToString("F1") mi off · @result.Points points</text>
+                }
+            </span>
+            <button class="primary" @onclick="NextRound">
+                @(_roundIndex + 1 >= _gameCities.Count ? "See results" : "Next city")
+            </button>
+        }
     </div>
 
     <MapView Outline="@_pack.Outline"
@@ -106,46 +131,11 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
              GuessLongitude="@_guessLon"
              TrueLatitude="@(_phase == Phase.Reveal ? city.Latitude : null)"
              TrueLongitude="@(_phase == Phase.Reveal ? city.Longitude : null)"
+             TrueName="@(_phase == Phase.Reveal ? city.Name : null)"
              Revealed="@(_phase == Phase.Reveal)"
              Interactive="@(_phase == Phase.Round)"
              OnMapClicked="OnMapClicked" />
     </div>
-
-    @if (_phase == Phase.Round)
-    {
-        <div class="button-row">
-            <button class="primary" @onclick="ConfirmGuess" disabled="@(_guessLat is null)">
-                Confirm guess
-            </button>
-            <button @onclick="Pass">Pass (0 points)</button>
-        </div>
-        @if (_guessLat is null)
-        {
-            <p class="hint">Click or tap the map to place a pin. You can click again to move it before confirming.</p>
-        }
-    }
-    else
-    {
-        var result = _results[_roundIndex];
-        <div class="reveal-panel" role="status">
-            <h2>@city.Name revealed</h2>
-            @if (result.DistanceMiles is null)
-            {
-                <p>You passed on <strong>@city.Name</strong>. Its real location is the green pin.</p>
-            }
-            <div class="stat-grid">
-                <div class="stat"><span class="stat-value">@if (result.DistanceMiles is null)
-                    {<text>—</text>}
-                    else
-                    {@result.DistanceMiles.Value.ToString("F1") <small>mi</small>}</span><span class="stat-label">Distance off</span></div>
-                <div class="stat"><span class="stat-value">@result.Points <small>/ 100</small></span><span class="stat-label">Points this round</span></div>
-                <div class="stat"><span class="stat-value">@_totalScore <small>/ 1000</small></span><span class="stat-label">Running total</span></div>
-            </div>
-            <button class="primary" @onclick="NextRound">
-                @(_roundIndex + 1 >= _gameCities.Count ? "See results" : "Next city")
-            </button>
-        </div>
-    }
 }
 else if (_phase == Phase.Results)
 {

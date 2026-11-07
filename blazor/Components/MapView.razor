@@ -1,10 +1,12 @@
 @using OregonGeographyGame.Models
 @using OregonGeographyGame.Services
+@inject IJSRuntime JS
 
 <svg viewBox="0 0 1000 757.4"
      class="map-svg"
      role="img"
      aria-label="Blank map of the state. No city names are shown."
+     @ref="_svgRef"
      @onpointerdown="OnMapPointerDown">
     @* State outline *@
     @foreach (var feature in Outline)
@@ -46,17 +48,29 @@
     {
         var (gx, gy) = MapProjection.LatLonToSvg(GuessLatitude.Value, GuessLongitude.Value);
         var (tx, ty) = MapProjection.LatLonToSvg(TrueLatitude.Value, TrueLongitude.Value);
+        @* A white underlay first so the dashed line reads over roads/rivers *@
+        <line x1="@gx" y1="@gy" x2="@tx" y2="@ty" class="map-connect-halo" />
         <line x1="@gx" y1="@gy" x2="@tx" y2="@ty" class="map-connect-line" />
     }
 
-    @* True location pin (green) — only after reveal *@
+    @* True location pin (green) — only after reveal. Drawn large with a
+       halo and a name label so it reads at the one-screen map size. *@
     @if (Revealed && TrueLatitude is not null && TrueLongitude is not null)
     {
         var (tx, ty) = MapProjection.LatLonToSvg(TrueLatitude.Value, TrueLongitude.Value);
         <g class="pin pin-true">
-            <circle cx="@tx" cy="@ty" r="9" />
-            <circle cx="@tx" cy="@ty" r="3.5" class="pin-dot" />
+            <circle cx="@tx" cy="@ty" r="19" class="pin-halo" />
+            <circle cx="@tx" cy="@ty" r="13" />
+            <circle cx="@tx" cy="@ty" r="4.5" class="pin-dot" />
+            <line x1="@(tx - 21)" y1="@ty" x2="@(tx - 6)" y2="@ty" class="pin-cross" />
+            <line x1="@(tx + 6)" y1="@ty" x2="@(tx + 21)" y2="@ty" class="pin-cross" />
+            <line x1="@tx" y1="@(ty - 21)" x2="@tx" y2="@(ty - 6)" class="pin-cross" />
+            <line x1="@tx" y1="@(ty + 6)" x2="@tx" y2="@(ty + 21)" class="pin-cross" />
         </g>
+        @if (TrueName is not null)
+        {
+            @TrueLabel(tx, ty)
+        }
     }
 
     @* Guess pin: provisional (blue) while placing, revealed guess (red) after confirm *@
@@ -64,8 +78,8 @@
     {
         var (gx, gy) = MapProjection.LatLonToSvg(GuessLatitude.Value, GuessLongitude.Value);
         <g class="@(Revealed ? "pin pin-guess" : "pin pin-provisional")">
-            <circle cx="@gx" cy="@gy" r="9" />
-            <circle cx="@gx" cy="@gy" r="3.5" class="pin-dot" />
+            <circle cx="@gx" cy="@gy" r="11" />
+            <circle cx="@gx" cy="@gy" r="4" class="pin-dot" />
         </g>
     }
 </svg>
@@ -87,20 +101,25 @@
     [Parameter] public double? TrueLatitude { get; set; }
     [Parameter] public double? TrueLongitude { get; set; }
 
+    /// <summary>Name of the true city, shown as a label on the reveal pin.</summary>
+    [Parameter] public string? TrueName { get; set; }
+
     [Parameter] public bool Revealed { get; set; }
     [Parameter] public bool Interactive { get; set; } = true;
 
     /// <summary>
-    /// The SVG's rendered (CSS-pixel) size. Pointer offsets are in CSS
-    /// pixels, so they are scaled to viewBox units by
+    /// The SVG's rendered (CSS-pixel) size, used as a fallback when the
+    /// live measurement (see OnMapPointerDown) is unavailable. Pointer
+    /// offsets are in CSS pixels, so they are scaled to viewBox units by
     /// ViewBoxWidth / RenderedWidth. The default (1000 × 757.4) is the
-    /// viewBox size itself, i.e. the SVG displayed at its natural size;
-    /// if the page CSS scales the SVG, pass the actual rendered size.
+    /// viewBox size itself, i.e. the SVG displayed at its natural size.
     /// </summary>
     [Parameter] public double RenderedWidth { get; set; } = 1000.0;
     [Parameter] public double RenderedHeight { get; set; } = 757.4;
 
     [Parameter] public EventCallback<(double Latitude, double Longitude)> OnMapClicked { get; set; }
+
+    private ElementReference _svgRef;
 
     private async Task OnMapPointerDown(PointerEventArgs e)
     {
@@ -109,9 +128,29 @@
             return;
         }
 
-        // A zero rendered size would divide by zero below and produce
-        // infinite coordinates; ignore the click instead.
-        if (RenderedWidth <= 0 || RenderedHeight <= 0)
+        // Measure the SVG's actual rendered size in the browser: the
+        // page CSS sizes the map by viewport height, so its displayed
+        // width varies with the window and the RenderedWidth fallback
+        // above can't be trusted. A zero rendered size would divide by
+        // zero below and produce infinite coordinates; ignore the click
+        // instead. If the measurement fails, fall back to the parameters.
+        double renderedWidth = RenderedWidth;
+        double renderedHeight = RenderedHeight;
+        try
+        {
+            var size = await JS.InvokeAsync<double[]>("whereInTheState.svgSize", _svgRef);
+            if (size is { Length: 2 })
+            {
+                renderedWidth = size[0];
+                renderedHeight = size[1];
+            }
+        }
+        catch
+        {
+            // Fall through to the RenderedWidth/RenderedHeight fallback.
+        }
+
+        if (renderedWidth <= 0 || renderedHeight <= 0)
         {
             return;
         }
@@ -119,8 +158,8 @@
         // CSS pixels -> viewBox units -> lat/lon, using the SAME
         // projection that drew the map (MapProjection.SvgToLatLon is the
         // exact inverse of MapProjection.LatLonToSvg).
-        double svgX = e.OffsetX * MapProjection.ViewBoxWidth / RenderedWidth;
-        double svgY = e.OffsetY * MapProjection.ViewBoxHeight / RenderedHeight;
+        double svgX = e.OffsetX * MapProjection.ViewBoxWidth / renderedWidth;
+        double svgY = e.OffsetY * MapProjection.ViewBoxHeight / renderedHeight;
         var (latitude, longitude) = MapProjection.SvgToLatLon(svgX, svgY);
         await OnMapClicked.InvokeAsync((latitude, longitude));
     }
@@ -153,5 +192,18 @@
         }
 
         return string.Join(" ", parts);
+    }
+
+    private MarkupString TrueLabel(double tx, double ty)
+    {
+        // Razor treats a literal <text> element as a text block, so the
+        // reveal label is emitted as markup instead. The label is clamped
+        // horizontally so long names don't run off the map, and flipped
+        // below the pin when the pin is near the top edge.
+        var labelX = Math.Clamp(tx, 70, 930);
+        var labelY = ty < 50 ? ty + 34 : ty - 24;
+        var name = System.Net.WebUtility.HtmlEncode(TrueName ?? "");
+        return new MarkupString(
+            $"<text x=\"{labelX:F1}\" y=\"{labelY:F1}\" class=\"map-label\">{name}</text>");
     }
 }
