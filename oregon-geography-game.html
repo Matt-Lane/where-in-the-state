@@ -81,6 +81,16 @@
   .toggle .swatch { color: var(--c, var(--muted)); }
 
   .score-line { font-size: 16px; font-weight: 600; margin: 0 0 10px; font-variant-numeric: tabular-nums; }
+  /* Round bar: fills by total score (out of 1000), with a terracotta tick
+     marking the best total possible once the question on screen is scored
+     ((question number) x 100). The wrapper carries the sizing so the tick,
+     taller than the track, is not clipped by the track's overflow. */
+  .round-status { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; }
+  .round-status .score-line { margin: 0; white-space: nowrap; }
+  .progress-wrap { position: relative; flex: 1; }
+  .progress-track { height: 10px; background: #e2ddc9; border-radius: 999px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.3s ease; }
+  .progress-max { position: absolute; top: 50%; width: 3px; height: 16px; transform: translate(-50%, -50%); background: #c0563a; border-radius: 999px; transition: left 0.3s ease; }
   #round-heading { font-size: 22px; margin: 0 0 6px; }
   .map-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
   /* One row at the top of the map card holds the round's controls:
@@ -208,7 +218,15 @@
   <!-- ================= ROUND ================= -->
   <section id="screen-game" class="screen" aria-label="Playing" hidden>
     <h2 id="round-heading">Question 1 of 10 &mdash; Where is &hellip;?</h2>
-    <p class="score-line">Score: <span id="running-total">0</span> / 1000 &nbsp;&middot;&nbsp; Seed: <span id="game-seed-label"></span></p>
+    <div class="round-status">
+      <div class="progress-wrap">
+        <div class="progress-track" id="progress-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="1000" aria-label="Score out of 1000" aria-valuetext="0 out of 1000; maximum 100 after question 1">
+          <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="progress-max" id="progress-max" style="left: 10%" title="Maximum possible after question 1: 100" aria-hidden="true"></div>
+      </div>
+      <p class="score-line">Score: <span id="running-total">0</span> / 1000 &nbsp;&middot;&nbsp; Seed: <span id="game-seed-label"></span></p>
+    </div>
 
     <div class="map-card">
       <div class="game-controls">
@@ -591,6 +609,15 @@ function randomSeed() {
       "Question " + (game.roundIndex + 1) + " of " + QUESTION_COUNT + " — Where is " + city.name + "?";
     document.getElementById("running-total").textContent = game.total;
     document.getElementById("game-seed-label").textContent = game.seed;
+    /* The bar fills by total score (out of 1000); the tick marks the best
+       total possible once the question on screen is scored. */
+    var maxScore = (game.roundIndex + 1) * 100;
+    document.getElementById("progress-fill").style.width = (game.total / 10) + "%";
+    document.getElementById("progress-max").style.left = ((game.roundIndex + 1) * 10) + "%";
+    document.getElementById("progress-max").setAttribute("title", "Maximum possible after question " + (game.roundIndex + 1) + ": " + maxScore);
+    var track = document.getElementById("progress-track");
+    track.setAttribute("aria-valuenow", String(game.total));
+    track.setAttribute("aria-valuetext", game.total + " out of 1000; maximum " + maxScore + " after question " + (game.roundIndex + 1));
   }
   function startRound() {
     phase = "guess";
@@ -653,7 +680,8 @@ function randomSeed() {
     btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : "Next city";
     document.getElementById("guess-controls").hidden = true;
     document.getElementById("reveal-controls").hidden = false;
-    document.getElementById("running-total").textContent = game.total;
+    /* Refresh the header (and the score bar) now that the round is scored. */
+    updateRoundHeader();
   }
 
   btnConfirm.addEventListener("click", function () { if (guess && phase === "guess") reveal(false); });
