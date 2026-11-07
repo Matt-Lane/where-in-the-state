@@ -1,5 +1,7 @@
 @page "/"
 @page "/game"
+@page "/{StateId}"
+@page "/{StateId}/{SeedParam}"
 @using OregonGeographyGame.Models
 @using OregonGeographyGame.Services
 @inject StatePackLoader PackLoader
@@ -9,7 +11,16 @@
 
 <PageTitle>Where in the State — Oregon</PageTitle>
 
-@if (_pack is null)
+@if (_loadFailed)
+{
+    <h1>Where in the State</h1>
+    <p role="alert">We couldn't find a state called <strong>@_stateId</strong>.</p>
+    <p>Check the link and try again, or start over with Oregon.</p>
+    <div class="button-row">
+        <button class="primary" @onclick="PlayOregon">Play Oregon</button>
+    </div>
+}
+else if (_pack is null)
 {
     <p>Loading the map…</p>
 }
@@ -167,7 +178,13 @@ else if (_phase == Phase.Results)
 @code {
     private enum Phase { Start, Round, Reveal, Results }
 
+    // Route parameters for the /{state}/{seed} URL form, e.g. /oregon/OR-2026-11-06.
+    // The older ?state=...&seed=... query form still works (see OnInitializedAsync).
+    [Parameter] public string? StateId { get; set; }
+    [Parameter] public string? SeedParam { get; set; }
+
     private StatePack? _pack;
+    private bool _loadFailed;
     private string _stateId = "oregon";
     private string _seed = "";
     private Phase _phase = Phase.Start;
@@ -188,32 +205,57 @@ else if (_phase == Phase.Results)
     private string? _copyMessage;
 
     private string GameLink =>
-        Navigation.ToAbsoluteUri($"?state={Uri.EscapeDataString(_stateId)}&seed={Uri.EscapeDataString(_seed)}").ToString();
+        Navigation.ToAbsoluteUri(
+            $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}").ToString();
 
     private string SummaryText =>
         $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}";
 
     protected override async Task OnInitializedAsync()
     {
-        // A shared link (?state=oregon&seed=...) pre-fills the start screen
-        // with that state/seed; the player still presses Start.
+        // Resolve the state/seed from the URL. The path form wins
+        // (/{state}/{seed}, e.g. /oregon/OR-2026-11-06); the older
+        // ?state=...&seed=... query form still works for shared links
+        // made before the path form existed. No state/seed in the URL
+        // means Oregon with today's daily seed.
         var uri = new Uri(Navigation.Uri);
         var query = ParseQuery(uri.Query);
-        if (query.TryGetValue("state", out var state) && !string.IsNullOrWhiteSpace(state))
+
+        var stateFromUrl = !string.IsNullOrWhiteSpace(StateId)
+            ? StateId
+            : query.TryGetValue("state", out var state) ? state : null;
+        if (!string.IsNullOrWhiteSpace(stateFromUrl))
         {
-            _stateId = state;
+            _stateId = stateFromUrl.Trim().ToLowerInvariant();
         }
 
-        _pack = await PackLoader.LoadAsync(_stateId);
+        // If the state pack can't be loaded (unknown state, missing or
+        // broken data, network error), show the not-found screen instead
+        // of hanging on "Loading the map…" forever. LoadAsync throws on
+        // a 404 for data/states/<id>/state.json, so catch here.
+        try
+        {
+            _pack = await PackLoader.LoadAsync(_stateId);
+        }
+        catch (Exception)
+        {
+            _pack = null;
+            _loadFailed = true;
+            return;
+        }
 
-        if (query.TryGetValue("seed", out var seed) && !string.IsNullOrWhiteSpace(seed))
+        if (_pack is null)
         {
-            _seed = seed;
+            _loadFailed = true;
+            return;
         }
-        else
-        {
-            _seed = GameService.DailySeed(_pack.Abbreviation);
-        }
+
+        var seedFromUrl = !string.IsNullOrWhiteSpace(SeedParam)
+            ? SeedParam
+            : query.TryGetValue("seed", out var seed) ? seed : null;
+        _seed = !string.IsNullOrWhiteSpace(seedFromUrl)
+            ? seedFromUrl
+            : GameService.DailySeed(_pack.Abbreviation);
 
         // Landmark defaults come from the pack manifest.
         foreach (var layer in _pack.Layers)
@@ -226,6 +268,14 @@ else if (_phase == Phase.Results)
                 case "lake": _showLakes = layer.VisibleByDefault; break;
             }
         }
+    }
+
+    private void PlayOregon()
+    {
+        // Full reload back to the start screen with the default state.
+        // BaseUri is the app root both locally (/) and on GitHub Pages
+        // (/where-in-the-state/), so this lands on "/" of the app.
+        Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
     }
 
     private void UseRandomSeed() => _seed = GameService.RandomSeed(_pack!.Abbreviation);
@@ -252,7 +302,12 @@ else if (_phase == Phase.Results)
         _phase = Phase.Round;
 
         // Write the seed into the URL so the game is shareable / refresh-safe.
-        Navigation.NavigateTo($"?state={Uri.EscapeDataString(_stateId)}&seed={Uri.EscapeDataString(_seed)}");
+        // ToAbsoluteUri resolves the relative path against the app's base
+        // address, so this works both locally (/) and on GitHub Pages
+        // (/where-in-the-state/).
+        Navigation.NavigateTo(
+            Navigation.ToAbsoluteUri(
+                $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}").ToString());
     }
 
     private void OnMapClicked((double Latitude, double Longitude) point)

@@ -160,8 +160,10 @@ The same seed string must produce the same 10 cities in the same order, for any 
 - **Validation:** trim whitespace; reject an empty seed (fall back to a random one). Seeds are case-sensitive — document that (`or-2026-11-06` ≠ `OR-2026-11-06`), or normalize to a canonical case; pick one and be consistent. Recommendation: preserve as typed, but display the exact seed on the results screen so a shared seed can be copied exactly.
 
 ### 5.4 Seed in the URL
-- On start, navigate to `?state=oregon&seed=<url-encoded seed>`. The results "Copy game link" button copies this URL.
-- Loading the app with `?state=…&seed=…` pre-fills the start screen with that state/seed, so a shared link is one click to the same game.
+- On start, navigate to `/<state>/<url-encoded seed>`, e.g. `/oregon/OR-2026-11-06`. The results "Copy game link" button copies this URL.
+- Loading the app with `/<state>/<seed>` pre-fills the start screen with that state/seed, so a shared link is one click to the same game.
+- The older `?state=…&seed=…` query form still works for links shared before the path form existed.
+- If the state in the URL doesn't exist, the app shows a "couldn't find that state" screen with a way back to Oregon instead of hanging on "Loading the map…".
 - Question count is not in the URL in v1 (fixed at 10).
 
 ### 5.5 Testing the seed logic
@@ -298,7 +300,8 @@ Whichever option is chosen, the same conversion is needed:
 
 - [ ] Same seed → same 10 cities, same order, in two different browsers.
 - [ ] Different seeds → different selections (spot-check).
-- [ ] Shared link (`?state=oregon&seed=…`) loads the same game on another device.
+- [ ] Shared link (`/oregon/OR-2026-11-06`) loads the same game on another device.
+- [ ] Shared link with an unknown state (e.g. `/atlantis/OR-2026-11-06`) shows a not-found screen with a way back to Oregon instead of hanging on "Loading the map…".
 - [ ] Daily seed is the same for all players on the same day.
 - [ ] Clicking a known location (e.g. downtown Portland) converts to lat/lon within ~2 miles of the true coordinates.
 - [ ] Every one of the 241 Oregon cities, when selected, lies inside the drawn state outline.
