@@ -13,11 +13,13 @@
 
 @if (_loadFailed)
 {
+    <div class="card error-card">
     <h1>Where in the State</h1>
     <p role="alert">We couldn't find a state called <strong>@_stateId</strong>.</p>
     <p>Check the link and try again, or start over with Oregon.</p>
     <div class="button-row">
         <button class="primary" @onclick="PlayOregon">Play Oregon</button>
+    </div>
     </div>
 }
 else if (_pack is null)
@@ -26,16 +28,23 @@ else if (_pack is null)
 }
 else if (_phase == Phase.Start)
 {
-    <h1>Where in the State</h1>
-    <p><strong>Oregon Edition</strong></p>
-    <p>
-        A blank map of <strong>@_pack.Name</strong> will be shown — outline and landmarks,
-        but no city names. Each round names one city; click or tap the map where
-        you think it is. 100 points for a guess within 5 miles, then −1 point per
-        mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
-    </p>
+    <div class="hero">
+        <p class="eyebrow">Oregon Edition</p>
+        <h1>Where in the State</h1>
+        <p class="lede">
+            A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
+            but no city names. Each round names one city; click or tap the map where
+            you think it is. 100 points for a guess within 5 miles, then −1 point per
+            mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
+        </p>
+        <ol class="how-it-works">
+            <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 cities — share it to play together.</li>
+            <li><strong><span class="step-num">2</span>Drop a pin</strong>Tap the map where you think the city is, then confirm.</li>
+            <li><strong><span class="step-num">3</span>See how close</strong>The real spot is revealed, with your distance and points.</li>
+        </ol>
+    </div>
 
-    <div class="start-panel">
+    <div class="card">
         <label>
             State
             <input type="text" value="@_pack.Name" disabled />
@@ -70,10 +79,16 @@ else if (_phase == Phase.Start)
 else if (_phase == Phase.Round || _phase == Phase.Reveal)
 {
     var city = _gameCities[_roundIndex];
+    <div class="round-status">
+        <div class="progress-track" role="progressbar" aria-valuenow="@_results.Count" aria-valuemin="0" aria-valuemax="10" aria-label="Questions answered">
+            <div class="progress-fill" style="width: @(_results.Count * 10)%"></div>
+        </div>
+        <p class="score-chip">Score: <strong>@_totalScore</strong> / 1000</p>
+    </div>
     <h1>Question @(_roundIndex + 1) of @_gameCities.Count — Where is <strong>@city.Name</strong>?</h1>
-    <p>Running total: <strong>@_totalScore</strong> points</p>
     <p class="sr-only">Question @(_roundIndex + 1) of @_gameCities.Count: Where is @city.Name?</p>
 
+    <div class="map-card">
     <div class="toggles">
         <label><input type="checkbox" @bind="_showInterstates" /> Interstates</label>
         <label><input type="checkbox" @bind="_showHighways" /> Highways</label>
@@ -94,6 +109,7 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
              Revealed="@(_phase == Phase.Reveal)"
              Interactive="@(_phase == Phase.Round)"
              OnMapClicked="OnMapClicked" />
+    </div>
 
     @if (_phase == Phase.Round)
     {
@@ -112,19 +128,19 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
     {
         var result = _results[_roundIndex];
         <div class="reveal-panel" role="status">
+            <h2>@city.Name revealed</h2>
             @if (result.DistanceMiles is null)
             {
                 <p>You passed on <strong>@city.Name</strong>. Its real location is the green pin.</p>
-                <p>Points: <strong>0</strong></p>
             }
-            else
-            {
-                <p>
-                    <strong>@city.Name</strong> is @result.DistanceMiles.Value.ToString("F1") miles
-                    from your guess — <strong>@result.Points points</strong>.
-                </p>
-            }
-            <p>Running total: <strong>@_totalScore</strong> points</p>
+            <div class="stat-grid">
+                <div class="stat"><span class="stat-value">@if (result.DistanceMiles is null)
+                    {<text>—</text>}
+                    else
+                    {@result.DistanceMiles.Value.ToString("F1") <small>mi</small>}</span><span class="stat-label">Distance off</span></div>
+                <div class="stat"><span class="stat-value">@result.Points <small>/ 100</small></span><span class="stat-label">Points this round</span></div>
+                <div class="stat"><span class="stat-value">@_totalScore <small>/ 1000</small></span><span class="stat-label">Running total</span></div>
+            </div>
             <button class="primary" @onclick="NextRound">
                 @(_roundIndex + 1 >= _gameCities.Count ? "See results" : "Next city")
             </button>
@@ -133,10 +149,16 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
 }
 else if (_phase == Phase.Results)
 {
-    <h1>Results — @_totalScore / 1000</h1>
-    <p>@SummaryText</p>
+    <div class="results-hero">
+        <p class="eyebrow">Your results</p>
+        <h1><span class="score-big">@_totalScore</span> <span class="score-of">/ 1000</span></h1>
+        <div class="score-bar-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="1000" aria-label="Score out of 1000">
+            <div class="score-bar-fill" style="width: @(_totalScore / 10)%"></div>
+        </div>
+        <p>@SummaryText</p>
+    </div>
 
-    <table>
+    <table class="results-table">
         <thead>
             <tr><th>#</th><th>City</th><th>Distance</th><th>Points</th></tr>
         </thead>
