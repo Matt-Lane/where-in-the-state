@@ -2,6 +2,8 @@
 
 A fun learning game: guess where Oregon cities are on a blank map.
 
+**Play it:** https://matt-lane.github.io/where-in-the-state/
+
 First edition: **Oregon**. The game is generic — a state is a data pack, so
 other states can be added without changing the game code.
 
