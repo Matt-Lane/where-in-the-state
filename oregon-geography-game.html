@@ -105,6 +105,11 @@
     background: var(--accent-btn); border-color: var(--accent-btn); color: #fff; border-radius: 999px;
   }
   .pin-confirm.flipped { transform: translate(calc(-100% - 14px), -50%); }
+  /* Pin the positioning transform on hover: the generic button:hover rule
+     outranks .pin-confirm, so without these the bubble would jump away
+     from the cursor when hovered (its translate is what places it). */
+  .pin-confirm:hover:not(:disabled) { transform: translate(14px, -50%); background: #184636; }
+  .pin-confirm.flipped:hover:not(:disabled) { transform: translate(calc(-100% - 14px), -50%); }
   .pin-confirm::before {
     content: ""; position: absolute; left: -5px; top: 50%;
     width: 10px; height: 10px; background: var(--accent-btn); transform: translateY(-50%) rotate(45deg);
