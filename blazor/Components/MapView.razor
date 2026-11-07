@@ -109,6 +109,13 @@
             return;
         }
 
+        // A zero rendered size would divide by zero below and produce
+        // infinite coordinates; ignore the click instead.
+        if (RenderedWidth <= 0 || RenderedHeight <= 0)
+        {
+            return;
+        }
+
         // CSS pixels -> viewBox units -> lat/lon, using the SAME
         // projection that drew the map (MapProjection.SvgToLatLon is the
         // exact inverse of MapProjection.LatLonToSvg).

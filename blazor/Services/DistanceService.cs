@@ -12,6 +12,9 @@ public sealed class DistanceService
         double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
             + Math.Cos(DegreesToRadians(lat1)) * Math.Cos(DegreesToRadians(lat2))
             * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        // Floating-point rounding can push a a hair above 1 for very long
+        // distances, and Asin(Sqrt(a)) is NaN then. Clamp to [0, 1].
+        a = Math.Min(1.0, Math.Max(0.0, a));
         return 2 * EarthRadiusMiles * Math.Asin(Math.Sqrt(a));
     }
 
@@ -25,6 +28,14 @@ public sealed class DistanceService
     /// </summary>
     public static int ScoreForDistance(double miles)
     {
+        // A non-finite distance (NaN/Infinity) can never be a real guess;
+        // score it 0 instead of letting (int)Math.Round(NaN) produce a
+        // nonsense value.
+        if (!double.IsFinite(miles))
+        {
+            return 0;
+        }
+
         int rounded = (int)Math.Round(miles);
         return rounded <= 5 ? 100 : Math.Max(0, 100 - (rounded - 5));
     }

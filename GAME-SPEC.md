@@ -302,6 +302,7 @@ Whichever option is chosen, the same conversion is needed:
 - [ ] Different seeds → different selections (spot-check).
 - [ ] Shared link (`/oregon/OR-2026-11-06`) loads the same game on another device.
 - [ ] Shared link with an unknown state (e.g. `/atlantis/OR-2026-11-06`) shows a not-found screen with a way back to Oregon instead of hanging on "Loading the map…".
+- [ ] Passing all 10 rounds shows the results screen with no best/hardest guess instead of crashing.
 - [ ] Daily seed is the same for all players on the same day.
 - [ ] Clicking a known location (e.g. downtown Portland) converts to lat/lon within ~2 miles of the true coordinates.
 - [ ] Every one of the 241 Oregon cities, when selected, lies inside the drawn state outline.
