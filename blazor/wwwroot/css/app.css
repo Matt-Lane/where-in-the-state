@@ -306,8 +306,14 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     border-radius: 999px;
     box-shadow: var(--shadow);
 }
-.pin-confirm:hover:not(:disabled) { background: var(--green-dark); }
+/* The generic button:hover rule below sets a transform (a -1px lift) and its
+   specificity beats .pin-confirm, so without these the bubble's positioning
+   transform was replaced on hover and the bubble jumped away from the cursor
+   (left/down on the right side, right/down when flipped). Pin the positioning
+   transform in the hover state so the bubble stays put. */
+.pin-confirm:hover:not(:disabled) { transform: translate(14px, -50%); background: var(--green-dark); }
 .pin-confirm.flipped { transform: translate(calc(-100% - 14px), -50%); }
+.pin-confirm.flipped:hover:not(:disabled) { transform: translate(calc(-100% - 14px), -50%); }
 .pin-confirm::before {
     content: "";
     position: absolute;
