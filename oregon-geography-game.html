@@ -495,13 +495,14 @@ function randomSeed() {
     screenStart.hidden = which !== "start";
     screenGame.hidden = which !== "game";
     screenResults.hidden = which !== "results";
-    /* While playing, the header is the in-game title; anywhere else it is
-       the product name, and the browser tab follows the same rule. */
-    var title = which === "game"
+    /* Once a game starts, the header is the in-game title — and it stays
+       that way on the results screen. The start screen shows the product
+       name, and the browser tab follows the same rule. */
+    var title = (which === "game" || which === "results")
       ? "Where in the " + STATE_NAME + "?!"
       : "Where in the State";
     document.getElementById("game-title").textContent = title;
-    document.title = which === "game" ? title : "Where in the State — Oregon";
+    document.title = (which === "game" || which === "results") ? title : "Where in the State — Oregon";
     window.scrollTo(0, 0);
   }
 
