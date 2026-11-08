@@ -816,7 +816,7 @@ __PURE_JS__
       tbody.appendChild(tr);
     });
     document.getElementById("summary-text").textContent =
-      "I scored " + game.total + "/1000 on Oregon, seed " + game.seed + "\nPlay the same game: " + gameLink();
+      "I scored " + game.total + "/1000 on Where in the " + STATE_NAME + "?!, seed " + game.seed + "\nPlay the same game: " + gameLink();
   }
 
   function copyText(text, noteEl) {

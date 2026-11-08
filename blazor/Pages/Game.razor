@@ -151,7 +151,7 @@ else if (_phase == Phase.Results)
         </div>
         <p class="challenge-label">Send a challenge!</p>
         <div class="summary-box">
-            <p>I scored @_totalScore/1000 on @(_pack?.Name ?? "Oregon"), seed @_seed</p>
+            <p>I scored @_totalScore/1000 on Where in the @(_pack?.Name ?? "Oregon")?!, seed @_seed</p>
             <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
         </div>
     </div>
@@ -230,7 +230,7 @@ else if (_phase == Phase.Results)
             $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}").ToString();
 
     private string SummaryText =>
-        $"I scored {_totalScore}/1000 on {_pack?.Name ?? "Oregon"}, seed {_seed}\nPlay the same game: {GameLink}";
+        $"I scored {_totalScore}/1000 on Where in the {_pack?.Name ?? "Oregon"}?!, seed {_seed}\nPlay the same game: {GameLink}";
 
     // Once a game starts, the header shows the in-game title, derived
     // from the pack name so a future state gets its own title with no
