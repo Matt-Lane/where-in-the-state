@@ -288,6 +288,20 @@ HTML = r"""<!doctype html>
   .preview-arrow { fill: none; stroke: var(--ink); stroke-width: 3; }
   .preview-arrowhead { fill: var(--ink); }
   .preview-selected { fill: #3b82c4; fill-opacity: 0.45; stroke: #1d4ed8; stroke-width: 2.5; }
+  .lede { margin: 0 0 20px; color: var(--muted); font-size: 15.5px; max-width: 760px; }
+  .lede strong { color: var(--ink); }
+  /* Mode instructions (lede + steps under the picker) and the Game card's
+     game lines: all three variants are rendered in one grid cell and only
+     the selected mode's is visible, so the block is always as tall as the
+     tallest variant and switching modes never moves anything below it.
+     Hidden variants are visibility:hidden, not display:none, so they still
+     size the grid; aria-hidden keeps them out of screen readers. */
+  .mode-instructions { display: grid; margin-top: 12px; }
+  .mode-instructions > * { grid-area: 1 / 1; }
+  .mode-instructions > :not(.is-active) { visibility: hidden; }
+  .mode-lines { display: grid; }
+  .mode-lines > * { grid-area: 1 / 1; }
+  .mode-lines > :not(.is-active) { visibility: hidden; }
   .how-it-works { margin: 0 0 12px; padding-left: 0; list-style: none; }
   .how-it-works li { margin-bottom: 6px; }
   .how-it-works .step-num {
@@ -412,8 +426,6 @@ HTML = r"""<!doctype html>
 <div class="wrap">
   <header>
     <h1 id="game-title">Where in the State</h1>
-    <p id="header-lede">Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin,
-      the more points. Full points within 5 miles, then &minus;1 point per mile beyond that.</p>
   </header>
 
   <!-- ================= START ================= -->
@@ -464,6 +476,7 @@ HTML = r"""<!doctype html>
           <span class="mode-button-desc">Click the named county on the map</span>
         </button>
       </div>
+      <div class="mode-instructions" id="mode-instructions"></div>
     </div>
 
     <div class="card">
@@ -493,8 +506,7 @@ HTML = r"""<!doctype html>
 
     <div class="card">
       <h2>Game</h2>
-      <ol class="how-it-works" id="how-it-works"></ol>
-      <p id="game-line"><strong>10 questions.</strong> One pin per city, 100 points per question, 1,000 points maximum.</p>
+      <div class="mode-lines" id="game-lines"></div>
       <div class="btn-row">
         <button type="button" class="btn-primary btn-big" id="btn-start">Start game</button>
       </div>
@@ -608,7 +620,7 @@ HTML = r"""<!doctype html>
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.14.
+    Version 0.15.
   </footer>
 </div>
 
@@ -774,26 +786,65 @@ __PURE_JS__
     });
     updateModeUI();
   }
-  function updateModeUI() {
-    var copy = MODE_COPY[selectedMode()];
-    document.getElementById("header-lede").textContent = copy.lede;
-    document.getElementById("seed-hint").textContent = copy.seedHint;
-    document.getElementById("game-line").innerHTML = "<strong>10 questions.</strong> " + copy.gameLine;
-    var ol = document.getElementById("how-it-works");
-    ol.innerHTML = "";
-    copy.steps.forEach(function (step, i) {
-      var li = document.createElement("li");
-      var strong = document.createElement("strong");
-      var num = document.createElement("span");
-      num.className = "step-num";
-      num.textContent = String(i + 1);
-      strong.appendChild(num);
-      strong.appendChild(document.createTextNode(step[0]));
-      li.appendChild(strong);
-      li.appendChild(document.createTextNode(step[1]));
-      ol.appendChild(li);
+  /* Build the per-mode variants once, at init, from MODE_COPY: the lede +
+     1-2-3 steps under the mode picker, and the game line in the Game card.
+     All three variants are rendered in one grid cell and only the selected
+     one is visible, so the block is always as tall as the tallest variant
+     and switching modes never moves anything below it. */
+  var MODES = ["cities", "counties", "name-the-county"];
+  function buildModeVariants() {
+    var instructions = document.getElementById("mode-instructions");
+    var lines = document.getElementById("game-lines");
+    MODES.forEach(function (mode) {
+      var copy = MODE_COPY[mode];
+      var set = document.createElement("div");
+      set.className = "mode-instructions-set";
+      set.setAttribute("data-mode", mode);
+      var lede = document.createElement("p");
+      lede.className = "lede";
+      lede.textContent = copy.lede;
+      set.appendChild(lede);
+      var ol = document.createElement("ol");
+      ol.className = "how-it-works";
+      copy.steps.forEach(function (step, i) {
+        var li = document.createElement("li");
+        var strong = document.createElement("strong");
+        var num = document.createElement("span");
+        num.className = "step-num";
+        num.textContent = String(i + 1);
+        strong.appendChild(num);
+        strong.appendChild(document.createTextNode(step[0]));
+        li.appendChild(strong);
+        li.appendChild(document.createTextNode(step[1]));
+        ol.appendChild(li);
+      });
+      set.appendChild(ol);
+      instructions.appendChild(set);
+      var lineSet = document.createElement("div");
+      lineSet.className = "mode-lines-set";
+      lineSet.setAttribute("data-mode", mode);
+      var p = document.createElement("p");
+      p.innerHTML = "<strong>10 questions.</strong> " + copy.gameLine;
+      lineSet.appendChild(p);
+      lines.appendChild(lineSet);
     });
   }
+  function updateModeUI() {
+    var mode = selectedMode();
+    var copy = MODE_COPY[mode];
+    document.getElementById("seed-hint").textContent = copy.seedHint;
+    document.querySelectorAll(".mode-instructions-set").forEach(function (set) {
+      var active = set.getAttribute("data-mode") === mode;
+      set.classList.toggle("is-active", active);
+      set.setAttribute("aria-hidden", String(!active));
+    });
+    document.querySelectorAll(".mode-lines-set").forEach(function (set) {
+      var active = set.getAttribute("data-mode") === mode;
+      set.classList.toggle("is-active", active);
+      set.setAttribute("aria-hidden", String(!active));
+    });
+  }
+  buildModeVariants();
   document.querySelectorAll(".mode-button").forEach(function (btn) {
     btn.addEventListener("click", function () { setMode(btn.getAttribute("data-mode")); });
   });
@@ -1106,7 +1157,7 @@ __PURE_JS__
     btnConfirm.disabled = false;
     updateSelectedBubble();
     document.getElementById("hint-text").textContent =
-      "Selected " + picked.properties.name + " — click another county to change it, or confirm.";
+      "County selected — click another county to change it, or confirm.";
   });
 
   /* ============ County piece drag ============

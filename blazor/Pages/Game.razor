@@ -29,59 +29,17 @@ else if (_pack is null)
 }
 else if (_phase == Phase.Start)
 {
-    <div class="hero">
-        @* When the URL named the state, the header already says
-           "Where in the Oregon?!" — don't repeat a title below it.
-           (At the root URL the header says "Where in the State", so the
-           hero heading stays.) *@
-        @if (!(_stateFromUrl && _pack is not null))
-        {
+    @* When the URL named the state, the header already says
+       "Where in the Oregon?!" — don't repeat a title below it.
+       (At the root URL the header says "Where in the State", so the
+       hero heading stays.) The per-mode instructions (lede + steps)
+       live in the card under the mode picker, not here. *@
+    @if (!(_stateFromUrl && _pack is not null))
+    {
+        <div class="hero">
             <h1>Where in the State</h1>
-        }
-        @if (_mode == GameMode.NameTheCounty)
-        {
-            <p class="lede">
-                A map of <strong>@_pack.Name</strong> with every county outlined,
-                but no county names. Each round names one county; click the county
-                you think it is. 1 point for naming the right county, 0 for any
-                other. <strong>10 questions</strong> per game.
-            </p>
-            <ol class="how-it-works">
-                <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
-                <li><strong><span class="step-num">2</span>Pick the county</strong>Click the county on the map that matches the name, then confirm.</li>
-                <li><strong><span class="step-num">3</span>See if you were right</strong>The real county is revealed, with what you picked and your points.</li>
-            </ol>
-        }
-        else if (_mode == GameMode.Counties)
-        {
-            <p class="lede">
-                A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
-                but no county lines. Each round names one county; drag its shape onto
-                the map where you think it belongs. 100 points for a perfect fit,
-                scaled by how much of the real county you cover.
-                <strong>10 questions</strong> per game.
-            </p>
-            <ol class="how-it-works">
-                <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
-                <li><strong><span class="step-num">2</span>Drag the piece</strong>Drag the county's shape onto the map where it belongs, then confirm.</li>
-                <li><strong><span class="step-num">3</span>See the overlap</strong>The real county is revealed, with how much of it you covered and your points.</li>
-            </ol>
-        }
-        else
-        {
-            <p class="lede">
-                A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
-                but no city names. Each round names one city; click or tap the map where
-                you think it is. 100 points for a guess within 5 miles, then −1 point per
-                mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
-            </p>
-            <ol class="how-it-works">
-                <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 cities — share it to play together.</li>
-                <li><strong><span class="step-num">2</span>Drop a pin</strong>Tap the map where you think the city is, then confirm.</li>
-                <li><strong><span class="step-num">3</span>See how close</strong>The real spot is revealed, with your distance and points.</li>
-            </ol>
-        }
-    </div>
+        </div>
+    }
 
     <div class="card">
         @* The state is display-only (it comes from the URL/pack), so it shows
@@ -133,6 +91,55 @@ else if (_phase == Phase.Start)
                     <span class="mode-button-title">Name the county</span>
                     <span class="mode-button-desc">Click the named county on the map</span>
                 </button>
+            </div>
+        </div>
+
+        @* Instructions for the selected mode, directly under the picker —
+           so you read the instructions for the mode you chose, not one you
+           haven't chosen yet. All three variants are rendered in one grid
+           cell and only the selected one is visible, so this block is always
+           as tall as the tallest variant: switching modes never moves the
+           Seed / landmarks / Start controls below it. *@
+        <div class="mode-instructions">
+            <div class="mode-instructions-set@(_mode == GameMode.Cities ? " is-active" : "")" aria-hidden="@(_mode == GameMode.Cities ? "false" : "true")">
+                <p class="lede">
+                    A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
+                    but no city names. Each round names one city; click or tap the map where
+                    you think it is. 100 points for a guess within 5 miles, then −1 point per
+                    mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
+                </p>
+                <ol class="how-it-works">
+                    <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 cities — share it to play together.</li>
+                    <li><strong><span class="step-num">2</span>Drop a pin</strong>Tap the map where you think the city is, then confirm.</li>
+                    <li><strong><span class="step-num">3</span>See how close</strong>The real spot is revealed, with your distance and points.</li>
+                </ol>
+            </div>
+            <div class="mode-instructions-set@(_mode == GameMode.Counties ? " is-active" : "")" aria-hidden="@(_mode == GameMode.Counties ? "false" : "true")">
+                <p class="lede">
+                    A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
+                    but no county lines. Each round names one county; drag its shape onto
+                    the map where you think it belongs. 100 points for a perfect fit,
+                    scaled by how much of the real county you cover.
+                    <strong>10 questions</strong> per game.
+                </p>
+                <ol class="how-it-works">
+                    <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
+                    <li><strong><span class="step-num">2</span>Drag the piece</strong>Drag the county's shape onto the map where it belongs, then confirm.</li>
+                    <li><strong><span class="step-num">3</span>See the overlap</strong>The real county is revealed, with how much of it you covered and your points.</li>
+                </ol>
+            </div>
+            <div class="mode-instructions-set@(_mode == GameMode.NameTheCounty ? " is-active" : "")" aria-hidden="@(_mode == GameMode.NameTheCounty ? "false" : "true")">
+                <p class="lede">
+                    A map of <strong>@_pack.Name</strong> with every county outlined,
+                    but no county names. Each round names one county; click the county
+                    you think it is. 1 point for naming the right county, 0 for any
+                    other. <strong>10 questions</strong> per game.
+                </p>
+                <ol class="how-it-works">
+                    <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
+                    <li><strong><span class="step-num">2</span>Pick the county</strong>Click the county on the map that matches the name, then confirm.</li>
+                    <li><strong><span class="step-num">3</span>See if you were right</strong>The real county is revealed, with what you picked and your points.</li>
+                </ol>
             </div>
         </div>
 
@@ -195,7 +202,7 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
                 <span class="controls-hint">
                     @(_selectedCounty is null
                         ? "Click a county on the map to select it."
-                        : $"Selected {_selectedCounty.Name} — click another county to change it, or confirm.")
+                        : "County selected — click another county to change it, or confirm.")
                 </span>
             }
             else
