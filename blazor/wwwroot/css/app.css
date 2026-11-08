@@ -281,6 +281,16 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .preview-arrow { fill: none; stroke: var(--ink); stroke-width: 3; }
 .preview-arrowhead { fill: var(--ink); }
 .preview-selected { fill: #3b82c4; fill-opacity: 0.45; stroke: #1d4ed8; stroke-width: 2.5; }
+
+/* ---------- Mode instructions (lede + steps under the picker) ---------- */
+/* All three mode variants are rendered in one grid cell; only the selected
+   mode's is visible. The block is always as tall as the tallest variant, so
+   switching modes never moves the Seed / landmarks / Start controls below it.
+   (The hidden variants are visibility:hidden, not display:none, so they
+   still size the grid; aria-hidden keeps them out of screen readers.) */
+.mode-instructions { display: grid; margin-top: 1rem; }
+.mode-instructions > * { grid-area: 1 / 1; }
+.mode-instructions > :not(.is-active) { visibility: hidden; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
 .hint { color: var(--muted); font-size: 0.9rem; }
 .link-box { width: 100%; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }
