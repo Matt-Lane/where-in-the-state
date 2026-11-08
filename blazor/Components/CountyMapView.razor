@@ -1,0 +1,378 @@
+@using OregonGeographyGame.Models
+@using OregonGeographyGame.Services
+@inject IJSRuntime JS
+
+<div class="map-wrap">
+<svg viewBox="0 0 1000 757.4"
+     class="map-svg"
+     role="img"
+     aria-label="Blank map of the state. No county lines are shown."
+     @ref="_svgRef"
+     @onpointermove="OnPointerMove"
+     @onpointerup="OnPointerUp"
+     @onpointerleave="OnPointerLeave"
+     @onpointercancel="OnPointerCancel">
+    @* State outline *@
+    @foreach (var feature in Outline)
+    {
+        @foreach (var ring in feature.Parts)
+        {
+            <polygon points="@PointsAttribute(ring)"
+                     class="map-outline" />
+        }
+    }
+
+    @* Landmarks, by layer (toggles are display-only; they never affect scoring) *@
+    @foreach (var feature in Landmarks)
+    {
+        if (!IsLayerVisible(feature.Layer))
+        {
+            continue;
+        }
+
+        @foreach (var part in feature.Parts)
+        {
+            if (feature.Kind == "Polygon")
+            {
+                <polygon points="@PointsAttribute(part)"
+                         class="map-lake" />
+            }
+            else
+            {
+                <polyline points="@PointsAttribute(part)"
+                          fill="none"
+                          class="@LandmarkCssClass(feature.Layer)" />
+            }
+        }
+    }
+
+    @* Reveal: the true county in green, so the player sees where it
+       actually belongs. *@
+    @if (Revealed && County is not null)
+    {
+        @foreach (var ring in _svgRings)
+        {
+            <polygon points="@SvgPointsAttribute(ring)"
+                     class="county-true" />
+        }
+        @CountyLabel()
+    }
+
+    @* The draggable puzzle piece: the county's own shape at 1:1 scale,
+       translated by (_dx, _dy). While placing it is rust and grabbable;
+       on reveal it stays where the player dropped it, in red, next to
+       the true county in green — where the two fills overlap, the colours
+       blend, so the coverage reads at a glance. *@
+    @if (County is not null && (Interactive || Revealed))
+    {
+        <g transform="translate(@_dx.ToString("F1") @_dy.ToString("F1"))"
+           class="@(Revealed ? "" : _dragging ? "county-piece dragging" : "county-piece")"
+           @onpointerdown="OnPiecePointerDown">
+            @foreach (var ring in _svgRings)
+            {
+                <polygon points="@SvgPointsAttribute(ring)"
+                         class="@(Revealed ? "county-placed" : "county-piece")" />
+            }
+        </g>
+    }
+</svg>
+
+@* A small Confirm bubble next to the piece once it has been dragged,
+   so the player can confirm right where they placed it. Positioned in
+   percentages of the map wrapper (exactly the SVG's box), like the
+   city pin's bubble. *@
+@if (Interactive && !Revealed && County is not null && _hasDragged)
+{
+    var (cx, cy) = PieceCentroidSvg();
+    var leftPct = cx / 10.0;
+    var topPct = Math.Clamp(cy / 757.4 * 100.0, 4, 96);
+    var flipped = cx > 750;
+    <button type="button"
+            class="pin-confirm@(flipped ? " flipped" : "")"
+            style="left: @leftPct.ToString("F2")%; top: @topPct.ToString("F2")%;"
+            aria-label="Confirm placement"
+            @onclick="OnConfirmClicked">Confirm</button>
+}
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<MapFeature> Outline { get; set; } = [];
+    [Parameter] public IReadOnlyList<MapFeature> Landmarks { get; set; } = [];
+
+    [Parameter] public bool ShowInterstates { get; set; } = true;
+    [Parameter] public bool ShowHighways { get; set; } = true;
+    [Parameter] public bool ShowRivers { get; set; } = true;
+    [Parameter] public bool ShowLakes { get; set; } = true;
+
+    /// <summary>The county for this round (its shape is the puzzle piece).</summary>
+    [Parameter] public MapFeature? County { get; set; }
+
+    [Parameter] public bool Revealed { get; set; }
+    [Parameter] public bool Interactive { get; set; } = true;
+
+    /// <summary>Raised once, when the piece is first dragged this round.</summary>
+    [Parameter] public EventCallback OnPieceDragged { get; set; }
+
+    /// <summary>Raised when a drag ends, with the piece's translation in SVG units.</summary>
+    [Parameter] public EventCallback<(double Dx, double Dy)> OnPieceDropped { get; set; }
+
+    /// <summary>Raised when the player taps the Confirm bubble next to the piece.</summary>
+    [Parameter] public EventCallback OnConfirmClicked { get; set; }
+
+    private ElementReference _svgRef;
+
+    // The county's rings in SVG coordinates (cached per round), and the
+    // piece's translation in SVG units. The piece is the true county
+    // translated by (_dx, _dy); at the true location _dx == _dy == 0.
+    private List<IReadOnlyList<(double X, double Y)>> _svgRings = [];
+    private double _dx;
+    private double _dy;
+    private string? _currentCountyName;
+
+    private bool _dragging;
+    private bool _hasDragged;
+    private bool _dragNotified;
+    private double _startPointerX;
+    private double _startPointerY;
+    private double _startDx;
+    private double _startDy;
+
+    // The SVG's bounding rect in CSS pixels, measured when a drag starts
+    // (ClientX/Y are viewport-relative, so the rect converts them to SVG
+    // units). Cached for the drag so pointermove needs no JS interop.
+    private double[]? _svgRect;
+
+    /// <summary>The piece's current translation in SVG units (for scoring).</summary>
+    public double PieceDx => _dx;
+
+    /// <summary>The piece's current translation in SVG units (for scoring).</summary>
+    public double PieceDy => _dy;
+
+    protected override void OnParametersSet()
+    {
+        // Reset the piece to its staging position only when the round's
+        // county changes — not on every re-render, or a drag would be
+        // undone by the parent re-rendering.
+        var name = County?.Name;
+        if (name is not null && name != _currentCountyName)
+        {
+            _currentCountyName = name;
+            _svgRings = ProjectRings(County!.Parts);
+            (_dx, _dy) = StagingTranslation();
+            _dragging = false;
+            _hasDragged = false;
+            _dragNotified = false;
+            _svgRect = null;
+        }
+    }
+
+    /// <summary>
+    /// The staging position: the piece's bounding-box top-left at (10, 10)
+    /// in SVG units — up in the top-left corner, outside the state outline,
+    /// clearly a piece waiting to be placed rather than an answer.
+    /// </summary>
+    private (double Dx, double Dy) StagingTranslation()
+    {
+        double minX = double.MaxValue, minY = double.MaxValue;
+        foreach (var ring in _svgRings)
+        {
+            foreach (var (x, y) in ring)
+            {
+                minX = Math.Min(minX, x);
+                minY = Math.Min(minY, y);
+            }
+        }
+
+        return (10 - minX, 10 - minY);
+    }
+
+    private static List<IReadOnlyList<(double X, double Y)>> ProjectRings(
+        IReadOnlyList<IReadOnlyList<(double Lon, double Lat)>> parts)
+    {
+        var result = new List<IReadOnlyList<(double X, double Y)>>();
+        foreach (var ring in parts)
+        {
+            var projected = new List<(double X, double Y)>(ring.Count);
+            foreach (var (lon, lat) in ring)
+            {
+                projected.Add(MapProjection.LatLonToSvg(lat, lon));
+            }
+            result.Add(projected);
+        }
+
+        return result;
+    }
+
+    private (double X, double Y) PieceCentroidSvg()
+    {
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var ring in _svgRings)
+        {
+            foreach (var (x, y) in ring)
+            {
+                minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
+                minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+            }
+        }
+
+        return ((minX + maxX) / 2 + _dx, (minY + maxY) / 2 + _dy);
+    }
+
+    private async Task OnPiecePointerDown(PointerEventArgs e)
+    {
+        if (!Interactive || Revealed || County is null)
+        {
+            return;
+        }
+
+        // Measure the SVG's bounding rect so ClientX/Y (viewport-relative)
+        // convert to viewBox units regardless of which element is under the
+        // pointer. If the measurement fails, don't start the drag.
+        try
+        {
+            var rect = await JS.InvokeAsync<double[]>("whereInTheState.svgRect", _svgRef);
+            if (rect is not { Length: 4 } || rect[2] <= 0 || rect[3] <= 0)
+            {
+                return;
+            }
+            _svgRect = rect;
+        }
+        catch
+        {
+            return;
+        }
+
+        var (svgX, svgY) = ClientToSvg(e.ClientX, e.ClientY);
+        _dragging = true;
+        _startPointerX = svgX;
+        _startPointerY = svgY;
+        _startDx = _dx;
+        _startDy = _dy;
+
+        if (!_dragNotified)
+        {
+            _dragNotified = true;
+            _hasDragged = true;
+            await OnPieceDragged.InvokeAsync();
+        }
+    }
+
+    private void OnPointerMove(PointerEventArgs e)
+    {
+        if (!_dragging || _svgRect is null)
+        {
+            return;
+        }
+
+        // The piece follows the pointer rigidly: its translation changes by
+        // the pointer's movement since the drag started. No callback per
+        // move — the parent only needs the final position, on drop — so the
+        // drag re-renders just this component and stays smooth.
+        var (svgX, svgY) = ClientToSvg(e.ClientX, e.ClientY);
+        _dx = _startDx + (svgX - _startPointerX);
+        _dy = _startDy + (svgY - _startPointerY);
+        StateHasChanged();
+    }
+
+    private async Task OnPointerUp(PointerEventArgs e)
+    {
+        if (!_dragging)
+        {
+            return;
+        }
+
+        _dragging = false;
+        await OnPieceDropped.InvokeAsync((_dx, _dy));
+    }
+
+    private async Task OnPointerLeave(PointerEventArgs e)
+    {
+        // If the pointer leaves the map mid-drag, end the drag where the
+        // piece is rather than leaving it stuck in a dragging state.
+        if (!_dragging)
+        {
+            return;
+        }
+
+        _dragging = false;
+        await OnPieceDropped.InvokeAsync((_dx, _dy));
+    }
+
+    private Task OnPointerCancel(PointerEventArgs e)
+    {
+        _dragging = false;
+        return Task.CompletedTask;
+    }
+
+    private (double X, double Y) ClientToSvg(double clientX, double clientY)
+    {
+        var rect = _svgRect!;
+        double svgX = (clientX - rect[0]) * MapProjection.ViewBoxWidth / rect[2];
+        double svgY = (clientY - rect[1]) * MapProjection.ViewBoxHeight / rect[3];
+        return (svgX, svgY);
+    }
+
+    private bool IsLayerVisible(string layer) => layer switch
+    {
+        "interstate" => ShowInterstates,
+        "highway" => ShowHighways,
+        "river" => ShowRivers,
+        "lake" => ShowLakes,
+        _ => true
+    };
+
+    private static string LandmarkCssClass(string layer) => layer switch
+    {
+        "interstate" => "map-interstate",
+        "highway" => "map-highway",
+        "river" => "map-river",
+        _ => "map-landmark"
+    };
+
+    private static string PointsAttribute(IReadOnlyList<(double Lon, double Lat)> points)
+    {
+        var parts = new string[points.Count];
+        for (int i = 0; i < points.Count; i++)
+        {
+            var (x, y) = MapProjection.LatLonToSvg(points[i].Lat, points[i].Lon);
+            parts[i] = $"{x:F1},{y:F1}";
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static string SvgPointsAttribute(IReadOnlyList<(double X, double Y)> points)
+    {
+        var parts = new string[points.Count];
+        for (int i = 0; i < points.Count; i++)
+        {
+            parts[i] = $"{points[i].X:F1},{points[i].Y:F1}";
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private MarkupString CountyLabel()
+    {
+        // The county name on the true county, like the city name label on
+        // the reveal pin. Centred on the true county's bounding box,
+        // clamped so long names don't run off the map.
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var ring in _svgRings)
+        {
+            foreach (var (x, y) in ring)
+            {
+                minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
+                minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+            }
+        }
+
+        var labelX = Math.Clamp((minX + maxX) / 2, 90, 910);
+        var labelY = Math.Clamp((minY + maxY) / 2, 30, 730);
+        var name = System.Net.WebUtility.HtmlEncode(County?.Name ?? "");
+        return new MarkupString(
+            $"<text x=\"{labelX:F1}\" y=\"{labelY:F1}\" class=\"map-label\">{name}</text>");
+    }
+}

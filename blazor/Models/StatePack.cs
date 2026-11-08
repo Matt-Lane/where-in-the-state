@@ -46,5 +46,6 @@ public sealed record StatePack(
     IReadOnlyList<City> Cities,
     IReadOnlyList<MapFeature> Outline,
     IReadOnlyList<MapFeature> Landmarks,
+    IReadOnlyList<MapFeature> Counties,
     IReadOnlyList<LandmarkLayer> Layers,
     MapBounds Bounds);
