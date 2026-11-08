@@ -55,7 +55,7 @@ else if (_phase == Phase.Start)
         <div class="mode-picker">
             <p class="field-label" id="mode-label">Game mode</p>
             <div class="mode-grid" role="group" aria-labelledby="mode-label">
-                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Cities)" @onclick="() => _mode = GameMode.Cities">
+                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Cities ? "true" : "false")" @onclick="() => _mode = GameMode.Cities">
                     <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
                         <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
                         <line x1="@ModePreviewArt.GuessX" y1="@ModePreviewArt.GuessY" x2="@ModePreviewArt.BendX" y2="@ModePreviewArt.BendY" class="preview-line" />
@@ -67,7 +67,7 @@ else if (_phase == Phase.Start)
                     <span class="mode-button-title">Cities</span>
                     <span class="mode-button-desc">Drop a pin for a named city</span>
                 </button>
-                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Counties)" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.Counties">
+                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Counties ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.Counties">
                     <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
                         <defs>
                             <marker id="preview-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -82,7 +82,7 @@ else if (_phase == Phase.Start)
                     <span class="mode-button-title">Counties</span>
                     <span class="mode-button-desc">Drag the county's shape onto the map</span>
                 </button>
-                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.NameTheCounty)" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.NameTheCounty">
+                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.NameTheCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.NameTheCounty">
                     <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
                         <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
                         <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
@@ -157,10 +157,10 @@ else if (_phase == Phase.Start)
         <fieldset>
             <legend>Landmarks (display only — they don't affect scoring)</legend>
             <div class="toggle-row" role="group" aria-label="Map layers">
-                <button type="button" class="toggle" data-layer="interstate" aria-pressed="@_showInterstates" @onclick="() => _showInterstates = !_showInterstates"><span class="swatch"></span>Interstates</button>
-                <button type="button" class="toggle" data-layer="highway" aria-pressed="@_showHighways" @onclick="() => _showHighways = !_showHighways"><span class="swatch"></span>Highways</button>
-                <button type="button" class="toggle" data-layer="river" aria-pressed="@_showRivers" @onclick="() => _showRivers = !_showRivers"><span class="swatch"></span>Rivers</button>
-                <button type="button" class="toggle" data-layer="lake" aria-pressed="@_showLakes" @onclick="() => _showLakes = !_showLakes"><span class="swatch fill"></span>Lakes</button>
+                <button type="button" class="toggle" data-layer="interstate" aria-pressed="@(_showInterstates ? "true" : "false")" @onclick="() => _showInterstates = !_showInterstates"><span class="swatch"></span>Interstates</button>
+                <button type="button" class="toggle" data-layer="highway" aria-pressed="@(_showHighways ? "true" : "false")" @onclick="() => _showHighways = !_showHighways"><span class="swatch"></span>Highways</button>
+                <button type="button" class="toggle" data-layer="river" aria-pressed="@(_showRivers ? "true" : "false")" @onclick="() => _showRivers = !_showRivers"><span class="swatch"></span>Rivers</button>
+                <button type="button" class="toggle" data-layer="lake" aria-pressed="@(_showLakes ? "true" : "false")" @onclick="() => _showLakes = !_showLakes"><span class="swatch fill"></span>Lakes</button>
             </div>
         </fieldset>
 
