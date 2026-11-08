@@ -1157,7 +1157,7 @@ __PURE_JS__
     btnConfirm.disabled = false;
     updateSelectedBubble();
     document.getElementById("hint-text").textContent =
-      "Selected " + picked.properties.name + " — click another county to change it, or confirm.";
+      "County selected — click another county to change it, or confirm.";
   });
 
   /* ============ County piece drag ============
