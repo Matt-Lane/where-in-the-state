@@ -90,7 +90,7 @@
   }
 
   .score-line { font-size: 16px; font-weight: 600; margin: 0 0 10px; font-variant-numeric: tabular-nums; }
-  /* Round bar: fills by total score (out of 1000), with a terracotta tick
+  /* Round bar: fills by total score (out of the mode's maximum), with a terracotta tick
      marking the best total possible once the question on screen is scored
      ((question number) x 100). The wrapper carries the sizing so the tick,
      taller than the track, is not clipped by the track's overflow. */
@@ -270,7 +270,7 @@
         </div>
         <div class="progress-max" id="progress-max" style="left: 10%" title="Maximum possible after question 1: 100" aria-hidden="true"></div>
       </div>
-      <p class="score-line">Score: <span id="running-total">0</span> / 1000 &nbsp;&middot;&nbsp; Seed: <span id="game-seed-label"></span></p>
+      <p class="score-line">Score: <span id="running-total">0</span> / <span id="running-max">1000</span> &nbsp;&middot;&nbsp; Seed: <span id="game-seed-label"></span></p>
     </div>
 
     <div class="map-card">
@@ -320,7 +320,7 @@
   <section id="screen-results" class="screen" aria-label="Results" hidden>
     <div class="card">
       <h2>Your score</h2>
-      <div class="total-big"><span id="final-total">0</span> <small>/ 1000</small></div>
+      <div class="total-big"><span id="final-total">0</span> <small>/ <span id="final-max">1000</span></small></div>
       <p class="muted" id="final-sub"></p>
       <p id="final-highlights"></p>
     </div>
@@ -357,7 +357,7 @@
     Scoring: <code>100 if rounded miles &le; 5, else max(0, 100 &minus; (rounded miles &minus; 5))</code>.
     Counties mode scores by overlap: the percentage of the real county covered by the placed piece
     (100 for a perfect fit), sampled on a 4-unit grid in map units. Name the county mode is binary:
-    100 points for clicking the right county, 0 for any other county or a pass.<br />
+    1 point for naming the right county, 0 for any other county or a pass — 10 points maximum.<br />
     Seeded shuffle: this web version hashes the seed with SHA-256 (WebCrypto) and uses the first 4 bytes as a
     signed 32-bit integer to drive a mulberry32 PRNG through a Fisher&ndash;Yates shuffle of the 241-city pool
     (or the 36-county pool in either county mode).
@@ -473,7 +473,8 @@ function overlapFraction(ringsSvg, dx, dy) {
 }
 /* Points for an overlap fraction: 100 for a perfect placement, scaled
    linearly, floored at 0. Mirrors the city game's 100 per round so the
-   two modes share a /1000 game total. */
+   two modes share a /1000 game total. ("Name the county" is the exception:
+   1 point per correct answer, 10 per game — see revealNameTheCounty.) */
 function scoreForOverlap(overlap) {
   if (!isFinite(overlap)) return 0;
   return Math.round(Math.min(1, Math.max(0, overlap)) * 100);
@@ -660,9 +661,9 @@ function randomSeed() {
       ]
     },
     "name-the-county": {
-      lede: "A map of Oregon with every county outlined, but no county names. Each round names one county; click the county you think it is. 100 points for naming the right county, 0 for any other. 10 questions per game.",
+      lede: "A map of Oregon with every county outlined, but no county names. Each round names one county; click the county you think it is. 1 point for naming the right county, 0 for any other. 10 questions per game.",
       seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a co-worker. Seeds are case-sensitive.",
-      gameLine: "One county per question, 100 points per question, 1,000 points maximum.",
+      gameLine: "One county per question, 1 point per correct answer, 10 points maximum.",
       steps: [
         ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
         ["Pick the county", "Click the county on the map that matches the name, then confirm."],
@@ -1057,15 +1058,22 @@ function randomSeed() {
       "Question " + (game.roundIndex + 1) + " of " + QUESTION_COUNT + " — Where is " + itemName + "?";
     document.getElementById("running-total").textContent = game.total;
     document.getElementById("game-seed-label").textContent = game.seed;
-    /* The bar fills by total score (out of 1000); the tick marks the best
-       total possible once the question on screen is scored. */
-    var maxScore = (game.roundIndex + 1) * 100;
-    document.getElementById("progress-fill").style.width = (game.total / 10) + "%";
+    /* The bar fills by total score (out of the mode's maximum); the tick marks
+       the best total possible once the question on screen is scored.
+       "Name the county" is 1 point per correct answer, so its maximum is 10;
+       the other modes are 100 per question, 1000 per game. */
+    var maxTotal = game.mode === "name-the-county" ? 10 : 1000;
+    var pointsPerRound = game.mode === "name-the-county" ? 1 : 100;
+    var maxScore = (game.roundIndex + 1) * pointsPerRound;
+    document.getElementById("progress-fill").style.width = (game.total * 100 / maxTotal) + "%";
     document.getElementById("progress-max").style.left = ((game.roundIndex + 1) * 10) + "%";
     document.getElementById("progress-max").setAttribute("title", "Maximum possible after question " + (game.roundIndex + 1) + ": " + maxScore);
+    document.getElementById("running-max").textContent = String(maxTotal);
     var track = document.getElementById("progress-track");
     track.setAttribute("aria-valuenow", String(game.total));
-    track.setAttribute("aria-valuetext", game.total + " out of 1000; maximum " + maxScore + " after question " + (game.roundIndex + 1));
+    track.setAttribute("aria-valuemax", String(maxTotal));
+    track.setAttribute("aria-label", "Score out of " + maxTotal);
+    track.setAttribute("aria-valuetext", game.total + " out of " + maxTotal + "; maximum " + maxScore + " after question " + (game.roundIndex + 1));
   }
   function startRound() {
     phase = "guess";
@@ -1208,9 +1216,10 @@ function randomSeed() {
   }
 
   /* "Name the county" reveal: the true county in green, and if the player
-     picked a different county, that one in rust. Binary scoring: naming
-     the right county is 100 points, any other county (or a pass) is 0.
-     The boundary grid stays visible underneath, as in the Blazor version. */
+     picked a different county, that one in rust. Binary scoring, 1 point per
+     correct answer: naming the right county is 1 point, any other county
+     (or a pass) is 0. The boundary grid stays visible underneath, as in
+     the Blazor version. */
   function revealNameTheCounty(passed) {
     var county = currentCounty();
     var countyName = county.properties.name;
@@ -1224,7 +1233,7 @@ function randomSeed() {
     if (!passed && selectedCounty) {
       pickedName = selectedCounty.properties.name;
       correct = pickedName === countyName;
-      points = correct ? 100 : 0;
+      points = correct ? 1 : 0;
     }
     game.total += points;
     game.results.push({ county: county, selected: selectedCounty, correct: correct, points: points, passed: passed });
@@ -1243,7 +1252,7 @@ function randomSeed() {
     if (passed) {
       line.textContent = "You passed — the green county is " + countyName + ".";
     } else if (correct) {
-      line.textContent = "Correct — that's " + countyName + " · 100 points";
+      line.textContent = "Correct — that's " + countyName + " · 1 point";
     } else {
       line.textContent = "That's " + pickedName + ", not " + countyName + " · 0 points";
     }
@@ -1313,6 +1322,7 @@ function randomSeed() {
     var isCounties = game.mode === "counties";
     var isName = game.mode === "name-the-county";
     var isCountyMode = isCounties || isName;
+    document.getElementById("final-max").textContent = isName ? "10" : "1000";
     document.getElementById("col-item").textContent = isCountyMode ? "County" : "City";
     document.getElementById("col-metric").textContent = isCounties ? "Coverage" : isName ? "Your pick" : "Distance";
     document.getElementById("share-note").textContent = isCountyMode
@@ -1368,7 +1378,7 @@ function randomSeed() {
       var b2 = document.createElement("span");
       if (isName) {
         b1.innerHTML = "<strong>Best pick:</strong> ";
-        b1.appendChild(document.createTextNode(best.county.properties.name + " — you named it correctly (100 points). "));
+        b1.appendChild(document.createTextNode(best.county.properties.name + " — you named it correctly (1 point). "));
         b2.innerHTML = "<strong>Hardest county:</strong> ";
         b2.appendChild(document.createTextNode(hardest.county.properties.name + " — you picked " + (hardest.selected ? hardest.selected.properties.name : "nothing") + " (0 points)."));
       } else if (isCounties) {
@@ -1426,7 +1436,7 @@ function randomSeed() {
       tbody.appendChild(tr);
     });
     document.getElementById("summary-text").textContent =
-      "I scored " + game.total + "/1000 on Where in the " + STATE_NAME + "?!" +
+      "I scored " + game.total + "/" + (isName ? "10" : "1000") + " on Where in the " + STATE_NAME + "?!" +
       (isCounties ? " (Counties)" : isName ? " (Name the county)" : "") + ", seed " + game.seed + "\nPlay the same game: " + gameLink();
   }
 
