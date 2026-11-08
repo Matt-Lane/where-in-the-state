@@ -1010,7 +1010,18 @@ __PURE_JS__
     var loc = eventToSvg(ev);
     if (!loc) return;
     var picked = countyAtPoint(loc.x, loc.y);
-    if (!picked) return;
+    if (!picked) {
+      /* A click outside all counties selects nothing: clear any existing
+         selection, hide the highlight and the Confirm bubble, and disable
+         Confirm again. Without this, a stray click outside the state would
+         leave the previous county selected. */
+      selectedCounty = null;
+      countySelectedEl.classList.add("layer-hidden");
+      pinConfirm.hidden = true;
+      btnConfirm.disabled = true;
+      document.getElementById("hint-text").textContent = "Click a county on the map to select it.";
+      return;
+    }
     selectedCounty = picked;
     countySelectedPath.setAttribute("d", ringsToPath(countyRingsSvg(picked)));
     countySelectedEl.classList.remove("layer-hidden");

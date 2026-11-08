@@ -710,7 +710,7 @@ else if (_phase == Phase.Results)
         SetPhase(Phase.Reveal);
     }
 
-    private void OnCountySelected(MapFeature county) => _selectedCounty = county;
+    private void OnCountySelected(MapFeature? county) => _selectedCounty = county;
 
     private void ConfirmCountyPlacement()
     {

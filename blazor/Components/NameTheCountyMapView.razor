@@ -125,8 +125,9 @@
     [Parameter] public bool Revealed { get; set; }
     [Parameter] public bool Interactive { get; set; } = true;
 
-    /// <summary>Raised when the player clicks a county on the map.</summary>
-    [Parameter] public EventCallback<MapFeature> OnCountySelected { get; set; }
+    /// <summary>Raised when the player clicks a county on the map, or null
+    /// when the click lands outside all counties (which clears the selection).</summary>
+    [Parameter] public EventCallback<MapFeature?> OnCountySelected { get; set; }
 
     /// <summary>Raised when the player taps the Confirm bubble next to the selection.</summary>
     [Parameter] public EventCallback OnConfirmClicked { get; set; }
@@ -202,7 +203,9 @@
         double svgY = (e.ClientY - rect[1]) * MapProjection.ViewBoxHeight / rect[3];
 
         // Find the county containing the click. A click outside the state
-        // (ocean, a neighbouring state) is in no county and selects nothing.
+        // (ocean, a neighbouring state) is in no county and selects nothing:
+        // clear any existing selection, so a stray click outside the state
+        // doesn't leave the previous county selected.
         foreach (var (county, rings) in _countySvgRings)
         {
             if (OverlapService.IsInsideAnyRing(svgX, svgY, rings))
@@ -211,6 +214,8 @@
                 return;
             }
         }
+
+        await OnCountySelected.InvokeAsync(null);
     }
 
     private (double X, double Y) CountyCentroidSvg(MapFeature county)
