@@ -184,6 +184,9 @@ input[type="text"] {
     max-width: 26rem;
 }
 input[type="text"]:focus { outline: 3px solid var(--green); outline-offset: 1px; border-color: var(--green); }
+/* The seed box is short (20 chars max) and sits below Start, out of the
+   normal player's path — keep it narrow so it reads as a secondary control. */
+input[type="text"].seed-input { max-width: 15rem; }
 label { display: block; margin: 0.5rem 0; font-weight: 600; }
 fieldset { margin: 1rem 0; border: 1px solid var(--line); border-radius: 10px; padding: 0.75rem 1rem 1rem; }
 fieldset legend { font-weight: 700; font-size: 0.9rem; padding: 0 0.4rem; }

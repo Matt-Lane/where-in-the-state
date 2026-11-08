@@ -143,11 +143,15 @@ else if (_phase == Phase.Start)
             </div>
         </div>
 
+        <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
+            Start game
+        </button>
+
         <label>
             Seed
-            <input type="text" @bind="_seed" @bind:event="oninput" maxlength="100" />
+            <input type="text" class="seed-input" @bind="_seed" @bind:event="oninput" maxlength="20" />
         </label>
-        <p class="hint">Same seed = same @(_mode == GameMode.Cities ? "cities" : "counties"), same order. Share it to play the same game as a co-worker. Seeds are case-sensitive.</p>
+        <p class="hint">Same seed = same @(_mode == GameMode.Cities ? "cities" : "counties"), same order. Share it to play the same game as a player.</p>
 
         <div class="button-row">
             <button @onclick="UseRandomSeed">Random seed</button>
@@ -163,12 +167,6 @@ else if (_phase == Phase.Start)
                 <button type="button" class="toggle" data-layer="lake" aria-pressed="@(_showLakes ? "true" : "false")" @onclick="() => _showLakes = !_showLakes"><span class="swatch fill"></span>Lakes</button>
             </div>
         </fieldset>
-
-        <p>Questions: <strong>10</strong>.</p>
-
-        <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
-            Start game
-        </button>
     </div>
 }
 else if (_phase == Phase.Round || _phase == Phase.Reveal)
@@ -482,7 +480,15 @@ else if (_phase == Phase.Results)
     // start screen shows the state-specific title ("Where in the Oregon?!")
     // in the header only when the URL named the state.
     private bool _stateFromUrl;
-    private string _seed = "";
+    private string _seedBacking = "";
+    // Seeds are forced to upper case, so "or-2026-11-06" and "OR-2026-11-06"
+    // are the same game. Every write (typing, URL, Random/Daily) goes
+    // through this setter, so the seed is canonical everywhere it is used.
+    private string _seed
+    {
+        get => _seedBacking;
+        set => _seedBacking = (value ?? "").ToUpperInvariant();
+    }
     private Phase _phase = Phase.Start;
     private GameMode _mode = GameMode.Cities;
 

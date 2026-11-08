@@ -49,7 +49,9 @@
   }
   input[type="text"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .seed-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
-  .seed-row input { flex: 1 1 260px; }
+  /* The seed box is short (20 chars max) and sits below Start, out of the
+     normal player's path — keep it narrow so it reads as a secondary control. */
+  .seed-row input { flex: 0 1 240px; max-width: 240px; }
   .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 
   button, .btn {
@@ -305,17 +307,26 @@
     </div>
 
     <div class="card">
+      <h2>Game</h2>
+      <div class="mode-lines" id="game-lines"></div>
+      <div class="btn-row">
+        <button type="button" class="btn-primary btn-big" id="btn-start">Start game</button>
+      </div>
+      <p class="muted small" id="start-note">Starting writes the seed into the page&rsquo;s address, so the link can be shared. Refreshing mid-game restarts that game from question 1 with the same seed.</p>
+    </div>
+
+    <div class="card">
       <h2>Seed — same seed, same game</h2>
       <label class="field-label" for="seed-input">Game seed</label>
       <div class="seed-row">
-        <input type="text" id="seed-input" autocomplete="off" spellcheck="false" />
+        <input type="text" id="seed-input" autocomplete="off" spellcheck="false" maxlength="20" />
       </div>
       <div class="btn-row">
         <button type="button" id="btn-random-seed">Random seed</button>
         <button type="button" id="btn-daily-seed">Use today&rsquo;s daily seed</button>
       </div>
       <p class="muted small" style="margin-top:12px" id="seed-hint">Same seed = same 10 cities, in the same order, for anyone, any time.
-        Share the seed (or the game link) to play the same game as a co-worker. Seeds are case-sensitive.</p>
+        Share the seed (or the game link) to play the same game as a player.</p>
     </div>
 
     <div class="card">
@@ -327,15 +338,6 @@
         <button type="button" class="toggle" data-layer="lake" aria-pressed="true"><span class="swatch fill"></span>Lakes</button>
       </div>
       <p class="muted small" style="margin-top:12px">Landmarks are for orientation only — they don&rsquo;t affect scoring. Your choices stay in effect during play.</p>
-    </div>
-
-    <div class="card">
-      <h2>Game</h2>
-      <div class="mode-lines" id="game-lines"></div>
-      <div class="btn-row">
-        <button type="button" class="btn-primary btn-big" id="btn-start">Start game</button>
-      </div>
-      <p class="muted small" id="start-note">Starting writes the seed into the page&rsquo;s address, so the link can be shared. Refreshing mid-game restarts that game from question 1 with the same seed.</p>
     </div>
   </section>
 
@@ -445,7 +447,7 @@
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.15.
+    Version 0.16.
   </footer>
 </div>
 
@@ -705,7 +707,17 @@ function randomSeed() {
   }
   var urlParams = paramsFromUrl();
   var urlSeed = urlParams.get("seed");
-  seedInput.value = (urlSeed && urlSeed.trim()) ? urlSeed : dailySeed();
+  seedInput.value = (urlSeed && urlSeed.trim()) ? urlSeed.trim().toUpperCase() : dailySeed();
+  /* Force seeds to upper case as the player types, so the box always
+     shows the canonical form. The cursor is kept where it was. */
+  seedInput.addEventListener("input", function () {
+    var start = seedInput.selectionStart, end = seedInput.selectionEnd;
+    var upper = seedInput.value.toUpperCase();
+    if (upper !== seedInput.value) {
+      seedInput.value = upper;
+      seedInput.setSelectionRange(start, end);
+    }
+  });
   document.getElementById("btn-random-seed").addEventListener("click", function () {
     seedInput.value = randomSeed();
     seedInput.focus();
@@ -722,7 +734,7 @@ function randomSeed() {
   var MODE_COPY = {
     cities: {
       lede: "Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin, the more points. Full points within 5 miles, then −1 point per mile beyond that.",
-      seedHint: "Same seed = same 10 cities, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a co-worker. Seeds are case-sensitive.",
+      seedHint: "Same seed = same 10 cities, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a player.",
       gameLine: "One pin per city, 100 points per question, 1,000 points maximum.",
       steps: [
         ["Pick a seed", "Same seed, same 10 cities — share it to play together."],
@@ -732,7 +744,7 @@ function randomSeed() {
     },
     counties: {
       lede: "A blank map of Oregon — outline and landmarks, but no county lines. Each round names one county; drag its shape onto the map where you think it belongs. 100 points for a perfect fit, scaled by how much of the real county you cover. 10 questions per game.",
-      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a co-worker. Seeds are case-sensitive.",
+      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a player.",
       gameLine: "One county per question, 100 points per question, 1,000 points maximum.",
       steps: [
         ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
@@ -742,7 +754,7 @@ function randomSeed() {
     },
     "name-the-county": {
       lede: "A map of Oregon with every county outlined, but no county names. Each round names one county; click the county you think it is. 1 point for naming the right county, 0 for any other. 10 questions per game.",
-      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a co-worker. Seeds are case-sensitive.",
+      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a player.",
       gameLine: "One county per question, 1 point per correct answer, 10 points maximum.",
       steps: [
         ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
@@ -802,7 +814,7 @@ function randomSeed() {
       lineSet.className = "mode-lines-set";
       lineSet.setAttribute("data-mode", mode);
       var p = document.createElement("p");
-      p.innerHTML = "<strong>10 questions.</strong> " + copy.gameLine;
+      p.textContent = copy.gameLine;
       lineSet.appendChild(p);
       lines.appendChild(lineSet);
     });
@@ -1416,7 +1428,9 @@ function randomSeed() {
   });
 
   async function startGame(seed) {
-    seed = (seed || "").trim();
+    /* Seeds are forced to upper case, so "or-2026-11-06" and
+       "OR-2026-11-06" are the same game. */
+    seed = (seed || "").trim().toUpperCase();
     if (!seed) seed = randomSeed();
     var seedInt = await seedIntFromString(seed);
     var mode = selectedMode();

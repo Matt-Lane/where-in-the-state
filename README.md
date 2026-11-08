@@ -23,7 +23,7 @@ far off you were, and awards points.
 - **Seeds:** the city list is shuffled deterministically from a seed, so the
   same seed gives the same 10 cities in the same order for anyone, at any
   time. Share a seed (or a `/oregon/<seed>` link) to play the same
-  game as a co-worker and compare scores. There's also a daily seed.
+  game as a player and compare scores. There's also a daily seed.
 
 ## Playable web version
 

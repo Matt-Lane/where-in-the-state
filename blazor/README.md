@@ -94,7 +94,7 @@ wwwroot/
    replacement). `string.GetHashCode()` is never used — it is not stable
    across runtimes/runs.
 4. Daily seed: `OR-yyyy-MM-dd` (local date). Random seed: `OR-` + 6
-   alphanumeric characters. Seeds are case-sensitive and are written into
+   alphanumeric characters. Seeds are forced to upper case and are written into
    the URL on start (`/oregon/<seed>`), so a shared link loads the
    same game; loading with a seed pre-fills the start screen. The older
    `?state=oregon&seed=...` query form still works. An unknown state in

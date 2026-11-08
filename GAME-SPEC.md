@@ -18,7 +18,7 @@ A web game shows a blank map of a state — outline plus landmarks for orientati
 
 ### 1.2 Goals
 - **Teach geography, kindly.** Scoring is forgiving (see §6). A bad guess costs points for that round, never goes negative, and the reveal is a learning moment, not a punishment.
-- **Playable by anyone, anywhere, at different times, with the same game.** A seed (see §5) makes a game reproducible and shareable, so co-workers can play the same 10 cities in the same order and compare scores fairly.
+- **Playable by anyone, anywhere, at different times, with the same game.** A seed (see §5) makes a game reproducible and shareable, so players can play the same 10 cities in the same order and compare scores fairly.
 - **Oregon first, any state later.** Nothing in the game logic may hardcode Oregon. Oregon is the first *data pack*; adding a state means adding a data pack, not rewriting the game.
 - **No server required to play.** The game runs entirely in the browser. That keeps hosting simple and makes the seed logic deterministic on the client.
 
@@ -109,10 +109,10 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
 ### 4.1 Screens
 1. **Start screen**
    - State: shown as a badge (display-only — it comes from the URL/pack, so there is no editable state box). Oregon only in v1; adding a state is a data change.
-   - Start screen order (top to bottom): state badge, then the game-mode buttons, then the instructions for the selected mode (the lede paragraph and the numbered "How it works" steps, 1 Pick a seed / 2 the mode's action / 3 the reveal), then the seed box and seed buttons, then the landmark toggles, then "Questions: 10." and the Start game button. The instructions sit under the mode picker so you read the instructions for the mode you chose, not one you haven't chosen yet.
-   - The instructions must not move the UI when you switch modes: all three mode variants of the lede + steps are rendered stacked in one grid cell and only the selected mode's is visible (`visibility: hidden` on the rest, so they still size the grid), so the block is always as tall as the tallest variant and the Seed / landmarks / Start controls below it never move. The JS version stacks the "10 questions" game line the same way (Blazor has no per-mode game line — its "Questions: 10." is static).
-   - Seed entry: a text box pre-filled with a generated seed (e.g. today's date-based seed), plus buttons for "Random seed" and "Use today's daily seed". A short explainer: "Same seed = same cities, same order. Share it to play the same game as a co-worker."
-   - Question count: fixed at 10 in v1; show it, don't let the player change it yet (avoids seed-comparison confusion — a 10-question game and a 20-question game with the same seed are not comparable).
+   - Start screen order (top to bottom): state badge, then the game-mode buttons, then the instructions for the selected mode (the lede paragraph and the numbered "How it works" steps, 1 Pick a seed / 2 the mode's action / 3 the reveal), then the Start game button, then the seed box and seed buttons, then the landmark toggles. The instructions sit under the mode picker so you read the instructions for the mode you chose, not one you haven't chosen yet. The seed controls sit below Start, out of the normal player's path — most players will just pick a mode and start.
+   - The instructions must not move the UI when you switch modes: all three mode variants of the lede + steps are rendered stacked in one grid cell and only the selected mode's is visible (`visibility: hidden` on the rest, so they still size the grid), so the block is always as tall as the tallest variant and the Seed / landmarks / Start controls below it never move. The JS version stacks its per-mode game line the same way. (The "Questions: 10." label was removed 2026-11-08 — the count is fixed at 10 and the player can't change it, so it isn't shown.)
+   - Seed entry: a text box pre-filled with a generated seed (e.g. today's date-based seed), plus buttons for "Random seed" and "Use today's daily seed". The box is narrow (20 characters max) and sits below Start. A short explainer: "Same seed = same cities, same order. Share it to play the same game as a player." Seeds are forced to upper case (see §5.3).
+   - Question count: fixed at 10 in v1 and not shown on the start screen — the player can't change it, so there is no need to tell them (avoids seed-comparison confusion — a 10-question game and a 20-question game with the same seed are not comparable).
    - Landmark toggles: pill buttons with a color swatch for Interstates / Highways / Rivers / Lakes (all on by default) — the swatch shows the color that layer draws in, so the toggle doubles as the legend. Purely a display preference; they do not affect scoring. (They were plain checkboxes before 2026-11-08; the toggle buttons match the standalone version.)
    - "Start game" button. Starting also writes the seed into the URL (see §5.4) so the game is shareable / refresh-safe.
 2. **Round screen (×10)**
@@ -125,7 +125,7 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
 3. **Results screen**
    - Total score out of 1000, plus a per-round table: city, distance, points.
    - Best guess (smallest distance) and hardest city (largest distance) highlighted — these are the learning hooks.
-   - "Play again" (new random seed), "Replay same seed" (same cities/order — useful for practice), and "Copy game link" (URL with the seed, so a co-worker can play the identical game).
+   - "Play again" (new random seed), "Replay same seed" (same cities/order — useful for practice), and "Copy game link" (URL with the seed, so a player can play the identical game).
    - A two-line summary in a styled box under a "Send a challenge!" label, with a "Copy" button: "I scored 742/1000 on Where in the Oregon?!, seed OR-2026-11-06" followed by "Play the same game: https://matt-lane.github.io/where-in-the-state/oregon/OR-2026-11-06", so the recipient can open the same seed with one tap. The summary is read-only (no text field), and the link is clickable on the results screen.
 
 ### 4.2 State during play
@@ -186,7 +186,7 @@ The same seed string must produce the same 10 cities in the same order, for any 
 - **Free-form string:** any text the player types, e.g. `friday-game`, `OR-2026-11-06`. The hash step makes any string a valid seed.
 - **Daily seed:** a convenience button that sets the seed to `OR-yyyy-MM-dd` in the player's local date. Everyone playing "today's game" gets the same game that day.
 - **Random seed:** generate a short human-friendly seed, e.g. `OR-` + 6 random alphanumeric characters, so players can share it verbally.
-- **Validation:** trim whitespace; reject an empty seed (fall back to a random one). Seeds are case-sensitive — document that (`or-2026-11-06` ≠ `OR-2026-11-06`), or normalize to a canonical case; pick one and be consistent. Recommendation: preserve as typed, but display the exact seed on the results screen so a shared seed can be copied exactly.
+- **Validation:** trim whitespace; reject an empty seed (fall back to a random one). Seeds are forced to upper case (canonical case), so `or-2026-11-06` and `OR-2026-11-06` are the same game. The seed box caps input at 20 characters.
 
 ### 5.4 Seed in the URL
 - On start, navigate to `/<state>/<url-encoded seed>`, e.g. `/oregon/OR-2026-11-06`. The results "Copy game link" button copies this URL.
