@@ -95,7 +95,7 @@ public static class OverlapService
     }
 
     /// <summary>True when the point is inside any of the rings (ray casting).</summary>
-    internal static bool IsInsideAnyRing(
+    public static bool IsInsideAnyRing(
         double x, double y,
         IReadOnlyList<IReadOnlyList<(double X, double Y)>> rings)
     {

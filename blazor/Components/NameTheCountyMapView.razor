@@ -1,0 +1,301 @@
+@using OregonGeographyGame.Models
+@using OregonGeographyGame.Services
+@inject IJSRuntime JS
+
+<div class="map-wrap">
+<svg viewBox="0 0 1000 757.4"
+     class="map-svg"
+     role="img"
+     aria-label="Map of the state with county boundaries. Click the county you think is named."
+     @ref="_svgRef"
+     @onpointerdown="OnMapPointerDown">
+    @* State outline *@
+    @foreach (var feature in Outline)
+    {
+        @foreach (var ring in feature.Parts)
+        {
+            <polygon points="@PointsAttribute(ring)"
+                     class="map-outline" />
+        }
+    }
+
+    @* Landmarks, by layer (toggles are display-only; they never affect scoring) *@
+    @foreach (var feature in Landmarks)
+    {
+        if (!IsLayerVisible(feature.Layer))
+        {
+            continue;
+        }
+
+        @foreach (var part in feature.Parts)
+        {
+            if (feature.Kind == "Polygon")
+            {
+                <polygon points="@PointsAttribute(part)"
+                         class="map-lake" />
+            }
+            else
+            {
+                <polyline points="@PointsAttribute(part)"
+                          fill="none"
+                          class="@LandmarkCssClass(feature.Layer)" />
+            }
+        }
+    }
+
+    @* The grid of counties: every county boundary drawn over the blank map,
+       so the counties read as regions to pick from. County lines are NOT
+       drawn in the other modes — here they are the point of the game. *@
+    @foreach (var (county, rings) in _countySvgRings)
+    {
+        @foreach (var ring in rings)
+        {
+            <polygon points="@SvgPointsAttribute(ring)"
+                     class="county-boundary" />
+        }
+    }
+
+    @* The selected county, highlighted in blue while placing. *@
+    @if (SelectedCounty is not null && !Revealed)
+    {
+        @foreach (var ring in SvgRingsFor(SelectedCounty))
+        {
+            <polygon points="@SvgPointsAttribute(ring)"
+                     class="county-selected" />
+        }
+    }
+
+    @* Reveal: the true county in green. If the player picked a different
+       county, that one is shown in rust next to it. *@
+    @if (Revealed && TrueCounty is not null)
+    {
+        @foreach (var ring in SvgRingsFor(TrueCounty))
+        {
+            <polygon points="@SvgPointsAttribute(ring)"
+                     class="county-true" />
+        }
+        @CountyLabel(TrueCounty)
+    }
+    @if (Revealed && SelectedCounty is not null && TrueCounty is not null
+        && !string.Equals(SelectedCounty.Name, TrueCounty.Name, StringComparison.Ordinal))
+    {
+        @foreach (var ring in SvgRingsFor(SelectedCounty))
+        {
+            <polygon points="@SvgPointsAttribute(ring)"
+                     class="county-wrong" />
+        }
+    }
+</svg>
+
+@* A small Confirm bubble next to the selected county, like the city pin's
+   bubble and the puzzle piece's bubble, so the player can confirm right
+   where they clicked. *@
+@if (Interactive && !Revealed && SelectedCounty is not null)
+{
+    var (cx, cy) = CountyCentroidSvg(SelectedCounty);
+    var leftPct = cx / 10.0;
+    var topPct = Math.Clamp(cy / 757.4 * 100.0, 4, 96);
+    var flipped = cx > 750;
+    <button type="button"
+            class="pin-confirm@(flipped ? " flipped" : "")"
+            style="left: @leftPct.ToString("F2")%; top: @topPct.ToString("F2")%;"
+            aria-label="Confirm selection"
+            @onclick="OnConfirmClicked">Confirm</button>
+}
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<MapFeature> Outline { get; set; } = [];
+    [Parameter] public IReadOnlyList<MapFeature> Landmarks { get; set; } = [];
+
+    [Parameter] public bool ShowInterstates { get; set; } = true;
+    [Parameter] public bool ShowHighways { get; set; } = true;
+    [Parameter] public bool ShowRivers { get; set; } = true;
+    [Parameter] public bool ShowLakes { get; set; } = true;
+
+    /// <summary>All counties in the pack, drawn as the boundary grid.</summary>
+    [Parameter] public IReadOnlyList<MapFeature> Counties { get; set; } = [];
+
+    /// <summary>The county the player has selected this round, if any.</summary>
+    [Parameter] public MapFeature? SelectedCounty { get; set; }
+
+    /// <summary>The true county; only rendered once <see cref="Revealed"/> is true.</summary>
+    [Parameter] public MapFeature? TrueCounty { get; set; }
+
+    [Parameter] public bool Revealed { get; set; }
+    [Parameter] public bool Interactive { get; set; } = true;
+
+    /// <summary>Raised when the player clicks a county on the map, or null
+    /// when the click lands outside all counties (which clears the selection).</summary>
+    [Parameter] public EventCallback<MapFeature?> OnCountySelected { get; set; }
+
+    /// <summary>Raised when the player taps the Confirm bubble next to the selection.</summary>
+    [Parameter] public EventCallback OnConfirmClicked { get; set; }
+
+    private ElementReference _svgRef;
+
+    // Every county's rings in SVG coordinates, cached when the county list
+    // changes. Counties tile the state without overlapping, so a click lands
+    // in at most one of them.
+    private List<(MapFeature County, List<IReadOnlyList<(double X, double Y)>> Rings)> _countySvgRings = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Counties.Count != _countySvgRings.Count)
+        {
+            _countySvgRings = Counties
+                .Select(c => (County: c, Rings: ProjectRings(c.Parts)))
+                .ToList();
+        }
+    }
+
+    private List<IReadOnlyList<(double X, double Y)>> SvgRingsFor(MapFeature county)
+    {
+        var match = _countySvgRings.FirstOrDefault(e =>
+            string.Equals(e.County.Name, county.Name, StringComparison.Ordinal));
+        return match.Rings ?? ProjectRings(county.Parts);
+    }
+
+    private static List<IReadOnlyList<(double X, double Y)>> ProjectRings(
+        IReadOnlyList<IReadOnlyList<(double Lon, double Lat)>> parts)
+    {
+        var result = new List<IReadOnlyList<(double X, double Y)>>();
+        foreach (var ring in parts)
+        {
+            var projected = new List<(double X, double Y)>(ring.Count);
+            foreach (var (lon, lat) in ring)
+            {
+                projected.Add(MapProjection.LatLonToSvg(lat, lon));
+            }
+            result.Add(projected);
+        }
+
+        return result;
+    }
+
+    private async Task OnMapPointerDown(PointerEventArgs e)
+    {
+        if (!Interactive || Revealed)
+        {
+            return;
+        }
+
+        // Convert the click to SVG units via the SVG's bounding rect
+        // (ClientX/Y are viewport-relative, so the rect is what converts
+        // them — OffsetX would be relative to the element under the
+        // pointer, which is a county polygon while clicking, not the map).
+        double[]? rect;
+        try
+        {
+            rect = await JS.InvokeAsync<double[]>("whereInTheState.svgRect", _svgRef);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (rect is not { Length: 4 } || rect[2] <= 0 || rect[3] <= 0)
+        {
+            return;
+        }
+
+        double svgX = (e.ClientX - rect[0]) * MapProjection.ViewBoxWidth / rect[2];
+        double svgY = (e.ClientY - rect[1]) * MapProjection.ViewBoxHeight / rect[3];
+
+        // Find the county containing the click. A click outside the state
+        // (ocean, a neighbouring state) is in no county and selects nothing:
+        // clear any existing selection, so a stray click outside the state
+        // doesn't leave the previous county selected.
+        foreach (var (county, rings) in _countySvgRings)
+        {
+            if (OverlapService.IsInsideAnyRing(svgX, svgY, rings))
+            {
+                await OnCountySelected.InvokeAsync(county);
+                return;
+            }
+        }
+
+        await OnCountySelected.InvokeAsync(null);
+    }
+
+    private (double X, double Y) CountyCentroidSvg(MapFeature county)
+    {
+        var rings = SvgRingsFor(county);
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var ring in rings)
+        {
+            foreach (var (x, y) in ring)
+            {
+                minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
+                minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+            }
+        }
+
+        return ((minX + maxX) / 2, (minY + maxY) / 2);
+    }
+
+    private bool IsLayerVisible(string layer) => layer switch
+    {
+        "interstate" => ShowInterstates,
+        "highway" => ShowHighways,
+        "river" => ShowRivers,
+        "lake" => ShowLakes,
+        _ => true
+    };
+
+    private static string LandmarkCssClass(string layer) => layer switch
+    {
+        "interstate" => "map-interstate",
+        "highway" => "map-highway",
+        "river" => "map-river",
+        _ => "map-landmark"
+    };
+
+    private static string PointsAttribute(IReadOnlyList<(double Lon, double Lat)> points)
+    {
+        var parts = new string[points.Count];
+        for (int i = 0; i < points.Count; i++)
+        {
+            var (x, y) = MapProjection.LatLonToSvg(points[i].Lat, points[i].Lon);
+            parts[i] = $"{x:F1},{y:F1}";
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static string SvgPointsAttribute(IReadOnlyList<(double X, double Y)> points)
+    {
+        var parts = new string[points.Count];
+        for (int i = 0; i < points.Count; i++)
+        {
+            parts[i] = $"{points[i].X:F1},{points[i].Y:F1}";
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private MarkupString CountyLabel(MapFeature county)
+    {
+        // The county name on the true county, like the city name label on
+        // the reveal pin. Centred on the true county's bounding box,
+        // clamped so long names don't run off the map.
+        var rings = SvgRingsFor(county);
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var ring in rings)
+        {
+            foreach (var (x, y) in ring)
+            {
+                minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
+                minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+            }
+        }
+
+        var labelX = Math.Clamp((minX + maxX) / 2, 90, 910);
+        var labelY = Math.Clamp((minY + maxY) / 2, 30, 730);
+        var name = System.Net.WebUtility.HtmlEncode(county.Name ?? "");
+        return new MarkupString(
+            $"<text x=\"{labelX:F1}\" y=\"{labelY:F1}\" class=\"map-label\">{name}</text>");
+    }
+}

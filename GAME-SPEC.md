@@ -140,6 +140,17 @@ A second game mode in the same app, alongside the city-pin mode. Same 10 rounds,
 - **Results:** the per-round table shows county, coverage %, points. Best placement is the highest coverage; hardest county is the lowest coverage (among rounds that were not passed).
 - **Scoring:** see §6.4 — the overlap fraction (what percentage of the real county the placed piece covers), × 100 points per round.
 
+### 4.4 "Name the county" mode (added 2026-11-07)
+
+A third game mode in the same app, alongside the city-pin mode and the Counties drag mode. Same 10 rounds, same seeded shuffle (applied to the 36-county pool — the same seed picks the same 10 counties as the drag mode), same /1000 total. Only the question and the scoring change.
+
+- **Mode picker:** the start screen has a "Game mode" choice — Cities, Counties (drag the piece), or "Name the county". "Name the county" is only offered when the pack has a `counties.geojson`. The mode is part of the shareable link: a game link carries `?mode=name-the-county`, and opening such a link preselects it. The results summary names the mode: "I scored 742/1000 on Where in the Oregon?! (Name the county), seed …".
+- **The grid:** the map shows every county boundary drawn over the blank state (all 36 counties as outlines), so the counties read as a grid of regions to pick from. County lines are NOT drawn in the other modes — here they are the point of the game. Landmarks (rivers, highways, lakes) still show, as orientation clues.
+- **Selecting:** each round names one county ("Where is Multnomah County?"). The player clicks or taps a county on the map; the county containing the click (point-in-polygon) is highlighted in blue. Clicking another county changes the selection. A click outside all counties (ocean, a neighbouring state) selects nothing. Confirm (the controls-row button and the Confirm bubble next to the selected county) stays disabled until a county is selected. A "Pass" button scores 0 for the round without a selection.
+- **Reveal:** the true county is shown in green, and if the player picked a different county, that one is shown in rust next to it, with the county name labelled on the true county. The reveal line reads "Correct — that's Multnomah County · 100 points", "That's Washington County, not Multnomah County · 0 points", or "You passed — the green county is Multnomah County." The Next button reads "Next county".
+- **Results:** the per-round table shows county, your pick, points. A line reports "You named 7 out of 10 counties correctly." Best pick is the first county named correctly; hardest county is the first one missed.
+- **Scoring:** see §6.5 — binary, 100 for the right county, 0 for any other (or a pass).
+
 ---
 
 ## 5. Seeded randomization
@@ -233,6 +244,15 @@ points  = round(overlap × 100)
 - **County polygons have no holes** (Clatsop and Curry are MultiPolygons of separate outer rings — islands — not holes), so "inside" means inside any ring. If a future pack has a county with a hole, the point-in-polygon test must exclude hole rings.
 - **Rounding note:** C# `Math.Round` is banker's rounding and JS `Math.round` rounds halves up, so an exact .5 overlap score (e.g. 50.5%) can differ by 1 point between the Blazor and JS versions. Rare, and within the grid's own error — accepted, as with the city game's whole-mile rounding.
 - The stricter alternative, Intersection over Union (IoU = intersection / union), was considered and set aside: for equal-area shapes IoU = overlap / (2 − overlap), so it scores harsher (80% coverage → 67) and is harder to explain in one line. If overlap fraction ever feels too generous, IoU is the fallback.
+
+### 6.5 "Name the county" scoring — binary (added 2026-11-07)
+
+```
+points = 100 if selected county == named county else 0
+```
+
+- Naming the right county is 100 points; any other county, or a pass, is 0. There is no partial credit — in a selection there is no "close", you either named it or you didn't. A random guesser would get about 10/36 ≈ 28% right by chance (2–3 out of 10), so the mode still separates knowing from guessing.
+- Possible refinement (not in v1): partial credit for picking a county adjacent to the correct one. That would need an adjacency table per state pack and a judgement about how much an adjacent pick is worth; keep it as a future option, not a v1 rule.
 
 ---
 
