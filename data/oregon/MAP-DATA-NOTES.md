@@ -9,7 +9,8 @@
   - 100 highway segments (US + state routes)
   - 40 river segments, 20 named rivers
   - 58 lakes/reservoirs (11 from Natural Earth, 47 more from OpenStreetMap, added 2026-11-07)
-- Each landmark feature has `properties.layer` = `interstate` | `highway` | `river` | `lake` and a `properties.name`.
+- `counties.geojson` — 67,748 bytes, 36 Oregon counties (added 2026-11-07 for Counties mode)
+- Each landmark feature has `properties.layer` = `interstate` | `highway` | `river` | `lake` and a `properties.name`. Each county feature has `properties.layer` = `county` and `properties.name` = e.g. "Multnomah County".
 
 ## Sources (all public domain / openly licensed)
 
@@ -18,6 +19,7 @@
 | State outline | U.S. Census Bureau, 2010 cartographic boundary file `gz_2010_us_040_00_500k.json` (Oregon feature, `GEO_ID 0400000US41`), via https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_040_00_500k.json | Public domain (U.S. federal government) |
 | Rivers, lakes, roads | Natural Earth 10m, via https://github.com/nvkelso/natural-earth-vector (geojson): `ne_10m_rivers_lake_centerlines.geojson`, `ne_10m_rivers_north_america.geojson`, `ne_10m_lakes.geojson`, `ne_10m_lakes_north_america.geojson`, `ne_10m_roads.geojson` | Public domain (Natural Earth) |
 | Additional lakes (47) | OpenStreetMap, via the Overpass API (query: `natural=water` + `name` in the Oregon bbox, 2026-11-07) | ODbL (OpenStreetMap) |
+| Counties (36) | U.S. Census Bureau, 2023 cartographic boundary file `cb_2023_us_county_500k.zip` (Oregon features, `STATEFP` 41), via https://www2.census.gov/geo/tiger/GENZ2023/shp/cb_2023_us_county_500k.zip | Public domain (U.S. federal government) |
 
 No geometry was invented. No live map tiles are used; all data is shipped with the app.
 
@@ -62,6 +64,15 @@ Steps:
    simplified outline or within 0.02° of it (so border-crossing roads and the
    Columbia River itself survive). This dropped 20 fragments (e.g. I-82 and US-95
    segments in Washington/Idaho, US-101 north of the Columbia mouth).
+6. **Counties (2026-11-07, for Counties mode):** extract the 36 Oregon features
+   (`STATEFP` 41) from the Census 2023 county file with `pyshp`; each county is
+   one polygon, except Clatsop (3 parts — Columbia River islands) and Curry
+   (4 parts — coastal islands), which are MultiPolygons. Simplify each ring with
+   Douglas-Peucker at 0.004° (15,199 → 2,888 points) and round to 4 decimals.
+   Names come from the Census `NAME` field with " County" appended
+   (e.g. "Multnomah County"). County polygons share exact edges with each other
+   and with the state outline, so adjacent counties tile exactly. Largest county
+   is Harney (~25,945 km²), smallest is Multnomah (~1,225 km²).
 
 ## Projection (must match the game and the prototype)
 

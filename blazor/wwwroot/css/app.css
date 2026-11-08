@@ -373,6 +373,16 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .pin circle { stroke: #fff; stroke-width: 2; }
 .pin-halo { fill: #fff; opacity: 0.55; stroke: none; }
 .pin-cross { stroke: #177245; stroke-width: 3.5; stroke-linecap: round; }
+/* Counties mode: the draggable puzzle piece. It is the county's own shape
+   at 1:1 scale, drawn in a warm rust so it reads as a piece waiting to be
+   placed. touch-action none so a touch drag moves the piece instead of
+   scrolling the page. */
+.county-piece { fill: #d98a68; fill-opacity: 0.85; stroke: #a34a28; stroke-width: 2; cursor: grab; touch-action: none; }
+.county-piece.dragging { cursor: grabbing; fill-opacity: 0.95; }
+/* Reveal: the true county in green, the placed piece in rust — where they
+   overlap the two fills blend, so the coverage reads at a glance. */
+.county-true { fill: #205c46; fill-opacity: 0.35; stroke: #205c46; stroke-width: 2.5; }
+.county-placed { fill: #c0563a; fill-opacity: 0.4; stroke: #a34a28; stroke-width: 2; }
 .pin-provisional circle { fill: var(--river); }
 .pin-guess circle { fill: var(--rust); }
 .pin-true circle { fill: #177245; }

@@ -26,13 +26,19 @@
         <a class="dismiss">🗙</a>
     </div>
     <script>
-        // Tiny helper for the map component: measure an element's actual
-        // rendered size in CSS pixels, so map clicks can be converted to
-        // viewBox coordinates at whatever size the page CSS chose.
+        // Tiny helpers for the map components: measure an element's actual
+        // rendered size/position in CSS pixels, so map clicks and drags can
+        // be converted to viewBox coordinates at whatever size the page CSS
+        // chose. svgSize returns [width, height]; svgRect returns
+        // [left, top, width, height] (viewport-relative, for ClientX/Y).
         window.whereInTheState = {
             svgSize: function (el) {
                 var r = el.getBoundingClientRect();
                 return [r.width, r.height];
+            },
+            svgRect: function (el) {
+                var r = el.getBoundingClientRect();
+                return [r.left, r.top, r.width, r.height];
             }
         };
     </script>

@@ -23,6 +23,13 @@ public sealed class SeededGameService
     /// The input pool is not modified.
     /// </summary>
     public IReadOnlyList<City> SelectCities(IReadOnlyList<City> pool, string seed, int count = 10)
+        => SelectItems(pool, seed, count);
+
+    /// <summary>
+    /// The same deterministic selection, for any pool (cities, counties, …).
+    /// The same seed string always produces the same items in the same order.
+    /// </summary>
+    public IReadOnlyList<T> SelectItems<T>(IReadOnlyList<T> pool, string seed, int count = 10)
     {
         ArgumentNullException.ThrowIfNull(pool);
         if (string.IsNullOrWhiteSpace(seed))

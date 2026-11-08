@@ -50,6 +50,11 @@ public sealed class StatePackLoader
 
         var outline = await LoadGeoJsonAsync($"{basePath}/{manifest.Files.Outline}", layerFallback: "outline");
         var landmarks = await LoadGeoJsonAsync($"{basePath}/{manifest.Files.Landmarks}", layerFallback: null);
+        // Counties are optional: a pack without a counties file still loads,
+        // and Counties mode is simply unavailable for that state.
+        var counties = manifest.Files.Counties is null
+            ? []
+            : await LoadGeoJsonAsync($"{basePath}/{manifest.Files.Counties}", layerFallback: "county");
 
         return new StatePack(
             Id: manifest.Id,
@@ -58,6 +63,7 @@ public sealed class StatePackLoader
             Cities: cities,
             Outline: outline,
             Landmarks: landmarks,
+            Counties: counties,
             Layers: manifest.Layers.Select(l => new LandmarkLayer(l.Id, l.Label, l.VisibleByDefault)).ToList(),
             Bounds: new MapBounds(manifest.Bounds.LonMin, manifest.Bounds.LonMax, manifest.Bounds.LatMin, manifest.Bounds.LatMax));
     }
@@ -177,5 +183,5 @@ public sealed class StatePackLoader
 
     private sealed record ManifestLayer(string Id, string Label, bool VisibleByDefault);
 
-    private sealed record ManifestFiles(string Cities, string Outline, string Landmarks);
+    private sealed record ManifestFiles(string Cities, string Outline, string Landmarks, string? Counties = null);
 }

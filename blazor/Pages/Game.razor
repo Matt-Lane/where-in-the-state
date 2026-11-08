@@ -31,17 +31,35 @@ else if (_phase == Phase.Start)
 {
     <div class="hero">
         <h1>Where in the State</h1>
-        <p class="lede">
-            A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
-            but no city names. Each round names one city; click or tap the map where
-            you think it is. 100 points for a guess within 5 miles, then −1 point per
-            mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
-        </p>
-        <ol class="how-it-works">
-            <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 cities — share it to play together.</li>
-            <li><strong><span class="step-num">2</span>Drop a pin</strong>Tap the map where you think the city is, then confirm.</li>
-            <li><strong><span class="step-num">3</span>See how close</strong>The real spot is revealed, with your distance and points.</li>
-        </ol>
+        @if (_mode == GameMode.Counties)
+        {
+            <p class="lede">
+                A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
+                but no county lines. Each round names one county; drag its shape onto
+                the map where you think it belongs. 100 points for a perfect fit,
+                scaled by how much of the real county you cover.
+                <strong>10 questions</strong> per game.
+            </p>
+            <ol class="how-it-works">
+                <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
+                <li><strong><span class="step-num">2</span>Drag the piece</strong>Drag the county's shape onto the map where it belongs, then confirm.</li>
+                <li><strong><span class="step-num">3</span>See the overlap</strong>The real county is revealed, with how much of it you covered and your points.</li>
+            </ol>
+        }
+        else
+        {
+            <p class="lede">
+                A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
+                but no city names. Each round names one city; click or tap the map where
+                you think it is. 100 points for a guess within 5 miles, then −1 point per
+                mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
+            </p>
+            <ol class="how-it-works">
+                <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 cities — share it to play together.</li>
+                <li><strong><span class="step-num">2</span>Drop a pin</strong>Tap the map where you think the city is, then confirm.</li>
+                <li><strong><span class="step-num">3</span>See how close</strong>The real spot is revealed, with your distance and points.</li>
+            </ol>
+        }
     </div>
 
     <div class="card">
@@ -50,11 +68,17 @@ else if (_phase == Phase.Start)
             <input type="text" value="@_pack.Name" disabled />
         </label>
 
+        <fieldset>
+            <legend>Game mode</legend>
+            <label><input type="radio" name="mode" checked="@(_mode == GameMode.Cities)" @onchange="() => _mode = GameMode.Cities" /> Cities — drop a pin for a named city</label>
+            <label><input type="radio" name="mode" checked="@(_mode == GameMode.Counties)" disabled="@(_pack.Counties.Count == 0)" @onchange="() => _mode = GameMode.Counties" /> Counties — drag the county's shape onto the map</label>
+        </fieldset>
+
         <label>
             Seed
             <input type="text" @bind="_seed" @bind:event="oninput" maxlength="100" />
         </label>
-        <p class="hint">Same seed = same cities, same order. Share it to play the same game as a co-worker. Seeds are case-sensitive.</p>
+        <p class="hint">Same seed = same @(_mode == GameMode.Counties ? "counties" : "cities"), same order. Share it to play the same game as a co-worker. Seeds are case-sensitive.</p>
 
         <div class="button-row">
             <button @onclick="UseRandomSeed">Random seed</button>
@@ -78,7 +102,8 @@ else if (_phase == Phase.Start)
 }
 else if (_phase == Phase.Round || _phase == Phase.Reveal)
 {
-    var city = _gameCities[_roundIndex];
+    var isCounties = _mode == GameMode.Counties;
+    var totalRounds = isCounties ? _gameCounties.Count : _gameCities.Count;
     <div class="round-status">
         <div class="progress-wrap">
             <div class="progress-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="1000" aria-label="Score out of 1000" aria-valuetext="@($"{_totalScore} out of 1000; maximum {(_roundIndex + 1) * 100} after question {_roundIndex + 1}")">
@@ -88,58 +113,115 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
         </div>
         <p class="score-chip">Score: <strong>@_totalScore</strong> / 1000</p>
     </div>
-    <h1 class="question">Question @(_roundIndex + 1) of @_gameCities.Count — Where is <strong>@city.Name</strong>?</h1>
-    <p class="sr-only">Question @(_roundIndex + 1) of @_gameCities.Count: Where is @city.Name?</p>
+    @if (isCounties)
+    {
+        var county = _gameCounties[_roundIndex];
+        <h1 class="question">Question @(_roundIndex + 1) of @totalRounds — Where is <strong>@county.Name</strong>?</h1>
+        <p class="sr-only">Question @(_roundIndex + 1) of @totalRounds: Where is @county.Name?</p>
 
-    <div class="map-card">
-    <div class="game-controls">
-        @if (_phase == Phase.Round)
-        {
-            <button class="primary" @onclick="ConfirmGuess" disabled="@(_guessLat is null)">
-                Confirm guess
-            </button>
-            <button @onclick="Pass">Pass (0 points)</button>
-            <span class="controls-hint">
-                @(_guessLat is null
-                    ? "Click or tap the map to place your pin."
-                    : "Pin placed — click again to move it, or confirm.")
-            </span>
-        }
-        else
-        {
-            var result = _results[_roundIndex];
-            <button class="primary" @onclick="NextRound">
-                @(_roundIndex + 1 >= _gameCities.Count ? "See results" : "Next city")
-            </button>
-            <span class="reveal-line">
-                @if (result.DistanceMiles is null)
-                {
-                    <text>You passed — the green pin is @city.Name.</text>
-                }
-                else
-                {
-                    <text>@result.DistanceMiles.Value.ToString("F1") mi off · @result.Points points</text>
-                }
-            </span>
-        }
-    </div>
+        <div class="map-card">
+        <div class="game-controls">
+            @if (_phase == Phase.Round)
+            {
+                <button class="primary" @onclick="ConfirmGuess" disabled="@(!_countyDragged)">
+                    Confirm guess
+                </button>
+                <button @onclick="Pass">Pass (0 points)</button>
+                <span class="controls-hint">
+                    @(_countyDragged
+                        ? "Piece placed — drag it again to move it, or confirm."
+                        : "Drag the county piece onto the map.")
+                </span>
+            }
+            else
+            {
+                var result = _countyResults[_roundIndex];
+                <button class="primary" @onclick="NextRound">
+                    @(_roundIndex + 1 >= totalRounds ? "See results" : "Next county")
+                </button>
+                <span class="reveal-line">
+                    @if (result.OverlapFraction is null)
+                    {
+                        <text>You passed — the green shape is @county.Name.</text>
+                    }
+                    else
+                    {
+                        <text>You covered @((result.OverlapFraction.Value * 100).ToString("F0"))% of @county.Name · @result.Points points</text>
+                    }
+                </span>
+            }
+        </div>
 
-    <MapView Outline="@_pack.Outline"
-             Landmarks="@_pack.Landmarks"
-             ShowInterstates="@_showInterstates"
-             ShowHighways="@_showHighways"
-             ShowRivers="@_showRivers"
-             ShowLakes="@_showLakes"
-             GuessLatitude="@_guessLat"
-             GuessLongitude="@_guessLon"
-             TrueLatitude="@(_phase == Phase.Reveal ? city.Latitude : null)"
-             TrueLongitude="@(_phase == Phase.Reveal ? city.Longitude : null)"
-             TrueName="@(_phase == Phase.Reveal ? city.Name : null)"
-             Revealed="@(_phase == Phase.Reveal)"
-             Interactive="@(_phase == Phase.Round)"
-             OnMapClicked="OnMapClicked"
-             OnConfirmClicked="ConfirmGuess" />
-    </div>
+        <CountyMapView Outline="@_pack.Outline"
+                 Landmarks="@_pack.Landmarks"
+                 ShowInterstates="@_showInterstates"
+                 ShowHighways="@_showHighways"
+                 ShowRivers="@_showRivers"
+                 ShowLakes="@_showLakes"
+                 County="@county"
+                 Revealed="@(_phase == Phase.Reveal)"
+                 Interactive="@(_phase == Phase.Round)"
+                 OnPieceDragged="OnPieceDragged"
+                 OnPieceDropped="OnPieceDropped"
+                 OnConfirmClicked="ConfirmGuess" />
+        </div>
+    }
+    else
+    {
+        var city = _gameCities[_roundIndex];
+        <h1 class="question">Question @(_roundIndex + 1) of @totalRounds — Where is <strong>@city.Name</strong>?</h1>
+        <p class="sr-only">Question @(_roundIndex + 1) of @totalRounds: Where is @city.Name?</p>
+
+        <div class="map-card">
+        <div class="game-controls">
+            @if (_phase == Phase.Round)
+            {
+                <button class="primary" @onclick="ConfirmGuess" disabled="@(_guessLat is null)">
+                    Confirm guess
+                </button>
+                <button @onclick="Pass">Pass (0 points)</button>
+                <span class="controls-hint">
+                    @(_guessLat is null
+                        ? "Click or tap the map to place your pin."
+                        : "Pin placed — click again to move it, or confirm.")
+                </span>
+            }
+            else
+            {
+                var result = _results[_roundIndex];
+                <button class="primary" @onclick="NextRound">
+                    @(_roundIndex + 1 >= totalRounds ? "See results" : "Next city")
+                </button>
+                <span class="reveal-line">
+                    @if (result.DistanceMiles is null)
+                    {
+                        <text>You passed — the green pin is @city.Name.</text>
+                    }
+                    else
+                    {
+                        <text>@result.DistanceMiles.Value.ToString("F1") mi off · @result.Points points</text>
+                    }
+                </span>
+            }
+        </div>
+
+        <MapView Outline="@_pack.Outline"
+                 Landmarks="@_pack.Landmarks"
+                 ShowInterstates="@_showInterstates"
+                 ShowHighways="@_showHighways"
+                 ShowRivers="@_showRivers"
+                 ShowLakes="@_showLakes"
+                 GuessLatitude="@_guessLat"
+                 GuessLongitude="@_guessLon"
+                 TrueLatitude="@(_phase == Phase.Reveal ? city.Latitude : null)"
+                 TrueLongitude="@(_phase == Phase.Reveal ? city.Longitude : null)"
+                 TrueName="@(_phase == Phase.Reveal ? city.Name : null)"
+                 Revealed="@(_phase == Phase.Reveal)"
+                 Interactive="@(_phase == Phase.Round)"
+                 OnMapClicked="OnMapClicked"
+                 OnConfirmClicked="ConfirmGuess" />
+        </div>
+    }
 }
 else if (_phase == Phase.Results)
 {
@@ -151,36 +233,66 @@ else if (_phase == Phase.Results)
         </div>
         <p class="challenge-label">Send a challenge!</p>
         <div class="summary-box">
-            <p>I scored @_totalScore/1000 on Where in the @(_pack?.Name ?? "Oregon")?!, seed @_seed</p>
+            <p>I scored @_totalScore/1000 on Where in the @(_pack?.Name ?? "Oregon")?!@(_mode == GameMode.Counties ? " (Counties)" : ""), seed @_seed</p>
             <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
         </div>
     </div>
 
     <table class="results-table">
         <thead>
-            <tr><th>#</th><th>City</th><th>Distance</th><th>Points</th></tr>
+            <tr><th>#</th><th>@(_mode == GameMode.Counties ? "County" : "City")</th><th>@(_mode == GameMode.Counties ? "Coverage" : "Distance")</th><th>Points</th></tr>
         </thead>
         <tbody>
-            @for (int i = 0; i < _results.Count; i++)
+            @if (_mode == GameMode.Counties)
             {
-                var r = _results[i];
-                <tr class="@(r == _bestGuess ? "best" : r == _hardest ? "hardest" : "")">
-                    <td>@(i + 1)</td>
-                    <td>@r.City.Name</td>
-                    <td>@(r.DistanceMiles is null ? "—" : $"{r.DistanceMiles.Value:F1} mi")</td>
-                    <td>@r.Points</td>
-                </tr>
+                @for (int i = 0; i < _countyResults.Count; i++)
+                {
+                    var r = _countyResults[i];
+                    <tr class="@(r == _bestCounty ? "best" : r == _hardestCounty ? "hardest" : "")">
+                        <td>@(i + 1)</td>
+                        <td>@r.CountyName</td>
+                        <td>@(r.OverlapFraction is null ? "—" : $"{r.OverlapFraction.Value * 100:F0}%")</td>
+                        <td>@r.Points</td>
+                    </tr>
+                }
+            }
+            else
+            {
+                @for (int i = 0; i < _results.Count; i++)
+                {
+                    var r = _results[i];
+                    <tr class="@(r == _bestGuess ? "best" : r == _hardest ? "hardest" : "")">
+                        <td>@(i + 1)</td>
+                        <td>@r.City.Name</td>
+                        <td>@(r.DistanceMiles is null ? "—" : $"{r.DistanceMiles.Value:F1} mi")</td>
+                        <td>@r.Points</td>
+                    </tr>
+                }
             }
         </tbody>
     </table>
 
-    @if (_bestGuess is not null)
+    @if (_mode == GameMode.Counties)
     {
-        <p>Best guess: <strong>@_bestGuess.City.Name</strong> (@_bestGuess.DistanceMiles?.ToString("F1") mi, @_bestGuess.Points points).</p>
+        @if (_bestCounty is not null)
+        {
+            <p>Best placement: <strong>@_bestCounty.CountyName</strong> (@(_bestCounty.OverlapFraction?.ToString("P0")) covered, @_bestCounty.Points points).</p>
+        }
+        @if (_hardestCounty is not null)
+        {
+            <p>Hardest county: <strong>@_hardestCounty.CountyName</strong> (@(_hardestCounty.OverlapFraction?.ToString("P0") ?? "—") covered, @_hardestCounty.Points points).</p>
+        }
     }
-    @if (_hardest is not null)
+    else
     {
-        <p>Hardest city: <strong>@_hardest.City.Name</strong> (@(_hardest.DistanceMiles?.ToString("F1") ?? "—") mi, @_hardest.Points points).</p>
+        @if (_bestGuess is not null)
+        {
+            <p>Best guess: <strong>@_bestGuess.City.Name</strong> (@_bestGuess.DistanceMiles?.ToString("F1") mi, @_bestGuess.Points points).</p>
+        }
+        @if (_hardest is not null)
+        {
+            <p>Hardest city: <strong>@_hardest.City.Name</strong> (@(_hardest.DistanceMiles?.ToString("F1") ?? "—") mi, @_hardest.Points points).</p>
+        }
     }
 
     <div class="button-row">
@@ -199,6 +311,9 @@ else if (_phase == Phase.Results)
 @code {
     private enum Phase { Start, Round, Reveal, Results }
 
+    /// <summary>Which game is being played: pin a city, or place a county.</summary>
+    private enum GameMode { Cities, Counties }
+
     // Route parameters for the /{state}/{seed} URL form, e.g. /oregon/OR-2026-11-06.
     // The older ?state=...&seed=... query form still works (see OnInitializedAsync).
     [Parameter] public string? StateId { get; set; }
@@ -209,6 +324,7 @@ else if (_phase == Phase.Results)
     private string _stateId = "oregon";
     private string _seed = "";
     private Phase _phase = Phase.Start;
+    private GameMode _mode = GameMode.Cities;
 
     private bool _showInterstates = true;
     private bool _showHighways = true;
@@ -216,21 +332,36 @@ else if (_phase == Phase.Results)
     private bool _showLakes = true;
 
     private List<City> _gameCities = [];
+    private List<MapFeature> _gameCounties = [];
     private int _roundIndex;
     private double? _guessLat;
     private double? _guessLon;
     private List<RoundResult> _results = [];
+    private List<CountyRoundResult> _countyResults = [];
     private int _totalScore;
     private RoundResult? _bestGuess;
     private RoundResult? _hardest;
+    private CountyRoundResult? _bestCounty;
+    private CountyRoundResult? _hardestCounty;
     private string? _copyMessage;
+
+    // Counties mode: the placed piece's translation in SVG units, from the
+    // CountyMapView's drop callback, and whether the piece has been dragged
+    // at all this round (Confirm stays disabled until it has — the staging
+    // position is not an answer).
+    private double _pieceDx;
+    private double _pieceDy;
+    private bool _countyDragged;
 
     private string GameLink =>
         Navigation.ToAbsoluteUri(
-            $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}").ToString();
+            $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}" +
+            (_mode == GameMode.Counties ? "?mode=counties" : "")).ToString();
 
     private string SummaryText =>
-        $"I scored {_totalScore}/1000 on Where in the {_pack?.Name ?? "Oregon"}?!, seed {_seed}\nPlay the same game: {GameLink}";
+        $"I scored {_totalScore}/1000 on Where in the {_pack?.Name ?? "Oregon"}?!" +
+        (_mode == GameMode.Counties ? " (Counties)" : "") +
+        $", seed {_seed}\nPlay the same game: {GameLink}";
 
     // Once a game starts, the header shows the in-game title, derived
     // from the pack name so a future state gets its own title with no
@@ -310,6 +441,16 @@ else if (_phase == Phase.Results)
             ? seedFromUrl
             : GameService.DailySeed(_pack.Abbreviation);
 
+        // The mode comes from ?mode=counties on a shared link; anything else
+        // (including no mode) is the city game. A pack with no counties
+        // can't play Counties mode, so the mode falls back to Cities.
+        if (query.TryGetValue("mode", out var mode)
+            && mode.Equals("counties", StringComparison.OrdinalIgnoreCase)
+            && _pack.Counties.Count > 0)
+        {
+            _mode = GameMode.Counties;
+        }
+
         // Landmark defaults come from the pack manifest.
         foreach (var layer in _pack.Layers)
         {
@@ -343,28 +484,46 @@ else if (_phase == Phase.Results)
         }
 
         _seed = _seed.Trim();
-        _gameCities = GameService.SelectCities(_pack.Cities, _seed, count: 10).ToList();
-        if (_gameCities.Count == 0)
+        if (_mode == GameMode.Counties)
         {
-            return;
+            _gameCounties = GameService.SelectItems(_pack.Counties, _seed, count: 10).ToList();
+            if (_gameCounties.Count == 0)
+            {
+                return;
+            }
+            _gameCities = [];
+        }
+        else
+        {
+            _gameCities = GameService.SelectCities(_pack.Cities, _seed, count: 10).ToList();
+            if (_gameCities.Count == 0)
+            {
+                return;
+            }
+            _gameCounties = [];
         }
         _roundIndex = 0;
         _results = [];
+        _countyResults = [];
         _totalScore = 0;
         _bestGuess = null;
         _hardest = null;
+        _bestCounty = null;
+        _hardestCounty = null;
         _guessLat = null;
         _guessLon = null;
+        _pieceDx = 0;
+        _pieceDy = 0;
+        _countyDragged = false;
         _copyMessage = null;
         SetPhase(Phase.Round);
 
         // Write the seed into the URL so the game is shareable / refresh-safe.
         // ToAbsoluteUri resolves the relative path against the app's base
         // address, so this works both locally (/) and on GitHub Pages
-        // (/where-in-the-state/).
-        Navigation.NavigateTo(
-            Navigation.ToAbsoluteUri(
-                $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}").ToString());
+        // (/where-in-the-state/). County games add ?mode=counties so a
+        // shared link replays the same mode.
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri(GameLink).ToString());
     }
 
     private void OnMapClicked((double Latitude, double Longitude) point)
@@ -376,6 +535,12 @@ else if (_phase == Phase.Results)
 
     private void ConfirmGuess()
     {
+        if (_mode == GameMode.Counties)
+        {
+            ConfirmCountyPlacement();
+            return;
+        }
+
         if (_guessLat is null || _guessLon is null)
         {
             return;
@@ -390,8 +555,63 @@ else if (_phase == Phase.Results)
         SetPhase(Phase.Reveal);
     }
 
+    private void ConfirmCountyPlacement()
+    {
+        if (!_countyDragged || _roundIndex >= _gameCounties.Count)
+        {
+            return;
+        }
+
+        var county = _gameCounties[_roundIndex];
+        double overlap = OverlapService.OverlapFraction(CountySvgRings(county), _pieceDx, _pieceDy);
+        int points = OverlapService.ScoreForOverlap(overlap);
+        _countyResults.Add(new CountyRoundResult(county.Name ?? "", overlap, points));
+        _totalScore += points;
+        SetPhase(Phase.Reveal);
+    }
+
+    /// <summary>
+    /// The county's rings in SVG coordinates, for overlap scoring. The
+    /// projection is linear, so area ratios in SVG space equal area ratios
+    /// on the ground (see OverlapService).
+    /// </summary>
+    private static List<IReadOnlyList<(double X, double Y)>> CountySvgRings(MapFeature county)
+    {
+        var result = new List<IReadOnlyList<(double X, double Y)>>();
+        foreach (var ring in county.Parts)
+        {
+            var projected = new List<(double X, double Y)>(ring.Count);
+            foreach (var (lon, lat) in ring)
+            {
+                projected.Add(MapProjection.LatLonToSvg(lat, lon));
+            }
+            result.Add(projected);
+        }
+
+        return result;
+    }
+
+    private void OnPieceDragged() => _countyDragged = true;
+
+    private void OnPieceDropped((double Dx, double Dy) translation)
+    {
+        _pieceDx = translation.Dx;
+        _pieceDy = translation.Dy;
+    }
+
     private void Pass()
     {
+        if (_mode == GameMode.Counties)
+        {
+            var county = _gameCounties[_roundIndex];
+            _countyResults.Add(new CountyRoundResult(county.Name ?? "", null, 0));
+            _pieceDx = 0;
+            _pieceDy = 0;
+            _countyDragged = false;
+            SetPhase(Phase.Reveal);
+            return;
+        }
+
         var city = _gameCities[_roundIndex];
         _results.Add(new RoundResult(city, null, null, null, 0));
         _guessLat = null;
@@ -403,6 +623,29 @@ else if (_phase == Phase.Results)
     {
         _guessLat = null;
         _guessLon = null;
+        _pieceDx = 0;
+        _pieceDy = 0;
+        _countyDragged = false;
+        if (_mode == GameMode.Counties)
+        {
+            if (_roundIndex + 1 >= _gameCounties.Count)
+            {
+                var scored = _countyResults.Where(r => r.OverlapFraction is not null).ToList();
+                // MinBy/MaxBy throw on an empty sequence, and scored is empty
+                // when the player passed every round — then there is no best
+                // or hardest county to show.
+                _bestCounty = scored.Count > 0 ? scored.MaxBy(r => r.OverlapFraction) : null;
+                _hardestCounty = scored.Count > 0 ? scored.MinBy(r => r.OverlapFraction) : null;
+                SetPhase(Phase.Results);
+            }
+            else
+            {
+                _roundIndex++;
+                SetPhase(Phase.Round);
+            }
+            return;
+        }
+
         if (_roundIndex + 1 >= _gameCities.Count)
         {
             var scored = _results.Where(r => r.DistanceMiles is not null).ToList();
