@@ -77,11 +77,13 @@
     }
 </svg>
 
-@* A small Confirm bubble next to the piece once it has been dragged,
-   so the player can confirm right where they placed it. Positioned in
+@* A small Confirm bubble next to the piece once it has been dragged and
+   dropped, so the player can confirm right where they placed it. It stays
+   hidden while the piece is being dragged — it would chase the piece around
+   the map — and only appears once the player stops moving it. Positioned in
    percentages of the map wrapper (exactly the SVG's box), like the
    city pin's bubble. *@
-@if (Interactive && !Revealed && County is not null && _hasDragged)
+@if (Interactive && !Revealed && County is not null && _hasDragged && !_dragging)
 {
     var (cx, cy) = PieceCentroidSvg();
     var leftPct = cx / 10.0;
