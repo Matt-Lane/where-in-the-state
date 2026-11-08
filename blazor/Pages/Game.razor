@@ -90,12 +90,51 @@ else if (_phase == Phase.Start)
         <p class="field-label">State</p>
         <p><span class="state-badge">@_pack.Name</span></p>
 
-        <fieldset>
-            <legend>Game mode</legend>
-            <label class="mode-option"><input type="radio" name="mode" checked="@(_mode == GameMode.Cities)" @onchange="() => _mode = GameMode.Cities" /> Cities — drop a pin for a named city</label>
-            <label class="mode-option"><input type="radio" name="mode" checked="@(_mode == GameMode.Counties)" disabled="@(_pack.Counties.Count == 0)" @onchange="() => _mode = GameMode.Counties" /> Counties — drag the county's shape onto the map</label>
-            <label class="mode-option"><input type="radio" name="mode" checked="@(_mode == GameMode.NameTheCounty)" disabled="@(_pack.Counties.Count == 0)" @onchange="() => _mode = GameMode.NameTheCounty" /> Name the county — click the named county on the map</label>
-        </fieldset>
+        @* Game mode: three large buttons, each with a small map preview of
+           how that mode plays. Clicking a button selects the mode (it does
+           not start the game — "Start game" still does that). The selected
+           button is marked with aria-pressed and a green border. *@
+        <div class="mode-picker">
+            <p class="field-label" id="mode-label">Game mode</p>
+            <div class="mode-grid" role="group" aria-labelledby="mode-label">
+                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Cities)" @onclick="() => _mode = GameMode.Cities">
+                    <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
+                        <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
+                        <line x1="@ModePreviewArt.GuessX" y1="@ModePreviewArt.GuessY" x2="@ModePreviewArt.BendX" y2="@ModePreviewArt.BendY" class="preview-line" />
+                        <circle cx="@ModePreviewArt.GuessX" cy="@ModePreviewArt.GuessY" r="16" class="preview-guess" />
+                        <circle cx="@ModePreviewArt.GuessX" cy="@ModePreviewArt.GuessY" r="6" class="preview-guess-dot" />
+                        <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="14" class="preview-target" />
+                        <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="5" class="preview-target-dot" />
+                    </svg>
+                    <span class="mode-button-title">Cities</span>
+                    <span class="mode-button-desc">Drop a pin for a named city</span>
+                </button>
+                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Counties)" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.Counties">
+                    <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
+                        <defs>
+                            <marker id="preview-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                <path d="M0,0 L10,5 L0,10 z" class="preview-arrowhead" />
+                            </marker>
+                        </defs>
+                        <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
+                        <path d="@ModePreviewArt.DeschutesPath" class="preview-ghost" />
+                        <path d="@ModePreviewArt.DeschutesPath" transform="@ModePreviewArt.PieceTransform" class="preview-piece" />
+                        <path d="M400,315 Q395,355 375,385" class="preview-arrow" marker-end="url(#preview-arrowhead)" />
+                    </svg>
+                    <span class="mode-button-title">Counties</span>
+                    <span class="mode-button-desc">Drag the county's shape onto the map</span>
+                </button>
+                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.NameTheCounty)" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.NameTheCounty">
+                    <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
+                        <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
+                        <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
+                        <path d="@ModePreviewArt.DeschutesPath" class="preview-selected" />
+                    </svg>
+                    <span class="mode-button-title">Name the county</span>
+                    <span class="mode-button-desc">Click the named county on the map</span>
+                </button>
+            </div>
+        </div>
 
         <label>
             Seed
