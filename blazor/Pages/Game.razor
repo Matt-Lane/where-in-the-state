@@ -36,7 +36,7 @@ else if (_phase == Phase.Start)
             <p class="lede">
                 A map of <strong>@_pack.Name</strong> with every county outlined,
                 but no county names. Each round names one county; click the county
-                you think it is. 100 points for naming the right county, 0 for any
+                you think it is. 1 point for naming the right county, 0 for any
                 other. <strong>10 questions</strong> per game.
             </p>
             <ol class="how-it-works">
@@ -122,12 +122,12 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
     var totalRounds = isCounties || isNameTheCounty ? _gameCounties.Count : _gameCities.Count;
     <div class="round-status">
         <div class="progress-wrap">
-            <div class="progress-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="1000" aria-label="Score out of 1000" aria-valuetext="@($"{_totalScore} out of 1000; maximum {(_roundIndex + 1) * 100} after question {_roundIndex + 1}")">
-                <div class="progress-fill" style="width: @(_totalScore / 10)%"></div>
+            <div class="progress-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="@MaxScore" aria-label="Score out of @MaxScore" aria-valuetext="@($"{_totalScore} out of {MaxScore}; maximum {(_roundIndex + 1) * PointsPerRound} after question {_roundIndex + 1}")">
+                <div class="progress-fill" style="width: @(_totalScore * 100 / MaxScore)%"></div>
             </div>
-            <div class="progress-max" style="left: @((_roundIndex + 1) * 10)%" title="Maximum possible after question @(_roundIndex + 1): @((_roundIndex + 1) * 100)" aria-hidden="true"></div>
+            <div class="progress-max" style="left: @((_roundIndex + 1) * 10)%" title="Maximum possible after question @(_roundIndex + 1): @((_roundIndex + 1) * PointsPerRound)" aria-hidden="true"></div>
         </div>
-        <p class="score-chip">Score: <strong>@_totalScore</strong> / 1000</p>
+        <p class="score-chip">Score: <strong>@_totalScore</strong> / @MaxScore</p>
     </div>
     @if (isNameTheCounty)
     {
@@ -162,7 +162,7 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
                     }
                     else if (result.IsCorrect)
                     {
-                        <text>Correct — that's @county.Name · 100 points</text>
+                        <text>Correct — that's @county.Name · 1 point</text>
                     }
                     else
                     {
@@ -301,13 +301,13 @@ else if (_phase == Phase.Results)
 {
     <div class="results-hero">
         <p class="eyebrow">Your results</p>
-        <h1><span class="score-big">@_totalScore</span> <span class="score-of">/ 1000</span></h1>
-        <div class="score-bar-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="1000" aria-label="Score out of 1000">
-            <div class="score-bar-fill" style="width: @(_totalScore / 10)%"></div>
+        <h1><span class="score-big">@_totalScore</span> <span class="score-of">/ @MaxScore</span></h1>
+        <div class="score-bar-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="@MaxScore" aria-label="Score out of @MaxScore">
+            <div class="score-bar-fill" style="width: @(_totalScore * 100 / MaxScore)%"></div>
         </div>
         <p class="challenge-label">Send a challenge!</p>
         <div class="summary-box">
-            <p>I scored @_totalScore/1000 on Where in the @(_pack?.Name ?? "Oregon")?!@ModeSummaryLabel, seed @_seed</p>
+            <p>I scored @_totalScore/@MaxScore on Where in the @(_pack?.Name ?? "Oregon")?!@ModeSummaryLabel, seed @_seed</p>
             <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
         </div>
     </div>
@@ -364,7 +364,7 @@ else if (_phase == Phase.Results)
         <p>You named @_nameResults.Count(r => r.IsCorrect) out of @_nameResults.Count counties correctly.</p>
         @if (_bestName is not null)
         {
-            <p>Best pick: <strong>@_bestName.CountyName</strong> — you named it correctly (100 points).</p>
+            <p>Best pick: <strong>@_bestName.CountyName</strong> — you named it correctly (1 point).</p>
         }
         @if (_hardestName is not null)
         {
@@ -472,13 +472,22 @@ else if (_phase == Phase.Results)
         _ => ""
     };
 
+    // "Name the county" scores 1 point per correct answer, so a perfect
+    // game is 10, not 1000. Every score display (progress bar, score chip,
+    // results hero, summary) reads the maximum from here.
+    private int MaxScore => _mode == GameMode.NameTheCounty ? 10 : 1000;
+
+    // Points for one correct answer in the current mode: 1 in "Name the
+    // county", 100 in the other modes.
+    private int PointsPerRound => _mode == GameMode.NameTheCounty ? 1 : 100;
+
     private string GameLink =>
         Navigation.ToAbsoluteUri(
             $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}" +
             ModeQueryParam).ToString();
 
     private string SummaryText =>
-        $"I scored {_totalScore}/1000 on Where in the {_pack?.Name ?? "Oregon"}?!" +
+        $"I scored {_totalScore}/{MaxScore} on Where in the {_pack?.Name ?? "Oregon"}?!" +
         ModeSummaryLabel +
         $", seed {_seed}\nPlay the same game: {GameLink}";
 
@@ -698,12 +707,12 @@ else if (_phase == Phase.Results)
         }
 
         var county = _gameCounties[_roundIndex];
-        // Binary scoring: naming the right county is 100 points, any other
-        // county is 0. There is no "close" in a selection — you either
-        // named it or you didn't.
+        // Binary scoring, 1 point per correct answer: naming the right
+        // county is 1 point, any other county is 0. There is no "close" in
+        // a selection — you either named it or you didn't.
         bool correct = string.Equals(
             _selectedCounty.Name, county.Name, StringComparison.Ordinal);
-        int points = correct ? 100 : 0;
+        int points = correct ? 1 : 0;
         _nameResults.Add(new NameTheCountyRoundResult(
             county.Name ?? "", _selectedCounty.Name, correct, points));
         _totalScore += points;
