@@ -190,6 +190,53 @@ fieldset { margin: 1rem 0; border: 1px solid var(--line); border-radius: 10px; p
 fieldset legend { font-weight: 700; font-size: 0.9rem; padding: 0 0.4rem; }
 fieldset label { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0.25rem 0.75rem 0.25rem 0; font-weight: 400; }
 fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--green); }
+
+/* ---------- Start screen controls (match the standalone version) ---------- */
+/* The state is display-only (it comes from the URL/pack), so it shows as a
+   badge on the panel-soft background, not a disabled text box. */
+.field-label { display: block; margin: 0.5rem 0; font-weight: 600; }
+.state-badge {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 1.1rem;
+    border: 1px solid var(--line);
+    background: var(--panel-soft);
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    margin-bottom: 0.25rem;
+}
+/* Game mode options: one per line. (The generic fieldset label is
+   inline-flex, so the mode labels get their own class to stack.) */
+.mode-option { display: block; font-weight: 600; padding: 0.4rem 0; cursor: pointer; }
+.mode-option input { margin-right: 0.5rem; }
+/* Landmark toggles: pill buttons with a color swatch, one per layer.
+   Pressed = on (full color), unpressed = off (faded). The swatch is a
+   line for roads/rivers and a filled block for lakes. */
+.toggle-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.toggle {
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.9rem 0.4rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+    cursor: pointer;
+}
+.toggle:hover:not(:disabled) { transform: none; box-shadow: none; }
+.toggle[data-layer="interstate"] { --c: var(--rust); }
+.toggle[data-layer="highway"] { --c: var(--gold); }
+.toggle[data-layer="river"] { --c: var(--river); }
+.toggle[data-layer="lake"] { --c: var(--river); }
+.toggle .swatch { width: 1rem; height: 0; border-top: 3px solid currentColor; border-radius: 2px; flex: none; color: var(--c, var(--muted)); }
+.toggle .swatch.fill { height: 0.65rem; border-top: none; border-radius: 3px; background: currentColor; opacity: 0.55; }
+.toggle[aria-pressed="true"] { color: var(--ink); border-color: #aebbbd; background: var(--panel-soft); }
+.toggle[aria-pressed="false"] { opacity: 0.55; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
 .hint { color: var(--muted); font-size: 0.9rem; }
 .link-box { width: 100%; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }

@@ -84,16 +84,17 @@ else if (_phase == Phase.Start)
     </div>
 
     <div class="card">
-        <label>
-            State
-            <input type="text" value="@_pack.Name" disabled />
-        </label>
+        @* The state is display-only (it comes from the URL/pack), so it shows
+           as a badge, not a disabled text box — the same badge the
+           standalone version uses. *@
+        <p class="field-label">State</p>
+        <p><span class="state-badge">@_pack.Name</span></p>
 
         <fieldset>
             <legend>Game mode</legend>
-            <label><input type="radio" name="mode" checked="@(_mode == GameMode.Cities)" @onchange="() => _mode = GameMode.Cities" /> Cities — drop a pin for a named city</label>
-            <label><input type="radio" name="mode" checked="@(_mode == GameMode.Counties)" disabled="@(_pack.Counties.Count == 0)" @onchange="() => _mode = GameMode.Counties" /> Counties — drag the county's shape onto the map</label>
-            <label><input type="radio" name="mode" checked="@(_mode == GameMode.NameTheCounty)" disabled="@(_pack.Counties.Count == 0)" @onchange="() => _mode = GameMode.NameTheCounty" /> Name the county — click the named county on the map</label>
+            <label class="mode-option"><input type="radio" name="mode" checked="@(_mode == GameMode.Cities)" @onchange="() => _mode = GameMode.Cities" /> Cities — drop a pin for a named city</label>
+            <label class="mode-option"><input type="radio" name="mode" checked="@(_mode == GameMode.Counties)" disabled="@(_pack.Counties.Count == 0)" @onchange="() => _mode = GameMode.Counties" /> Counties — drag the county's shape onto the map</label>
+            <label class="mode-option"><input type="radio" name="mode" checked="@(_mode == GameMode.NameTheCounty)" disabled="@(_pack.Counties.Count == 0)" @onchange="() => _mode = GameMode.NameTheCounty" /> Name the county — click the named county on the map</label>
         </fieldset>
 
         <label>
@@ -109,10 +110,12 @@ else if (_phase == Phase.Start)
 
         <fieldset>
             <legend>Landmarks (display only — they don't affect scoring)</legend>
-            <label><input type="checkbox" @bind="_showInterstates" /> Interstates</label>
-            <label><input type="checkbox" @bind="_showHighways" /> Highways</label>
-            <label><input type="checkbox" @bind="_showRivers" /> Rivers</label>
-            <label><input type="checkbox" @bind="_showLakes" /> Lakes</label>
+            <div class="toggle-row" role="group" aria-label="Map layers">
+                <button type="button" class="toggle" data-layer="interstate" aria-pressed="@_showInterstates" @onclick="() => _showInterstates = !_showInterstates"><span class="swatch"></span>Interstates</button>
+                <button type="button" class="toggle" data-layer="highway" aria-pressed="@_showHighways" @onclick="() => _showHighways = !_showHighways"><span class="swatch"></span>Highways</button>
+                <button type="button" class="toggle" data-layer="river" aria-pressed="@_showRivers" @onclick="() => _showRivers = !_showRivers"><span class="swatch"></span>Rivers</button>
+                <button type="button" class="toggle" data-layer="lake" aria-pressed="@_showLakes" @onclick="() => _showLakes = !_showLakes"><span class="swatch fill"></span>Lakes</button>
+            </div>
         </fieldset>
 
         <p>Questions: <strong>10</strong>.</p>
