@@ -88,7 +88,7 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
 
 ### 3.4 Map / landmark data sources (sourced 2026-11-06 — see `data/oregon/MAP-DATA-NOTES.md`)
 - **Outline:** U.S. Census Bureau 2010 cartographic boundary (`gz_2010_us_040_00_500k.json`, Oregon feature), public domain. Simplified Douglas–Peucker 0.008°: 960 → 209 points, 5.6 KB.
-- **Landmarks:** Natural Earth 10m (public domain) — rivers, lakes, roads. 177 features: 26 interstate segments (I-5, I-82, I-84, I-205), 100 highway segments, 40 river segments (20 named rivers), 11 lakes/reservoirs. 86.7 KB total.
+- **Landmarks:** Natural Earth 10m (public domain) — rivers, lakes, roads — plus 47 more lakes from OpenStreetMap (ODbL, added 2026-11-07). 224 features: 26 interstate segments (I-5, I-82, I-84, I-205), 100 highway segments, 40 river segments (20 named rivers), 58 lakes/reservoirs. ~224 KB total.
 - **Validation:** all 241 cities fall inside both the simplified and unsimplified outline; projection round-trip max error 0.00°.
 - **Known gaps:** I-405 (Portland loop) missing from Natural Earth 10m; Snake River has no separate river line (the eastern outline follows it); small lakes (e.g. Detroit Lake) not included. See MAP-DATA-NOTES.md for the full list.
 
@@ -217,7 +217,7 @@ public static double HaversineMiles(double lat1, double lon1, double lat2, doubl
 | `oregon-cities-with-coords.csv` / `.json` | `game-project/` → copied into `wwwroot/data/states/oregon/cities.json` at build time | Geocoded coordinates. Regenerate when the CSV changes; do not hand-edit. |
 | `geocoding-notes.md` | `game-project/` | Verification log for the coordinates. |
 | `outline.geojson` | `wwwroot/data/states/oregon/` | State boundary. Census 2010 cartographic boundary, simplified to 209 points (5.6 KB). Source files in `game-project/data/oregon/`. |
-| `landmarks.geojson` | `wwwroot/data/states/oregon/` | Interstates, highways, rivers, lakes (177 features, 86.7 KB, Natural Earth 10m). Simplified before shipping. |
+| `landmarks.geojson` | `wwwroot/data/states/oregon/` | Interstates, highways, rivers, lakes (224 features, ~224 KB; Natural Earth 10m + 47 OSM lakes). Simplified before shipping. |
 | `state.json` | `wwwroot/data/states/oregon/` | Pack manifest (name, bounds, layers, files). |
 | `states.json` | `wwwroot/data/` | Index of available state packs (v1: Oregon only). |
 
@@ -340,5 +340,5 @@ Whichever option is chosen, the same conversion is needed:
 - City pool: Matt's list of 241 Oregon cities (see `oregon-cities.csv`).
 - Purpose: fun learning tool for Matt's organization.
 - Map rendering (2026-11-06): SVG + GeoJSON natively in Blazor for v1, no Leaflet/Canvas. Projection is equirectangular with cos(44°) correction, same function for drawing and click-to-latlon.
-- Oregon map data (2026-11-06): outline from Census 2010 cartographic boundary (960 → 209 points, 5.6 KB); landmarks from Natural Earth 10m (177 features: 26 interstate, 100 highway, 40 river, 11 lake segments; 86.7 KB). All 241 cities inside the outline; projection round-trip error 0.00°. Known gaps: no I-405, no separate Snake River line, major lakes only. Details in `data/oregon/MAP-DATA-NOTES.md`.
+- Oregon map data (2026-11-06): outline from Census 2010 cartographic boundary (960 → 209 points, 5.6 KB); landmarks from Natural Earth 10m (177 features: 26 interstate, 100 highway, 40 river, 11 lake segments; 86.7 KB). All 241 cities inside the outline; projection round-trip error 0.00°. Known gaps: no I-405, no separate Snake River line. Details in `data/oregon/MAP-DATA-NOTES.md`. 2026-11-07: 47 more lakes >= 4 km² added from OpenStreetMap (Detroit Lake, Wallowa Lake, Odell Lake, Crescent Lake, Waldo Lake and 42 more) — 224 features, 58 lakes, ~224 KB.
 - Click-test prototype (2026-11-06): `~/workspace/ts-spaces/oregon-map-click-test/` — "Oregon Map — Click Test". Click/tap drops a pin, shows converted lat/lon, nearest of the 241 cities, distance and the 5-mile-grace score (100 pts within 5 mi, then −1/mi beyond 5, floored at 0); test pins for Portland, Salem, Bend, Medford (aim for < ~2 mi error). Audit 2026-11-07T02:48Z passed (desktop + mobile, no console errors).

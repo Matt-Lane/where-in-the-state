@@ -15,7 +15,7 @@ outline = json.load(open(os.path.join(BASE, "data/oregon/outline.geojson")))
 landmarks = json.load(open(os.path.join(BASE, "data/oregon/landmarks.geojson")))
 assert len(cities) == 241, len(cities)
 assert len(outline["features"]) == 1
-assert len(landmarks["features"]) == 177, len(landmarks["features"])
+assert len(landmarks["features"]) == 224, len(landmarks["features"])
 
 CITIES_JSON = json.dumps(cities, separators=(",", ":"))
 OUTLINE_JSON = json.dumps(outline, separators=(",", ":"))
