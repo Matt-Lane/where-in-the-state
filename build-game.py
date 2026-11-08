@@ -546,7 +546,8 @@ HTML = r"""<!doctype html>
     instead of mulberry32, so the 10 cities picked for a given seed may differ between the JavaScript and C#
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
-    from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.
+    from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
+    Version 0.14.
   </footer>
 </div>
 
@@ -636,13 +637,13 @@ __PURE_JS__
     screenGame.hidden = which !== "game";
     screenResults.hidden = which !== "results";
     /* Once a game starts, the header is the in-game title — and it stays
-       that way on the results screen. The start screen shows the product
-       name, and the browser tab follows the same rule. */
-    var title = (which === "game" || which === "results")
-      ? "Where in the " + STATE_NAME + "?!"
-      : "Where in the State";
+       that way on the results screen. The start screen shows the state
+       title too, because this file is the Oregon edition (the state is
+       known); the browser tab follows the same rule. In the Blazor app
+       the start title is state-specific only when the URL named the state. */
+    var title = "Where in the " + STATE_NAME + "?!";
     document.getElementById("game-title").textContent = title;
-    document.title = (which === "game" || which === "results") ? title : "Where in the State — Oregon";
+    document.title = title;
     window.scrollTo(0, 0);
   }
 

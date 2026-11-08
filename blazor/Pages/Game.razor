@@ -30,7 +30,14 @@ else if (_pack is null)
 else if (_phase == Phase.Start)
 {
     <div class="hero">
-        <h1>Where in the State</h1>
+        @* When the URL named the state, the header already says
+           "Where in the Oregon?!" — don't repeat a title below it.
+           (At the root URL the header says "Where in the State", so the
+           hero heading stays.) *@
+        @if (!(_stateFromUrl && _pack is not null))
+        {
+            <h1>Where in the State</h1>
+        }
         @if (_mode == GameMode.NameTheCounty)
         {
             <p class="lede">
@@ -108,7 +115,7 @@ else if (_phase == Phase.Start)
             <label><input type="checkbox" @bind="_showLakes" /> Lakes</label>
         </fieldset>
 
-        <p>Questions: <strong>10</strong> (fixed in v1, so games with the same seed stay comparable).</p>
+        <p>Questions: <strong>10</strong>.</p>
 
         <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
             Start game
@@ -421,6 +428,11 @@ else if (_phase == Phase.Results)
     private StatePack? _pack;
     private bool _loadFailed;
     private string _stateId = "oregon";
+    // True when the state came from the URL (/{state}/... or ?state=...),
+    // as opposed to the default Oregon when no state is in the URL. The
+    // start screen shows the state-specific title ("Where in the Oregon?!")
+    // in the header only when the URL named the state.
+    private bool _stateFromUrl;
     private string _seed = "";
     private Phase _phase = Phase.Start;
     private GameMode _mode = GameMode.Cities;
@@ -496,7 +508,8 @@ else if (_phase == Phase.Results)
     // code change — and it stays that way through the results screen.
     // Before a game starts it is the product name.
     private string TitleForPhase(Phase phase) =>
-        (phase is Phase.Round or Phase.Reveal or Phase.Results) && _pack is not null
+        ((phase is Phase.Round or Phase.Reveal or Phase.Results) ||
+         (phase == Phase.Start && _stateFromUrl)) && _pack is not null
             ? $"Where in the {_pack.Name}?!"
             : "Where in the State";
 
@@ -527,6 +540,7 @@ else if (_phase == Phase.Results)
         if (!string.IsNullOrWhiteSpace(stateFromUrl))
         {
             _stateId = stateFromUrl.Trim().ToLowerInvariant();
+            _stateFromUrl = true;
         }
 
         // State ids are pack directory names under data/states/, so they
@@ -596,6 +610,11 @@ else if (_phase == Phase.Results)
                 case "lake": _showLakes = layer.VisibleByDefault; break;
             }
         }
+
+        // The header title on the start screen follows the same rule as
+        // TitleForPhase: when the URL named the state, the header already
+        // says "Where in the Oregon?!" before a game starts.
+        HeaderTitle.SetTitle(TitleForPhase(Phase.Start));
     }
 
     private void PlayOregon()
