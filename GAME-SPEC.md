@@ -108,10 +108,11 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
 
 ### 4.1 Screens
 1. **Start screen**
-   - State selector (Oregon only in v1, but the control exists so adding states is a data change).
+   - State: shown as a badge (display-only — it comes from the URL/pack, so there is no editable state box). Oregon only in v1; adding a state is a data change.
+   - Game mode: a choice of Cities / Counties / Name the county, one option per line, each on its own line so the three modes read as a list.
    - Seed entry: a text box pre-filled with a generated seed (e.g. today's date-based seed), plus buttons for "Random seed" and "Use today's daily seed". A short explainer: "Same seed = same cities, same order. Share it to play the same game as a co-worker."
    - Question count: fixed at 10 in v1; show it, don't let the player change it yet (avoids seed-comparison confusion — a 10-question game and a 20-question game with the same seed are not comparable).
-   - Landmark toggles: checkboxes for Interstates / Highways / Rivers / Lakes (all on by default). Purely a display preference; they do not affect scoring.
+   - Landmark toggles: pill buttons with a color swatch for Interstates / Highways / Rivers / Lakes (all on by default) — the swatch shows the color that layer draws in, so the toggle doubles as the legend. Purely a display preference; they do not affect scoring. (They were plain checkboxes before 2026-11-08; the toggle buttons match the standalone version.)
    - "Start game" button. Starting also writes the seed into the URL (see §5.4) so the game is shareable / refresh-safe.
 2. **Round screen (×10)**
    - Header: "Question 3 of 10 — Where is **Baker City**?" plus running total score so far. A bar under the question fills by total score out of 1000, with a terracotta tick marking the best total possible once the question on screen is scored ((question number) × 100 — e.g. 400 on question 4).
