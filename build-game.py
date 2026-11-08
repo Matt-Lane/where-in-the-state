@@ -934,11 +934,13 @@ __PURE_JS__
     dragStart = { x: loc.x, y: loc.y, dx: pieceDx, dy: pieceDy };
     try { countyPiece.setPointerCapture(ev.pointerId); } catch (e) {}
     countyPiece.classList.add("dragging");
+    /* Hide the Confirm bubble while the piece is being dragged — it only
+       shows once the player stops moving it (on drop, see endPieceDrag). */
+    pinConfirm.hidden = true;
     if (!countyDragged) {
       countyDragged = true;
       btnConfirm.disabled = false;
       document.getElementById("hint-text").textContent = "Piece placed — drag it again to move it, or confirm.";
-      updatePieceBubble();
     }
   });
   svg.addEventListener("pointermove", function (ev) {
@@ -948,13 +950,15 @@ __PURE_JS__
     pieceDx = dragStart.dx + (loc.x - dragStart.x);
     pieceDy = dragStart.dy + (loc.y - dragStart.y);
     setPieceTransform();
-    updatePieceBubble();
   });
   function endPieceDrag() {
     if (!pieceDragging) return;
     pieceDragging = false;
     dragStart = null;
     countyPiece.classList.remove("dragging");
+    /* The drag is over — the piece has stopped moving, so show the Confirm
+       bubble next to it. It stays hidden while dragging (see pointerdown). */
+    if (countyDragged) updatePieceBubble();
   }
   svg.addEventListener("pointerup", endPieceDrag);
   svg.addEventListener("pointercancel", endPieceDrag);
