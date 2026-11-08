@@ -1,6 +1,6 @@
 # Where in the State — Game Spec (v1 draft)
 
-**First edition:** Oregon. The game name is generic for any state; Oregon is the first state pack.
+**First edition:** Oregon. The game name is generic for any state; Oregon is the first state pack. There is no "Oregon Edition" label in the UI; once a game starts, the header title is `Where in the {StateName}?!` — derived from the state pack's `Name` field (so a future state gets its own title automatically) — and it stays that way through the results screen; the browser tab follows the same rule. Before a game starts (start screen, loading, error) the title is "Where in the State".
 
 **Date:** 2026-11-06
 **Status:** Draft for Matt to review — map approach decided 2026-11-06: SVG + GeoJSON natively in Blazor (see §9, Option A). Click-test prototype built and audited 2026-11-06 (see Appendix).
@@ -120,7 +120,7 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
    - Total score out of 1000, plus a per-round table: city, distance, points.
    - Best guess (smallest distance) and hardest city (largest distance) highlighted — these are the learning hooks.
    - "Play again" (new random seed), "Replay same seed" (same cities/order — useful for practice), and "Copy game link" (URL with the seed, so a co-worker can play the identical game).
-   - A two-line summary in a styled box under a "Send a challenge!" label, with a "Copy" button: "I scored 742/1000 on Oregon, seed OR-2026-11-06" followed by "Play the same game: https://matt-lane.github.io/where-in-the-state/oregon/OR-2026-11-06", so the recipient can open the same seed with one tap. The summary is read-only (no text field), and the link is clickable on the results screen.
+   - A two-line summary in a styled box under a "Send a challenge!" label, with a "Copy" button: "I scored 742/1000 on Where in the Oregon?!, seed OR-2026-11-06" followed by "Play the same game: https://matt-lane.github.io/where-in-the-state/oregon/OR-2026-11-06", so the recipient can open the same seed with one tap. The summary is read-only (no text field), and the link is clickable on the results screen.
 
 ### 4.2 State during play
 - The selected 10 cities and their order are fixed when the game starts (from the seed). They do not change on refresh if the seed is in the URL.

@@ -20,5 +20,6 @@ builder.Services.AddScoped(sp => new HttpClient
 builder.Services.AddSingleton<SeededGameService>();
 builder.Services.AddSingleton<DistanceService>();
 builder.Services.AddScoped<StatePackLoader>();
+builder.Services.AddScoped<HeaderTitleService>();
 
 await builder.Build().RunAsync();
