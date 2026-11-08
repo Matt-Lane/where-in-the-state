@@ -237,6 +237,50 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .toggle .swatch.fill { height: 0.65rem; border-top: none; border-radius: 3px; background: currentColor; opacity: 0.55; }
 .toggle[aria-pressed="true"] { color: var(--ink); border-color: #aebbbd; background: var(--panel-soft); }
 .toggle[aria-pressed="false"] { opacity: 0.55; }
+
+/* ---------- Game mode buttons (large, with a map preview) ---------- */
+/* The mode picker is three large buttons in a row (stacked on narrow
+   screens), each with a small schematic map showing how that mode plays.
+   The selected button gets a green border and a soft green fill. */
+.mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+.mode-button {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    cursor: pointer;
+    font: inherit;
+    color: var(--ink);
+}
+.mode-button:hover:not(:disabled) { transform: none; border-color: var(--green); box-shadow: var(--shadow); }
+.mode-button[aria-pressed="true"] { border-color: var(--green); background: var(--green-soft); box-shadow: var(--shadow); }
+.mode-button:disabled { opacity: 0.45; cursor: not-allowed; }
+.mode-button-title { font-weight: 700; font-size: 1.05rem; margin-top: 0.6rem; }
+.mode-button-desc { font-size: 0.9rem; color: var(--muted); margin-top: 0.15rem; }
+@media (max-width: 700px) {
+    .mode-grid { grid-template-columns: 1fr; }
+}
+
+/* Mode preview illustrations: small schematic maps inside the buttons.
+   They reuse the real state/county geometry (see ModePreviewArt), drawn
+   with the game's own colors. */
+.mode-preview { width: 100%; height: auto; display: block; border-radius: 8px; background: var(--bg); }
+.preview-state { fill: #e7edda; stroke: #4a6b52; stroke-width: 2; stroke-linejoin: round; }
+.preview-grid { fill: none; stroke: #6b8a6f; stroke-width: 1.5; }
+.preview-line { stroke: var(--ink); stroke-width: 4; stroke-dasharray: 2 8; stroke-linecap: round; }
+.preview-guess { fill: #3b82c4; stroke: #fff; stroke-width: 3; }
+.preview-guess-dot { fill: #fff; }
+.preview-target { fill: #fff; stroke: var(--green); stroke-width: 3; }
+.preview-target-dot { fill: var(--green); }
+.preview-ghost { fill: rgba(32, 92, 70, 0.08); stroke: var(--green); stroke-width: 2.5; stroke-dasharray: 7 5; }
+.preview-piece { fill: var(--rust); stroke: #8f3d26; stroke-width: 2; opacity: 0.95; }
+.preview-arrow { fill: none; stroke: var(--ink); stroke-width: 3; }
+.preview-arrowhead { fill: var(--ink); }
+.preview-selected { fill: #3b82c4; fill-opacity: 0.45; stroke: #1d4ed8; stroke-width: 2.5; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
 .hint { color: var(--muted); font-size: 0.9rem; }
 .link-box { width: 100%; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }
