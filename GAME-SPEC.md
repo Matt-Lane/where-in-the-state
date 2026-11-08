@@ -57,6 +57,7 @@ A state pack is a folder of data files, e.g. `wwwroot/data/states/oregon/`:
 | `cities.json` | The city pool for this state. Array of `{ "name", "latitude", "longitude" }`. For Oregon this is generated from `oregon-cities-with-coords.json` — 241 cities. See §3.3. |
 | `outline.geojson` | The state boundary as a GeoJSON Polygon / MultiPolygon. Sourced from a public dataset (see §3.4). Used to draw the blank map and to clip / bound the playable area. |
 | `landmarks.geojson` (one file per layer, or one file with a `layer` property) | Interstates, US/state highways, rivers, lakes. Each feature carries a type so the renderer can style it (e.g. interstate = thick line + shield label, river = blue line, lake = blue fill). Additional layers (county lines, neighboring-state outlines, major mountain ranges) are optional additions to this file — same shape, new `layer` value. |
+| `counties.geojson` (optional) | The state's counties, one Polygon / MultiPolygon feature per county, each with `properties.layer` = `county` and `properties.name` = e.g. "Multnomah County". Only used by Counties mode (§4.3); a pack without this file still loads, and Counties mode is simply unavailable for that state. |
 
 ### 3.2 C# models (sketch)
 
@@ -89,11 +90,12 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
 ### 3.4 Map / landmark data sources (sourced 2026-11-06 — see `data/oregon/MAP-DATA-NOTES.md`)
 - **Outline:** U.S. Census Bureau 2010 cartographic boundary (`gz_2010_us_040_00_500k.json`, Oregon feature), public domain. Simplified Douglas–Peucker 0.008°: 960 → 209 points, 5.6 KB.
 - **Landmarks:** Natural Earth 10m (public domain) — rivers, lakes, roads — plus 47 more lakes from OpenStreetMap (ODbL, added 2026-11-07). 224 features: 26 interstate segments (I-5, I-82, I-84, I-205), 100 highway segments, 40 river segments (20 named rivers), 58 lakes/reservoirs. ~224 KB total.
+- **Counties:** U.S. Census Bureau 2023 cartographic boundary file `cb_2023_us_county_500k.zip` (Oregon features, `STATEFP` 41), public domain. 36 counties; each is one polygon except Clatsop (3 parts — Columbia River islands) and Curry (4 parts — coastal islands), which are MultiPolygons. Simplified Douglas–Peucker 0.004°: 15,199 → 2,888 points, 67.7 KB. Names are the Census `NAME` with " County" appended. Largest county Harney (~25,945 km²), smallest Multnomah (~1,225 km²). Added 2026-11-07 for Counties mode (§4.3). See MAP-DATA-NOTES.md.
 - **Validation:** all 241 cities fall inside both the simplified and unsimplified outline; projection round-trip max error 0.00°.
 - **Known gaps:** I-405 (Portland loop) missing from Natural Earth 10m; Snake River has no separate river line (the eastern outline follows it); small lakes (e.g. Detroit Lake) not included. See MAP-DATA-NOTES.md for the full list.
 
 ### 3.5 Adding a new state (checklist)
-1. Create `wwwroot/data/states/<state-id>/` with `state.json`, `cities.json`, `outline.geojson`, `landmarks.geojson`.
+1. Create `wwwroot/data/states/<state-id>/` with `state.json`, `cities.json`, `outline.geojson`, `landmarks.geojson`, and `counties.geojson` if the state should support Counties mode.
 2. Add the state to the state selector list (driven by a small `states.json` index, not by code).
 3. Play a test game with a fixed seed and verify: outline renders, all 10 sampled cities are inside the outline, landmarks render, scoring works.
 4. No C# changes should be needed. If a code change *is* needed, that is a sign the pack abstraction leaked and should be fixed.
@@ -126,6 +128,17 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
 - The selected 10 cities and their order are fixed when the game starts (from the seed). They do not change on refresh if the seed is in the URL.
 - The game keeps, per round: city, guessed lat/lon (or null for a pass), actual lat/lon, distance, points.
 - No persistence in v1 beyond the URL seed. A refresh mid-game restarts that game from round 1 with the same seed (acceptable; note it on the start screen if it proves confusing).
+
+### 4.3 Counties mode (added 2026-11-07)
+
+A second game mode in the same app, alongside the city-pin mode. Same 10 rounds, same seeded shuffle (applied to the 36-county pool), same /1000 total — only the question and the scoring change.
+
+- **Mode picker:** the start screen has a "Game mode" choice — Cities (drop a pin for a named city) or Counties (drag the county's shape onto the map). Counties is only offered when the pack has a `counties.geojson`. The mode is part of the shareable link: a county game link carries `?mode=counties` (e.g. `/oregon/OR-2026-11-06?mode=counties`), and opening such a link preselects Counties. The results summary names the mode: "I scored 742/1000 on Where in the Oregon?! (Counties), seed …".
+- **The piece:** each round names one county ("Where is Multnomah County?"). The county's shape is shown as a puzzle piece — its real outline, filled in, at the same scale and in the same orientation as the map. No rotation, no resizing; the shape and size are the clues. The map stays blank: state outline + landmarks only, no county boundaries drawn (drawing them would let the player match the piece to a visible outline).
+- **Staging and dragging:** the piece starts staged in the top-left corner of the map (its bounding-box top-left at (10, 10) in SVG units — outside the state outline, clearly a piece waiting to be placed, not an answer). The player drags it onto the map with pointer events (mouse or touch) and confirms. Confirm stays disabled until the piece has been dragged at least once, so the staging position can't be confirmed as an answer. A small Confirm bubble appears next to the piece once it has been dragged, mirroring the city pin's bubble. Dragging again repositions the piece.
+- **Reveal:** the true county is shown in green and the placed piece in red (semi-transparent fills, so where they overlap the colours blend and the coverage reads at a glance), with the county name labelled on the true county. The reveal line reads "You covered 82% of Multnomah County · 82 points" (or "You passed — the green shape is Multnomah County."). The Next button reads "Next county".
+- **Results:** the per-round table shows county, coverage %, points. Best placement is the highest coverage; hardest county is the lowest coverage (among rounds that were not passed).
+- **Scoring:** see §6.4 — the overlap fraction (what percentage of the real county the placed piece covers), × 100 points per round.
 
 ---
 
@@ -207,6 +220,20 @@ public static double HaversineMiles(double lat1, double lon1, double lat2, doubl
 ```
 - Known reference points for testing, computed with the Haversine formula from the geocoded coordinates in `cities.json`: Portland (45.5202, −122.6742) to Salem (44.9392, −123.0331) is ≈ 44 miles; Portland to Bend (44.0582, −121.3153) is ≈ 121 miles; Eugene (44.0505, −123.0951) to Salem is ≈ 62 miles. (These are straight-line distances, so they are shorter than driving distances. The authoritative city coordinates are the geocoded `cities.json` for the state pack, and distances should be spot-checked against a mapping tool for a few city pairs before release.)
 
+### 6.4 Counties mode scoring — overlap fraction (added 2026-11-07)
+
+```
+overlap = area(placed piece ∩ true county) / area(true county)
+points  = round(overlap × 100)
+```
+
+- The placed piece is the true county translated by (dx, dy) in SVG viewBox units, so the overlap is the fraction of the real county the piece covers. Perfect placement = 1.0 → 100 points; half the county covered = 50; no overlap = 0. A pass = 0 points, coverage shown as "—".
+- It is forgiving in the right way: because the piece is exactly the county's shape, the player cannot cover most of the true county without being mostly in the right place — there is no way to game it by dropping a big shape over the area.
+- **Computation — grid sampling.** Exact polygon clipping would need a geometry library (NetTopologySuite in C#, Turf.js in JS) and the two libraries can disagree on edge cases. Instead, both versions sample a grid over the true county's bounding box (step 4 SVG units, cell centres) and test each cell centre with point-in-polygon (ray casting): inside the true county, and inside the placed piece (tested by shifting the cell centre back by (dx, dy) and testing against the true rings — the piece is the true county translated, so this is exact). `overlap = cells in both / cells in the true county`. The projection is linear, so area ratios in SVG space equal area ratios on the ground. At a 4-unit step the overlap is accurate to well under a point, and the result is identical in Blazor and JS.
+- **County polygons have no holes** (Clatsop and Curry are MultiPolygons of separate outer rings — islands — not holes), so "inside" means inside any ring. If a future pack has a county with a hole, the point-in-polygon test must exclude hole rings.
+- **Rounding note:** C# `Math.Round` is banker's rounding and JS `Math.round` rounds halves up, so an exact .5 overlap score (e.g. 50.5%) can differ by 1 point between the Blazor and JS versions. Rare, and within the grid's own error — accepted, as with the city game's whole-mile rounding.
+- The stricter alternative, Intersection over Union (IoU = intersection / union), was considered and set aside: for equal-area shapes IoU = overlap / (2 − overlap), so it scores harsher (80% coverage → 67) and is harder to explain in one line. If overlap fraction ever feels too generous, IoU is the fallback.
+
 ---
 
 ## 7. Data files (v1, Oregon)
@@ -218,6 +245,7 @@ public static double HaversineMiles(double lat1, double lon1, double lat2, doubl
 | `geocoding-notes.md` | `game-project/` | Verification log for the coordinates. |
 | `outline.geojson` | `wwwroot/data/states/oregon/` | State boundary. Census 2010 cartographic boundary, simplified to 209 points (5.6 KB). Source files in `game-project/data/oregon/`. |
 | `landmarks.geojson` | `wwwroot/data/states/oregon/` | Interstates, highways, rivers, lakes (224 features, ~224 KB; Natural Earth 10m + 47 OSM lakes). Simplified before shipping. |
+| `counties.geojson` | `wwwroot/data/states/oregon/` | 36 Oregon counties (Census 2023 cartographic boundary, simplified to 2,888 points, 67.7 KB). For Counties mode (§4.3). |
 | `state.json` | `wwwroot/data/states/oregon/` | Pack manifest (name, bounds, layers, files). |
 | `states.json` | `wwwroot/data/` | Index of available state packs (v1: Oregon only). |
 

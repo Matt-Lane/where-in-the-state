@@ -13,13 +13,16 @@ OUT = os.path.join(BASE, "oregon-geography-game.html")
 cities = json.load(open(os.path.join(BASE, "oregon-cities-with-coords.json")))
 outline = json.load(open(os.path.join(BASE, "data/oregon/outline.geojson")))
 landmarks = json.load(open(os.path.join(BASE, "data/oregon/landmarks.geojson")))
+counties = json.load(open(os.path.join(BASE, "data/oregon/counties.geojson")))
 assert len(cities) == 241, len(cities)
 assert len(outline["features"]) == 1
 assert len(landmarks["features"]) == 224, len(landmarks["features"])
+assert len(counties["features"]) == 36, len(counties["features"])
 
 CITIES_JSON = json.dumps(cities, separators=(",", ":"))
 OUTLINE_JSON = json.dumps(outline, separators=(",", ":"))
 LANDMARKS_JSON = json.dumps(landmarks, separators=(",", ":"))
+COUNTIES_JSON = json.dumps(counties, separators=(",", ":"))
 
 PURE_JS = r"""
 /* ============ Projection — the single source of truth ============
@@ -64,11 +67,70 @@ function scoreForDistance(distMiles) {
   return r <= 5 ? 100 : Math.max(0, 100 - (r - 5));
 }
 
+/* ============ Overlap scoring (Counties mode) ============
+   Port of the Blazor OverlapService: the placed piece is the true
+   county translated by (dx, dy) in SVG viewBox units, so the overlap
+   is the fraction of the true county's area the piece covers, sampled
+   on a grid of cell centres (4 SVG units apart). The projection is
+   linear, so area ratios in SVG space equal area ratios on the ground.
+   Only cells inside the true county's bounding box are tested. */
+var OVERLAP_GRID_STEP = 4;
+function isInsideRing(x, y, ring) {
+  var inside = false;
+  var n = ring.length;
+  for (var i = 0; i < n; i++) {
+    var x1 = ring[i][0], y1 = ring[i][1];
+    var x2 = ring[(i + 1) % n][0], y2 = ring[(i + 1) % n][1];
+    if ((y1 > y) !== (y2 > y)) {
+      var xin = (x2 - x1) * (y - y1) / (y2 - y1) + x1;
+      if (x < xin) inside = !inside;
+    }
+  }
+  return inside;
+}
+function isInsideAnyRing(x, y, rings) {
+  for (var i = 0; i < rings.length; i++) {
+    if (isInsideRing(x, y, rings[i])) return true;
+  }
+  return false;
+}
+function overlapFraction(ringsSvg, dx, dy) {
+  if (!ringsSvg || ringsSvg.length === 0) return 0;
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  ringsSvg.forEach(function (ring) {
+    ring.forEach(function (pt) {
+      if (pt[0] < minX) minX = pt[0]; if (pt[0] > maxX) maxX = pt[0];
+      if (pt[1] < minY) minY = pt[1]; if (pt[1] > maxY) maxY = pt[1];
+    });
+  });
+  var insideTrue = 0, insideBoth = 0;
+  /* Cell centres, so a cell on the boundary counts half the time —
+     the error this introduces is far below a point at this grid size. */
+  for (var y = minY + OVERLAP_GRID_STEP / 2; y <= maxY; y += OVERLAP_GRID_STEP) {
+    for (var x = minX + OVERLAP_GRID_STEP / 2; x <= maxX; x += OVERLAP_GRID_STEP) {
+      if (!isInsideAnyRing(x, y, ringsSvg)) continue;
+      insideTrue++;
+      /* The placed piece is the true county translated by (dx, dy), so a
+         point is inside the placed piece exactly when the point shifted
+         back by (dx, dy) is inside the true county. */
+      if (isInsideAnyRing(x - dx, y - dy, ringsSvg)) insideBoth++;
+    }
+  }
+  return insideTrue === 0 ? 0 : insideBoth / insideTrue;
+}
+/* Points for an overlap fraction: 100 for a perfect placement, scaled
+   linearly, floored at 0. Mirrors the city game's 100 per round so the
+   two modes share a /1000 game total. */
+function scoreForOverlap(overlap) {
+  if (!isFinite(overlap)) return 0;
+  return Math.round(Math.min(1, Math.max(0, overlap)) * 100);
+}
+
 /* ============ Seeded randomization ============
    SHA-256 of the seed string (SubtleCrypto), first 4 bytes as a signed
    32-bit int (little-endian, matching C# BitConverter.ToInt32), then
    mulberry32 driving a Fisher-Yates shuffle. Same seed -> same 10
-   cities in the same order, in any browser. */
+   items in the same order, in any browser. */
 function mulberry32(a) {
   return function () {
     a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -88,7 +150,9 @@ async function seedIntFromString(seed) {
   for (var i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193); }
   return h | 0;
 }
-function selectCities(seedInt, pool, count) {
+/* Seeded Fisher-Yates shuffle of any pool (cities or counties):
+   same seed -> same 10 items in the same order. */
+function selectItems(seedInt, pool, count) {
   var rng = mulberry32(seedInt);
   var arr = pool.slice();
   for (var i = arr.length - 1; i > 0; i--) {
@@ -195,6 +259,15 @@ HTML = r"""<!doctype html>
   .toggle[data-layer="river"]      { --c: var(--river); }
   .toggle[data-layer="lake"]       { --c: var(--river); }
   .toggle .swatch { color: var(--c, var(--muted)); }
+  .mode-option { display: block; font-weight: 600; padding: 6px 0; cursor: pointer; }
+  .mode-option input { margin-right: 8px; }
+  .how-it-works { margin: 0 0 12px; padding-left: 0; list-style: none; }
+  .how-it-works li { margin-bottom: 6px; }
+  .how-it-works .step-num {
+    display: inline-block; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+    line-height: 22px; text-align: center; margin-right: 8px;
+  }
 
   .score-line { font-size: 16px; font-weight: 600; margin: 0 0 10px; font-variant-numeric: tabular-nums; }
   /* Round bar: fills by total score (out of 1000), with a terracotta tick
@@ -256,6 +329,21 @@ HTML = r"""<!doctype html>
   .truth-marker circle { fill: none; stroke: var(--truth); stroke-width: 2.4; }
   .truth-marker line { stroke: var(--truth); stroke-width: 2.4; stroke-linecap: round; }
   .guess-pin { pointer-events: none; }
+  /* Counties mode: the draggable puzzle piece — the county's own shape
+     at 1:1 scale, in a warm rust so it reads as a piece waiting to be
+     placed. touch-action none so a touch drag moves the piece instead of
+     scrolling the page. */
+  .county-piece { fill: #d98a68; fill-opacity: 0.85; stroke: #a34a28; stroke-width: 2; cursor: grab; touch-action: none; }
+  .county-piece.dragging { cursor: grabbing; fill-opacity: 0.95; }
+  /* Reveal: the true county in green, the placed piece in rust — where
+     they overlap the two fills blend, so the coverage reads at a glance. */
+  .county-true { fill: #205c46; fill-opacity: 0.35; stroke: #205c46; stroke-width: 2.5; }
+  .county-placed { fill: #c0563a; fill-opacity: 0.4; stroke: #a34a28; stroke-width: 2; }
+  .map-label {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 20px; font-weight: 700; fill: var(--truth); text-anchor: middle;
+    paint-order: stroke; stroke: #fffdf6; stroke-width: 4px; stroke-linejoin: round;
+  }
 
   .legend { font-size: 13.5px; color: var(--muted); margin: 0 0 4px; }
   .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin: 0 4px 0 10px; }
@@ -291,7 +379,7 @@ HTML = r"""<!doctype html>
 <div class="wrap">
   <header>
     <h1 id="game-title">Where in the State</h1>
-    <p>Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin,
+    <p id="header-lede">Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin,
       the more points. Full points within 5 miles, then &minus;1 point per mile beyond that.</p>
   </header>
 
@@ -304,6 +392,12 @@ HTML = r"""<!doctype html>
     </div>
 
     <div class="card">
+      <h2>Game mode</h2>
+      <label class="mode-option"><input type="radio" name="mode" value="cities" checked /> Cities — drop a pin for a named city</label>
+      <label class="mode-option"><input type="radio" name="mode" value="counties" /> Counties — drag the county's shape onto the map</label>
+    </div>
+
+    <div class="card">
       <h2>Seed — same seed, same game</h2>
       <label class="field-label" for="seed-input">Game seed</label>
       <div class="seed-row">
@@ -313,7 +407,7 @@ HTML = r"""<!doctype html>
         <button type="button" id="btn-random-seed">Random seed</button>
         <button type="button" id="btn-daily-seed">Use today&rsquo;s daily seed</button>
       </div>
-      <p class="muted small" style="margin-top:12px">Same seed = same 10 cities, in the same order, for anyone, any time.
+      <p class="muted small" style="margin-top:12px" id="seed-hint">Same seed = same 10 cities, in the same order, for anyone, any time.
         Share the seed (or the game link) to play the same game as a co-worker. Seeds are case-sensitive.</p>
     </div>
 
@@ -330,7 +424,8 @@ HTML = r"""<!doctype html>
 
     <div class="card">
       <h2>Game</h2>
-      <p><strong>10 questions.</strong> One pin per city, 100 points per question, 1,000 points maximum.</p>
+      <ol class="how-it-works" id="how-it-works"></ol>
+      <p id="game-line"><strong>10 questions.</strong> One pin per city, 100 points per question, 1,000 points maximum.</p>
       <div class="btn-row">
         <button type="button" class="btn-primary btn-big" id="btn-start">Start game</button>
       </div>
@@ -370,6 +465,9 @@ HTML = r"""<!doctype html>
           <g id="layer-river" class="layer-river"></g>
           <g id="layer-highway" class="layer-highway"></g>
           <g id="layer-interstate" class="layer-interstate"></g>
+          <g id="county-true" class="layer-hidden"><path id="county-true-path" class="county-true" d="" /></g>
+          <text id="county-label" class="map-label layer-hidden" x="0" y="0"></text>
+          <g id="county-piece" class="layer-hidden"><path id="county-piece-path" class="county-piece" d="" /></g>
           <line id="connector" class="connector layer-hidden" x1="0" y1="0" x2="0" y2="0"></line>
           <g id="truth-marker" class="truth-marker layer-hidden">
             <circle id="truth-circle" r="8" cx="0" cy="0"></circle>
@@ -400,14 +498,14 @@ HTML = r"""<!doctype html>
     <div class="card">
       <h2>Round by round</h2>
       <table class="results">
-        <thead><tr><th>#</th><th>City</th><th class="num">Distance</th><th class="num">Points</th></tr></thead>
+        <thead><tr><th>#</th><th id="col-item">City</th><th class="num" id="col-metric">Distance</th><th class="num">Points</th></tr></thead>
         <tbody id="results-body"></tbody>
       </table>
     </div>
 
     <div class="card">
       <h2>Share this game</h2>
-      <p class="muted small">Anyone opening this link with the same seed gets the same 10 cities in the same order.</p>
+      <p class="muted small" id="share-note">Anyone opening this link with the same seed gets the same 10 cities in the same order.</p>
       <div class="btn-row">
         <button type="button" id="btn-copy-link">Copy game link</button>
         <button type="button" id="btn-replay">Replay same seed</button>
@@ -426,9 +524,12 @@ HTML = r"""<!doctype html>
     Projection: equirectangular with cos(44&deg;) correction. Bounds lon &minus;124.716 to &minus;116.314,
     lat 41.843 to 46.421, viewBox <code>0 0 1000 757.4</code>. One function projects lon/lat &rarr; x/y for drawing;
     its exact inverse converts taps back. Distances use the Haversine formula (Earth radius 3,959 miles).
-    Scoring: <code>100 if rounded miles &le; 5, else max(0, 100 &minus; (rounded miles &minus; 5))</code>.<br />
+    Scoring: <code>100 if rounded miles &le; 5, else max(0, 100 &minus; (rounded miles &minus; 5))</code>.
+    Counties mode scores by overlap: the percentage of the real county covered by the placed piece
+    (100 for a perfect fit), sampled on a 4-unit grid in map units.<br />
     Seeded shuffle: this web version hashes the seed with SHA-256 (WebCrypto) and uses the first 4 bytes as a
-    signed 32-bit integer to drive a mulberry32 PRNG through a Fisher&ndash;Yates shuffle of the 241-city pool.
+    signed 32-bit integer to drive a mulberry32 PRNG through a Fisher&ndash;Yates shuffle of the 241-city pool
+    (or the 36-county pool in Counties mode).
     The Blazor C# version (spec &sect;5) uses the same SHA-256 seed integer with <code>System.Random(seedInt)</code>
     instead of mulberry32, so the 10 cities picked for a given seed may differ between the JavaScript and C#
     versions — but the seed format, scoring, and projection are the same.<br />
@@ -440,6 +541,7 @@ HTML = r"""<!doctype html>
 <script type="application/json" id="data-cities">__CITIES__</script>
 <script type="application/json" id="data-outline">__OUTLINE__</script>
 <script type="application/json" id="data-landmarks">__LANDMARKS__</script>
+<script type="application/json" id="data-counties">__COUNTIES__</script>
 
 <script>
 (function () {
@@ -450,6 +552,7 @@ __PURE_JS__
   var cities = JSON.parse(document.getElementById("data-cities").textContent);
   var outline = JSON.parse(document.getElementById("data-outline").textContent);
   var landmarks = JSON.parse(document.getElementById("data-landmarks").textContent);
+  var counties = JSON.parse(document.getElementById("data-counties").textContent);
   var SVGNS = "http://www.w3.org/2000/svg";
   function fmt(n) { return Math.round(n * 10) / 10; }
   function coordsToPath(coords, close) {
@@ -548,6 +651,66 @@ __PURE_JS__
     seedInput.focus();
   });
 
+  /* ============ Game mode (Cities / Counties) ============
+     The picker on the start screen; the lede, seed hint, game line and
+     how-it-works steps all change with the mode, like the Blazor start
+     screen. A shared link carries ?mode=counties for a county game. */
+  var MODE_COPY = {
+    cities: {
+      lede: "Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin, the more points. Full points within 5 miles, then −1 point per mile beyond that.",
+      seedHint: "Same seed = same 10 cities, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a co-worker. Seeds are case-sensitive.",
+      gameLine: "One pin per city, 100 points per question, 1,000 points maximum.",
+      steps: [
+        ["Pick a seed", "Same seed, same 10 cities — share it to play together."],
+        ["Drop a pin", "Tap the map where you think the city is, then confirm."],
+        ["See how close", "The real spot is revealed, with your distance and points."]
+      ]
+    },
+    counties: {
+      lede: "A blank map of Oregon — outline and landmarks, but no county lines. Each round names one county; drag its shape onto the map where you think it belongs. 100 points for a perfect fit, scaled by how much of the real county you cover. 10 questions per game.",
+      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a co-worker. Seeds are case-sensitive.",
+      gameLine: "One county per question, 100 points per question, 1,000 points maximum.",
+      steps: [
+        ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
+        ["Drag the piece", "Drag the county's shape onto the map where it belongs, then confirm."],
+        ["See the overlap", "The real county is revealed, with how much of it you covered and your points."]
+      ]
+    }
+  };
+  function selectedMode() {
+    var checked = document.querySelector('input[name="mode"]:checked');
+    return checked ? checked.value : "cities";
+  }
+  function updateModeUI() {
+    var copy = MODE_COPY[selectedMode()];
+    document.getElementById("header-lede").textContent = copy.lede;
+    document.getElementById("seed-hint").textContent = copy.seedHint;
+    document.getElementById("game-line").innerHTML = "<strong>10 questions.</strong> " + copy.gameLine;
+    var ol = document.getElementById("how-it-works");
+    ol.innerHTML = "";
+    copy.steps.forEach(function (step, i) {
+      var li = document.createElement("li");
+      var strong = document.createElement("strong");
+      var num = document.createElement("span");
+      num.className = "step-num";
+      num.textContent = String(i + 1);
+      strong.appendChild(num);
+      strong.appendChild(document.createTextNode(step[0]));
+      li.appendChild(strong);
+      li.appendChild(document.createTextNode(step[1]));
+      ol.appendChild(li);
+    });
+  }
+  document.querySelectorAll('input[name="mode"]').forEach(function (radio) {
+    radio.addEventListener("change", updateModeUI);
+  });
+  var urlMode = urlParams.get("mode");
+  if (urlMode && urlMode.toLowerCase() === "counties") {
+    var countiesRadio = document.querySelector('input[name="mode"][value="counties"]');
+    if (countiesRadio) countiesRadio.checked = true;
+  }
+  updateModeUI();
+
   /* ============ Game state ============ */
   var QUESTION_COUNT = 10;
   /* The state name, used to build the in-game title ("Where in the Oregon?!").
@@ -558,11 +721,23 @@ __PURE_JS__
      own address — in the test-page preview the origin is the preview host,
      which is not a shareable game link. */
   var LIVE_SITE_BASE = "https://matt-lane.github.io/where-in-the-state/";
-  function gameLink() { return LIVE_SITE_BASE + "oregon/" + encodeURIComponent(game.seed); }
-  var game = null; /* { seed, cities, roundIndex, results, total } */
+  function gameLink() {
+    return LIVE_SITE_BASE + "oregon/" + encodeURIComponent(game.seed) +
+      (game.mode === "counties" ? "?mode=counties" : "");
+  }
+  var game = null; /* { seed, mode, cities, counties, roundIndex, results, total } */
   var guess = null; /* { lat, lon, x, y } */
   var phase = "guess"; /* "guess" | "revealed" */
   var dragging = false;
+  /* Counties mode: the current county's rings in SVG units, the piece's
+     translation in SVG units, and whether it has been dragged this round
+     (Confirm stays disabled until it has — the staging position is not
+     an answer). */
+  var countyRings = null;
+  var pieceDx = 0, pieceDy = 0;
+  var countyDragged = false;
+  var pieceDragging = false;
+  var dragStart = null;
 
   var svg = document.getElementById("map");
   var guessPin = document.getElementById("guess-pin");
@@ -574,6 +749,11 @@ __PURE_JS__
   var btnPass = document.getElementById("btn-pass");
   var btnNext = document.getElementById("btn-next");
   var pinConfirm = document.getElementById("pin-confirm");
+  var countyPiece = document.getElementById("county-piece");
+  var countyPiecePath = document.getElementById("county-piece-path");
+  var countyTrue = document.getElementById("county-true");
+  var countyTruePath = document.getElementById("county-true-path");
+  var countyLabelEl = document.getElementById("county-label");
 
   function pinPath(x, y) {
     return "M" + fmt(x) + "," + fmt(y) +
@@ -610,6 +790,94 @@ __PURE_JS__
     truthMarker.classList.remove("layer-hidden");
   }
 
+  /* ============ Counties mode helpers ============ */
+  /* The county's rings in SVG coordinates. All rings of every polygon
+     part (like the Blazor loader's ReadRings) — Clatsop and Curry are
+     MultiPolygons, and no Oregon county has holes. */
+  function countyRingsSvg(feature) {
+    var rings = [];
+    var geom = feature.geometry;
+    function toSvg(coords) {
+      var out = [];
+      for (var i = 0; i < coords.length; i++) out.push(project(coords[i][0], coords[i][1]));
+      return out;
+    }
+    if (geom.type === "Polygon") {
+      for (var i = 0; i < geom.coordinates.length; i++) rings.push(toSvg(geom.coordinates[i]));
+    } else if (geom.type === "MultiPolygon") {
+      for (var p = 0; p < geom.coordinates.length; p++)
+        for (var r = 0; r < geom.coordinates[p].length; r++) rings.push(toSvg(geom.coordinates[p][r]));
+    }
+    return rings;
+  }
+  function ringsToPath(rings) {
+    var d = "";
+    for (var i = 0; i < rings.length; i++) {
+      var ring = rings[i];
+      for (var j = 0; j < ring.length; j++) {
+        d += (j === 0 ? "M" : "L") + fmt(ring[j][0]) + "," + fmt(ring[j][1]);
+      }
+      d += "Z";
+    }
+    return d;
+  }
+  function ringsBbox(rings) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    rings.forEach(function (ring) {
+      ring.forEach(function (pt) {
+        if (pt[0] < minX) minX = pt[0]; if (pt[0] > maxX) maxX = pt[0];
+        if (pt[1] < minY) minY = pt[1]; if (pt[1] > maxY) maxY = pt[1];
+      });
+    });
+    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+  }
+  /* The staging position: the piece's bounding-box top-left at (10, 10)
+     in SVG units — up in the top-left corner, outside the state outline,
+     clearly a piece waiting to be placed rather than an answer. */
+  function stagingTranslation(rings) {
+    var b = ringsBbox(rings);
+    return [10 - b.minX, 10 - b.minY];
+  }
+  function setPieceTransform() {
+    countyPiece.setAttribute("transform", "translate(" + fmt(pieceDx) + " " + fmt(pieceDy) + ")");
+  }
+  function clearCountyOverlays() {
+    countyTrue.classList.add("layer-hidden");
+    countyLabelEl.classList.add("layer-hidden");
+    countyPiece.classList.add("layer-hidden");
+  }
+  /* Viewport (client) coordinates to SVG viewBox units, from the SVG's
+     bounding rect. ClientX/Y are viewport-relative, so the rect is what
+     converts them — OffsetX would be relative to the event target
+     instead, which is the piece while dragging, not the map. */
+  function clientToSvg(clientX, clientY) {
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return { x: (clientX - rect.left) * W / rect.width, y: (clientY - rect.top) * H / rect.height };
+  }
+  /* The small Confirm bubble next to the piece once it has been dragged,
+     like the pin's bubble in the city game: centred on the piece's
+     bounding box, flipped to the piece's left near the right edge. */
+  function updatePieceBubble() {
+    if (!countyRings) return;
+    var b = ringsBbox(countyRings);
+    var cx = (b.minX + b.maxX) / 2 + pieceDx;
+    var cy = (b.minY + b.maxY) / 2 + pieceDy;
+    pinConfirm.style.left = (cx / 10).toFixed(2) + "%";
+    pinConfirm.style.top = Math.min(96, Math.max(4, cy / 757.4 * 100)).toFixed(2) + "%";
+    pinConfirm.classList.toggle("flipped", cx > 750);
+    pinConfirm.hidden = false;
+  }
+  /* The county name label on the true county at reveal, centred on the
+     county's bounding box and clamped so long names don't run off the map. */
+  function countyLabelPosition(rings) {
+    var b = ringsBbox(rings);
+    return {
+      x: Math.min(910, Math.max(90, (b.minX + b.maxX) / 2)),
+      y: Math.min(730, Math.max(30, (b.minY + b.maxY) / 2))
+    };
+  }
+
   function eventToSvg(ev) {
     var pt = svg.createSVGPoint();
     pt.x = ev.clientX; pt.y = ev.clientY;
@@ -633,7 +901,7 @@ __PURE_JS__
     document.getElementById("hint-text").textContent = "Pin dropped — tap again or drag to move it, then confirm your guess.";
   }
   svg.addEventListener("pointerdown", function (ev) {
-    if (!game || phase !== "guess") return;
+    if (!game || phase !== "guess" || game.mode === "counties") return;
     ev.preventDefault();
     var loc = eventToSvg(ev);
     if (!loc) return;
@@ -642,7 +910,7 @@ __PURE_JS__
     placeGuessAt(loc.x, loc.y);
   });
   svg.addEventListener("pointermove", function (ev) {
-    if (!dragging || !game || phase !== "guess") return;
+    if (!dragging || !game || phase !== "guess" || game.mode === "counties") return;
     var loc = eventToSvg(ev);
     if (!loc) return;
     placeGuessAt(loc.x, loc.y);
@@ -651,11 +919,53 @@ __PURE_JS__
   svg.addEventListener("pointerup", endDrag);
   svg.addEventListener("pointercancel", endDrag);
 
+  /* ============ County piece drag ============
+     pointerdown on the piece starts the drag (recording the pointer's
+     SVG position and the current translation); pointermove on the SVG
+     moves the piece by the pointer's movement delta; pointerup ends it.
+     The piece follows the pointer rigidly — no per-move callbacks, the
+     parent only needs the final position at confirm time. */
+  countyPiece.addEventListener("pointerdown", function (ev) {
+    if (!game || game.mode !== "counties" || phase !== "guess") return;
+    ev.preventDefault();
+    var loc = clientToSvg(ev.clientX, ev.clientY);
+    if (!loc) return;
+    pieceDragging = true;
+    dragStart = { x: loc.x, y: loc.y, dx: pieceDx, dy: pieceDy };
+    try { countyPiece.setPointerCapture(ev.pointerId); } catch (e) {}
+    countyPiece.classList.add("dragging");
+    if (!countyDragged) {
+      countyDragged = true;
+      btnConfirm.disabled = false;
+      document.getElementById("hint-text").textContent = "Piece placed — drag it again to move it, or confirm.";
+      updatePieceBubble();
+    }
+  });
+  svg.addEventListener("pointermove", function (ev) {
+    if (!pieceDragging || !dragStart) return;
+    var loc = clientToSvg(ev.clientX, ev.clientY);
+    if (!loc) return;
+    pieceDx = dragStart.dx + (loc.x - dragStart.x);
+    pieceDy = dragStart.dy + (loc.y - dragStart.y);
+    setPieceTransform();
+    updatePieceBubble();
+  });
+  function endPieceDrag() {
+    if (!pieceDragging) return;
+    pieceDragging = false;
+    dragStart = null;
+    countyPiece.classList.remove("dragging");
+  }
+  svg.addEventListener("pointerup", endPieceDrag);
+  svg.addEventListener("pointercancel", endPieceDrag);
+  svg.addEventListener("pointerleave", endPieceDrag);
+
   function currentCity() { return game.cities[game.roundIndex]; }
+  function currentCounty() { return game.counties[game.roundIndex]; }
   function updateRoundHeader() {
-    var city = currentCity();
+    var itemName = game.mode === "counties" ? currentCounty().properties.name : currentCity().name;
     document.getElementById("round-heading").textContent =
-      "Question " + (game.roundIndex + 1) + " of " + QUESTION_COUNT + " — Where is " + city.name + "?";
+      "Question " + (game.roundIndex + 1) + " of " + QUESTION_COUNT + " — Where is " + itemName + "?";
     document.getElementById("running-total").textContent = game.total;
     document.getElementById("game-seed-label").textContent = game.seed;
     /* The bar fills by total score (out of 1000); the tick marks the best
@@ -672,16 +982,38 @@ __PURE_JS__
     phase = "guess";
     guess = null;
     clearPins();
+    clearCountyOverlays();
     btnConfirm.disabled = true;
     btnPass.disabled = false;
     pinConfirm.hidden = true;
     document.getElementById("reveal-controls").hidden = true;
     document.getElementById("guess-controls").hidden = false;
-    document.getElementById("hint-text").textContent = "Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.";
+    if (game.mode === "counties") {
+      /* Stage the county piece: its own shape at 1:1 scale, bounding-box
+         top-left at (10, 10) in the top-left corner of the map. */
+      countyRings = countyRingsSvg(currentCounty());
+      var staged = stagingTranslation(countyRings);
+      pieceDx = staged[0]; pieceDy = staged[1];
+      countyDragged = false;
+      pieceDragging = false;
+      dragStart = null;
+      countyPiecePath.setAttribute("d", ringsToPath(countyRings));
+      countyPiecePath.setAttribute("class", "county-piece");
+      countyPiece.setAttribute("class", "county-piece");
+      countyPiece.classList.remove("layer-hidden");
+      setPieceTransform();
+      document.getElementById("hint-text").textContent = "Drag the county piece onto the map.";
+      svg.setAttribute("aria-label", "Blank map of Oregon. Drag the county piece onto the map where the county belongs.");
+    } else {
+      countyRings = null;
+      document.getElementById("hint-text").textContent = "Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.";
+      svg.setAttribute("aria-label", "Blank map of Oregon with interstates, highways, rivers and lakes. Tap to place a pin.");
+    }
     updateRoundHeader();
   }
 
   function reveal(passed) {
+    if (game.mode === "counties") { revealCounty(passed); return; }
     var city = currentCity();
     phase = "revealed";
     btnConfirm.disabled = true;
@@ -733,9 +1065,61 @@ __PURE_JS__
     updateRoundHeader();
   }
 
-  btnConfirm.addEventListener("click", function () { if (guess && phase === "guess") reveal(false); });
+  /* Counties reveal: the true county in green, the placed piece in red
+     (semi-transparent fills, so where they overlap the colours blend),
+     the county name on the true county, and the coverage line. A pass
+     moves the piece onto the true county, like the city pass shows the
+     true location — the green shape is the answer. */
+  function revealCounty(passed) {
+    var county = currentCounty();
+    var countyName = county.properties.name;
+    phase = "revealed";
+    btnConfirm.disabled = true;
+    btnPass.disabled = true;
+    pinConfirm.hidden = true;
+    document.getElementById("guess-controls").hidden = true;
+    var overlap = null, points = 0;
+    if (passed) {
+      pieceDx = 0; pieceDy = 0;
+      setPieceTransform();
+    } else if (countyDragged) {
+      overlap = overlapFraction(countyRings, pieceDx, pieceDy);
+      points = scoreForOverlap(overlap);
+    }
+    game.total += points;
+    game.results.push({ county: county, overlap: overlap, points: points, passed: passed });
+    countyTruePath.setAttribute("d", ringsToPath(countyRings));
+    countyTrue.classList.remove("layer-hidden");
+    countyPiece.setAttribute("class", "");
+    countyPiecePath.setAttribute("class", "county-placed");
+    var labelPos = countyLabelPosition(countyRings);
+    countyLabelEl.setAttribute("x", fmt(labelPos.x));
+    countyLabelEl.setAttribute("y", fmt(labelPos.y));
+    countyLabelEl.textContent = countyName;
+    countyLabelEl.classList.remove("layer-hidden");
+    var line = document.getElementById("reveal-line");
+    if (passed) {
+      line.textContent = "You passed — the green shape is " + countyName + ".";
+    } else {
+      line.textContent = "You covered " + Math.round(overlap * 100) + "% of " + countyName + " · " + points + " points";
+    }
+    btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : "Next county";
+    document.getElementById("reveal-controls").hidden = false;
+    /* Refresh the header (and the score bar) now that the round is scored. */
+    updateRoundHeader();
+  }
+
+  btnConfirm.addEventListener("click", function () {
+    if (phase !== "guess") return;
+    if (game.mode === "counties") { if (countyDragged) reveal(false); }
+    else if (guess) reveal(false);
+  });
   btnPass.addEventListener("click", function () { if (phase === "guess") reveal(true); });
-  pinConfirm.addEventListener("click", function () { if (guess && phase === "guess") reveal(false); });
+  pinConfirm.addEventListener("click", function () {
+    if (phase !== "guess") return;
+    if (game.mode === "counties") { if (countyDragged) reveal(false); }
+    else if (guess) reveal(false);
+  });
   btnNext.addEventListener("click", function () {
     game.roundIndex++;
     if (game.roundIndex >= QUESTION_COUNT) showResults();
@@ -746,10 +1130,19 @@ __PURE_JS__
     seed = (seed || "").trim();
     if (!seed) seed = randomSeed();
     var seedInt = await seedIntFromString(seed);
-    var picked = selectCities(seedInt, cities, QUESTION_COUNT);
-    game = { seed: seed, cities: picked, roundIndex: 0, results: [], total: 0 };
+    var mode = selectedMode();
+    if (mode === "counties") {
+      var pickedCounties = selectItems(seedInt, counties.features, QUESTION_COUNT);
+      game = { seed: seed, mode: "counties", cities: [], counties: pickedCounties, roundIndex: 0, results: [], total: 0 };
+    } else {
+      var pickedCities = selectItems(seedInt, cities, QUESTION_COUNT);
+      game = { seed: seed, mode: "cities", cities: pickedCities, counties: [], roundIndex: 0, results: [], total: 0 };
+    }
     try {
-      history.replaceState(null, "", "?state=oregon&seed=" + encodeURIComponent(seed));
+      /* County games add ?mode=counties so a shared link (and a refresh)
+         replays the same mode. */
+      history.replaceState(null, "", "?state=oregon&seed=" + encodeURIComponent(seed) +
+        (mode === "counties" ? "&mode=counties" : ""));
     } catch (e) {}
     showScreen("game");
     startRound();
@@ -766,31 +1159,65 @@ __PURE_JS__
   function showResults() {
     showScreen("results");
     document.getElementById("final-total").textContent = game.total;
+    var isCounties = game.mode === "counties";
+    document.getElementById("col-item").textContent = isCounties ? "County" : "City";
+    document.getElementById("col-metric").textContent = isCounties ? "Coverage" : "Distance";
+    document.getElementById("share-note").textContent = isCounties
+      ? "Anyone opening this link with the same seed gets the same 10 counties in the same order."
+      : "Anyone opening this link with the same seed gets the same 10 cities in the same order.";
     var scored = game.results.filter(function (r) { return !r.passed; });
-    var avg = scored.length
-      ? (scored.reduce(function (s, r) { return s + r.distance; }, 0) / scored.length).toFixed(1)
-      : "—";
-    document.getElementById("final-sub").textContent =
-      "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · average distance " + avg + " miles (guessed rounds).";
+    if (isCounties) {
+      var avgCov = scored.length
+        ? Math.round(scored.reduce(function (s, r) { return s + r.overlap; }, 0) / scored.length * 100)
+        : "—";
+      document.getElementById("final-sub").textContent =
+        "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · average coverage " + avgCov + "% (placed rounds).";
+    } else {
+      var avg = scored.length
+        ? (scored.reduce(function (s, r) { return s + r.distance; }, 0) / scored.length).toFixed(1)
+        : "—";
+      document.getElementById("final-sub").textContent =
+        "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · average distance " + avg + " miles (guessed rounds).";
+    }
     var best = null, hardest = null;
-    scored.forEach(function (r) {
-      if (!best || r.distance < best.distance) best = r;
-      if (!hardest || r.distance > hardest.distance) hardest = r;
-    });
+    if (isCounties) {
+      /* Best placement = highest coverage, hardest county = lowest
+         coverage, among rounds that were placed (not passed). */
+      scored.forEach(function (r) {
+        if (!best || r.overlap > best.overlap) best = r;
+        if (!hardest || r.overlap < hardest.overlap) hardest = r;
+      });
+    } else {
+      scored.forEach(function (r) {
+        if (!best || r.distance < best.distance) best = r;
+        if (!hardest || r.distance > hardest.distance) hardest = r;
+      });
+    }
     var hl = document.getElementById("final-highlights");
     if (best && hardest && best !== hardest) {
       hl.innerHTML = "";
       var b1 = document.createElement("span");
-      b1.innerHTML = "<strong>Best guess:</strong> ";
-      b1.appendChild(document.createTextNode(best.city.name + " — " + best.distance.toFixed(1) + " miles off (" + best.points + " pts). "));
       var b2 = document.createElement("span");
-      b2.innerHTML = "<strong>Hardest city:</strong> ";
-      b2.appendChild(document.createTextNode(hardest.city.name + " — " + hardest.distance.toFixed(1) + " miles off (" + hardest.points + " pts)."));
+      if (isCounties) {
+        b1.innerHTML = "<strong>Best placement:</strong> ";
+        b1.appendChild(document.createTextNode(best.county.properties.name + " — " + Math.round(best.overlap * 100) + "% covered (" + best.points + " pts). "));
+        b2.innerHTML = "<strong>Hardest county:</strong> ";
+        b2.appendChild(document.createTextNode(hardest.county.properties.name + " — " + Math.round(hardest.overlap * 100) + "% covered (" + hardest.points + " pts)."));
+      } else {
+        b1.innerHTML = "<strong>Best guess:</strong> ";
+        b1.appendChild(document.createTextNode(best.city.name + " — " + best.distance.toFixed(1) + " miles off (" + best.points + " pts). "));
+        b2.innerHTML = "<strong>Hardest city:</strong> ";
+        b2.appendChild(document.createTextNode(hardest.city.name + " — " + hardest.distance.toFixed(1) + " miles off (" + hardest.points + " pts)."));
+      }
       hl.appendChild(b1); hl.appendChild(b2);
     } else if (best) {
-      hl.textContent = "Best (and only scored) guess: " + best.city.name + " — " + best.distance.toFixed(1) + " miles off.";
+      hl.textContent = isCounties
+        ? "Best (and only scored) placement: " + best.county.properties.name + " — " + Math.round(best.overlap * 100) + "% covered."
+        : "Best (and only scored) guess: " + best.city.name + " — " + best.distance.toFixed(1) + " miles off.";
     } else {
-      hl.textContent = "Every round was passed — no guesses to rank. Try placing a pin next time!";
+      hl.textContent = isCounties
+        ? "Every round was passed — no placements to rank. Try placing a piece next time!"
+        : "Every round was passed — no guesses to rank. Try placing a pin next time!";
     }
     var tbody = document.getElementById("results-body");
     tbody.innerHTML = "";
@@ -800,7 +1227,7 @@ __PURE_JS__
       if (hardest && r === hardest && best !== hardest) tr.className = "hardest";
       var tdN = document.createElement("td"); tdN.textContent = String(i + 1);
       var tdCity = document.createElement("td");
-      tdCity.textContent = r.city.name;
+      tdCity.textContent = isCounties ? r.county.properties.name : r.city.name;
       if (best && r === best && best !== hardest) {
         var bb = document.createElement("span"); bb.className = "badge best"; bb.textContent = "Best";
         tdCity.appendChild(bb);
@@ -810,13 +1237,16 @@ __PURE_JS__
         tdCity.appendChild(hb);
       }
       var tdD = document.createElement("td"); tdD.className = "num";
-      tdD.textContent = r.distance === null ? "—" : r.distance.toFixed(1) + " mi";
+      tdD.textContent = isCounties
+        ? (r.overlap === null ? "—" : Math.round(r.overlap * 100) + "%")
+        : (r.distance === null ? "—" : r.distance.toFixed(1) + " mi");
       var tdP = document.createElement("td"); tdP.className = "num"; tdP.textContent = String(r.points);
       tr.appendChild(tdN); tr.appendChild(tdCity); tr.appendChild(tdD); tr.appendChild(tdP);
       tbody.appendChild(tr);
     });
     document.getElementById("summary-text").textContent =
-      "I scored " + game.total + "/1000 on Where in the " + STATE_NAME + "?!, seed " + game.seed + "\nPlay the same game: " + gameLink();
+      "I scored " + game.total + "/1000 on Where in the " + STATE_NAME + "?!" +
+      (isCounties ? " (Counties)" : "") + ", seed " + game.seed + "\nPlay the same game: " + gameLink();
   }
 
   function copyText(text, noteEl) {
@@ -856,6 +1286,7 @@ html = (HTML
         .replace("__CITIES__", CITIES_JSON)
         .replace("__OUTLINE__", OUTLINE_JSON)
         .replace("__LANDMARKS__", LANDMARKS_JSON)
+        .replace("__COUNTIES__", COUNTIES_JSON)
         .replace("__PURE_JS__", PURE_JS))
 
 with open(OUT, "w") as f:
