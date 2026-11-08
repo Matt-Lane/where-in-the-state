@@ -53,16 +53,15 @@ html, body {
     letter-spacing: -0.01em;
     margin: 0;
 }
-.wordmark .wordmark-dot {
+.wordmark .wordmark-logo {
     display: inline-block;
-    width: 0.6em;
-    height: 0.6em;
-    border-radius: 50% 50% 50% 0;
-    background: var(--rust);
-    transform: rotate(-45deg);
+    width: 1.5em;
+    height: 1.5em;
     margin-right: 0.45rem;
-    vertical-align: 0.05em;
+    vertical-align: -0.28em;
 }
+.wordmark-logo .pin-fill { fill: var(--green); }
+.wordmark-logo .mark-fill { fill: #fff; }
 .site-footer {
     margin-top: 2.5rem;
     padding-top: 1rem;
