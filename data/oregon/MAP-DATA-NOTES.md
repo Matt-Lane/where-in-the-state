@@ -4,11 +4,11 @@
 **For:** Oregon geography game (Blazor WebAssembly, SVG + GeoJSON, v1)
 **Files in this folder:**
 - `outline.geojson` — 5,622 bytes, Oregon state outline, 209 points (simplified from 960)
-- `landmarks.geojson` — 86,650 bytes, 177 features total:
+- `landmarks.geojson` — 224,410 bytes, 224 features total:
   - 26 interstate segments (I-5, I-82, I-84, I-205)
   - 100 highway segments (US + state routes)
   - 40 river segments, 20 named rivers
-  - 11 lakes/reservoirs
+  - 58 lakes/reservoirs (11 from Natural Earth, 47 more from OpenStreetMap, added 2026-11-07)
 - Each landmark feature has `properties.layer` = `interstate` | `highway` | `river` | `lake` and a `properties.name`.
 
 ## Sources (all public domain / openly licensed)
@@ -17,6 +17,7 @@
 |---|---|---|
 | State outline | U.S. Census Bureau, 2010 cartographic boundary file `gz_2010_us_040_00_500k.json` (Oregon feature, `GEO_ID 0400000US41`), via https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_040_00_500k.json | Public domain (U.S. federal government) |
 | Rivers, lakes, roads | Natural Earth 10m, via https://github.com/nvkelso/natural-earth-vector (geojson): `ne_10m_rivers_lake_centerlines.geojson`, `ne_10m_rivers_north_america.geojson`, `ne_10m_lakes.geojson`, `ne_10m_lakes_north_america.geojson`, `ne_10m_roads.geojson` | Public domain (Natural Earth) |
+| Additional lakes (47) | OpenStreetMap, via the Overpass API (query: `natural=water` + `name` in the Oregon bbox, 2026-11-07) | ODbL (OpenStreetMap) |
 
 No geometry was invented. No live map tiles are used; all data is shipped with the app.
 
@@ -41,6 +42,16 @@ Steps:
    Owyhee Reservoir, Fern Ridge Reservoir, Wickiup Reservoir, Warm Springs Reservoir.
    Simplify polygons at 0.004°. (Goose Lake straddles the California border; its full
    polygon is kept — the map clips rendering to the state outline.)
+   **2026-11-07 — 47 more lakes added from OpenStreetMap** (Detroit Lake and Wallowa
+   Lake were reported missing): all named `natural=water` features in the Oregon bbox
+   with area >= 4 km² whose centroid falls inside the state outline and that are not
+   already in the Natural Earth set. Excluded: Columbia/Snake River reservoirs (the
+   border rivers are already drawn as river lines), `water=river` features, and Agency
+   Lake (the Natural Earth Upper Klamath polygon already covers most of it). Polygons
+   simplified with Douglas-Peucker at 0.002° and coordinates rounded to 4 decimals;
+   areas change by only a few percent. New lakes include Detroit Lake, Wallowa Lake,
+   Odell Lake, Crescent Lake, Waldo Lake, Timothy Lake, Paulina Lake, Lake Billy
+   Chinook, Crump Lake, Hart Lake, Bluejoint Lake, and 36 more.
 4. **Roads:** Natural Earth 10m roads overlapping the Oregon bbox. Interstate =
    route number in {5, 84, 82, 205, 405}; everything else with type Major Highway /
    Secondary Highway / Road goes to the highway layer. Unnamed segments dropped.
@@ -90,9 +101,10 @@ Equirectangular with cos(44°) correction, exactly as in GAME-SPEC.md §9.4:
   does not label rivers, so this is cosmetic.
 - **Overpass API was tried for the Snake River and timed out** (overpass-api.de,
   70 s timeout, 2026-11-06) — not pursued further; the outline already traces it.
-- **Lakes are the major ones only.** Small lakes (e.g. Detroit Lake, Timothy Lake)
-  are not in Natural Earth 10m and are not included. That is intentional for a
-  clean blank map.
+- **Lakes were the major ones only — fixed 2026-11-07.** Small lakes (e.g. Detroit
+  Lake, Timothy Lake) were not in Natural Earth 10m and were not included. 47 more
+  lakes >= 4 km² were added from OpenStreetMap (see step 3 above), so Detroit Lake,
+  Wallowa Lake, Odell Lake, Crescent Lake, Waldo Lake and the rest are now on the map.
 
 ## Regenerating
 
