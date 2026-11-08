@@ -71,6 +71,10 @@ html, body {
     font-size: 0.85rem;
     text-align: center;
 }
+.site-footer .version {
+    display: block;
+    margin-top: 0.25rem;
+}
 
 /* ---------- Headings & text ---------- */
 h1 {
