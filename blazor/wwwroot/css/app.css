@@ -383,6 +383,12 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
    overlap the two fills blend, so the coverage reads at a glance. */
 .county-true { fill: #205c46; fill-opacity: 0.35; stroke: #205c46; stroke-width: 2.5; }
 .county-placed { fill: #c0563a; fill-opacity: 0.4; stroke: #a34a28; stroke-width: 2; }
+/* "Name the county" mode: all county boundaries drawn over the blank map, so
+   the counties read as a grid of regions to pick from. The selected county
+   is blue; a wrong pick on reveal is rust (the true county stays green). */
+.county-boundary { fill: rgba(255, 255, 255, 0.12); stroke: #6b8a6f; stroke-width: 1.3; }
+.county-selected { fill: #3b82c4; fill-opacity: 0.45; stroke: #1d4ed8; stroke-width: 2; }
+.county-wrong { fill: #c0563a; fill-opacity: 0.4; stroke: #a34a28; stroke-width: 2; }
 .pin-provisional circle { fill: var(--river); }
 .pin-guess circle { fill: var(--rust); }
 .pin-true circle { fill: #177245; }
