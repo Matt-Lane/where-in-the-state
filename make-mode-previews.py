@@ -13,6 +13,14 @@ with the same equirectangular function as the game and simplified hard
 (Douglas-Peucker) so the paths stay small. Run it and paste the printed
 path data into the Blazor and JS mode buttons.
 
+City County Mode (added 2026-11-08) needs no new geometry: its preview is
+a composition of the constants this script already prints — the Oregon
+outline (OUTLINE_D), the county-boundary grid (GRID_D, drawn faint), the
+Deschutes County piece (DESCHUTES_D, highlighted blue with the
+preview-selected style), and a pin at Bend (BEND, the blue guess-pin
+style). So there is nothing new to generate here; the Blazor button
+(ModePreviewArt) and the JS button compose those four pieces by hand.
+
 Usage: python3 make-mode-previews.py
 """
 import json

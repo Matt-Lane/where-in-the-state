@@ -248,7 +248,7 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 /* The mode picker is three large buttons in a row (stacked on narrow
    screens), each with a small schematic map showing how that mode plays.
    The selected button gets a green border and a soft green fill. */
-.mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+.mode-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
 .mode-button {
     display: flex;
     flex-direction: column;
