@@ -23,6 +23,10 @@ public sealed record LandmarkLayer(string Id, string Label, bool VisibleByDefaul
 ///   each part is an ordered list of (Lon, Lat) points.</description></item>
 ///   <item><description><c>Layer</c> is the feature's <c>properties.layer</c>
 ///   value (e.g. "interstate", "highway", "river", "lake", or "outline").</description></item>
+///   <item><description><c>Neighbors</c> is the feature's <c>properties.neighbors</c>
+///   value: the names of the counties sharing a border with this one.
+///   Only county features carry it (see GAME-SPEC §6.5); every other
+///   feature has an empty list.</description></item>
 /// </list>
 /// Coordinates are never invented here — they come verbatim from the
 /// pack's GeoJSON files via <see cref="Services.StatePackLoader"/>.
@@ -31,7 +35,17 @@ public sealed record MapFeature(
     string Kind,
     string Layer,
     string? Name,
-    IReadOnlyList<IReadOnlyList<(double Lon, double Lat)>> Parts);
+    IReadOnlyList<IReadOnlyList<(double Lon, double Lat)>> Parts,
+    IReadOnlyList<string> Neighbors)
+{
+    /// <summary>
+    /// Whether the named county shares a border with this county, from
+    /// the pack's adjacency data (see GAME-SPEC §6.5). Always false for
+    /// non-county features and for a null name.
+    /// </summary>
+    public bool IsNeighbor(string? name) =>
+        name is not null && Neighbors.Contains(name, StringComparer.Ordinal);
+}
 
 /// <summary>
 /// A state pack: everything the game needs to play one state.

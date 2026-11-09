@@ -112,7 +112,7 @@ else if (_phase == Phase.Start)
                     shuffled together. City rounds: drop a pin where you think the
                     city is. County rounds: click the county on the map. 100 points
                     per question — full points for a pin within 5 miles, 100 for
-                    naming the right county. <strong>10 questions</strong> per game.
+                    naming the right county, 50 for a county that touches it. <strong>10 questions</strong> per game.
                 </p>
                 <ol class="how-it-works">
                     <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 7 cities and 3 counties — share it to play together.</li>
@@ -151,8 +151,8 @@ else if (_phase == Phase.Start)
                 <p class="lede">
                     A map of <strong>@_pack.Name</strong> with every county outlined,
                     but no county names. Each round names one county; click the county
-                    you think it is. 1 point for naming the right county, 0 for any
-                    other. <strong>10 questions</strong> per game.
+                    you think it is. 100 points for naming the right county, 50 for a
+                    county that touches it, 0 for any other. <strong>10 questions</strong> per game.
                 </p>
                 <ol class="how-it-works">
                     <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
@@ -229,12 +229,13 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
             }
             else
             {
-                // City County Mode county rounds are worth 100 points, not
-                // 1 point like "Name the county" mode.
+                // The county rounds of both modes share this reveal: the
+                // correct county is 100 points, a county sharing a border
+                // with it is 50 ("Pretty close!"), any other pick is 0.
                 var mixedResult = isMixedCounty ? _mixedResults[_roundIndex] : null;
                 var selectedName = isMixedCounty ? mixedResult!.SelectedCountyName : _nameResults[_roundIndex].SelectedCountyName;
                 var isCorrect = isMixedCounty ? mixedResult!.IsCorrect == true : _nameResults[_roundIndex].IsCorrect;
-                var pointsText = isMixedCounty ? "100 points" : "1 point";
+                var isAdjacent = isMixedCounty ? mixedResult!.IsAdjacent : _nameResults[_roundIndex].IsAdjacent;
                 <button class="primary" @onclick="NextRound">
                     @(_roundIndex + 1 >= totalRounds ? "See results" : isCityCounty ? "Next question" : "Next county")
                 </button>
@@ -245,7 +246,11 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
                     }
                     else if (isCorrect)
                     {
-                        <text>Correct — that's @county.Name · @pointsText</text>
+                        <text>Correct — that's @county.Name · 100 points</text>
+                    }
+                    else if (isAdjacent)
+                    {
+                        <text>Pretty close! That's @selectedName, not @county.Name · 50 points</text>
                     }
                     else
                     {
@@ -473,23 +478,25 @@ else if (_phase == Phase.Results)
         }
         @if (_bestMixedCounty is not null)
         {
-            <p>Best county pick: <strong>@_bestMixedCounty.Round.County!.Name</strong> — you named it correctly (100 points).</p>
+            <p>Best county pick: <strong>@_bestMixedCounty.Round.County!.Name</strong> — @(_bestMixedCounty.IsAdjacent ? "you picked a neighboring county (50 points)." : "you named it correctly (100 points).")</p>
         }
         @if (_hardestMixedCounty is not null)
         {
-            <p>Hardest county: <strong>@_hardestMixedCounty.Round.County!.Name</strong> — you picked @(_hardestMixedCounty.SelectedCountyName ?? "nothing") (0 points).</p>
+            <p>Hardest county: <strong>@_hardestMixedCounty.Round.County!.Name</strong> — you picked @(_hardestMixedCounty.SelectedCountyName ?? "nothing") (@_hardestMixedCounty.Points points).</p>
         }
     }
     else if (_mode == GameMode.NameTheCounty)
     {
-        <p>You named @_nameResults.Count(r => r.IsCorrect) out of @_nameResults.Count counties correctly.</p>
+        var correctCount = _nameResults.Count(r => r.IsCorrect);
+        var adjacentCount = _nameResults.Count(r => r.IsAdjacent);
+        <p>You named @correctCount out of @_nameResults.Count counties correctly@(adjacentCount > 0 ? $" and were adjacent on {adjacentCount} more" : "").</p>
         @if (_bestName is not null)
         {
-            <p>Best pick: <strong>@_bestName.CountyName</strong> — you named it correctly (1 point).</p>
+            <p>Best pick: <strong>@_bestName.CountyName</strong> — @(_bestName.IsAdjacent ? "you picked a neighboring county (50 points)." : "you named it correctly (100 points).")</p>
         }
         @if (_hardestName is not null)
         {
-            <p>Hardest county: <strong>@_hardestName.CountyName</strong> — you picked @(_hardestName.SelectedCountyName ?? "nothing") (0 points).</p>
+            <p>Hardest county: <strong>@_hardestName.CountyName</strong> — you picked @(_hardestName.SelectedCountyName ?? "nothing") (@_hardestName.Points points).</p>
         }
     }
     else if (_mode == GameMode.Counties)
@@ -629,14 +636,15 @@ else if (_phase == Phase.Results)
         _ => "counties"
     };
 
-    // "Name the county" scores 1 point per correct answer, so a perfect
-    // game is 10, not 1000. Every score display (progress bar, score chip,
-    // results hero, summary) reads the maximum from here.
-    private int MaxScore => _mode == GameMode.NameTheCounty ? 10 : 1000;
+    // Every mode is 100 points per question and 1000 per game, so every
+    // score display (progress bar, score chip, results hero, summary)
+    // reads the same maximum. ("Name the county" was 1 point per correct
+    // answer, 10 per game, until 2026-11-08; it now scores like the other
+    // modes — see §6.5.)
+    private int MaxScore => 1000;
 
-    // Points for one correct answer in the current mode: 1 in "Name the
-    // county", 100 in the other modes.
-    private int PointsPerRound => _mode == GameMode.NameTheCounty ? 1 : 100;
+    // Points for one correct answer in the current mode: 100 everywhere.
+    private int PointsPerRound => 100;
 
     private string GameLink =>
         Navigation.ToAbsoluteUri(
@@ -900,8 +908,9 @@ else if (_phase == Phase.Results)
 
     /// <summary>
     /// Confirm one City County Mode round. A county round scores 100 for
-    /// naming the right county (unlike "Name the county" mode, which is 1
-    /// point); a city round scores by distance, exactly like Cities mode.
+    /// naming the right county, 50 for a county sharing a border with it,
+    /// 0 otherwise; a city round scores by distance, exactly like Cities
+    /// mode. See GAME-SPEC §6.6.
     /// </summary>
     private void ConfirmMixedRound()
     {
@@ -916,8 +925,9 @@ else if (_phase == Phase.Results)
             var county = round.County!;
             bool correct = string.Equals(
                 _selectedCounty.Name, county.Name, StringComparison.Ordinal);
-            int points = correct ? 100 : 0;
-            _mixedResults.Add(new MixedRoundResult(round, null, _selectedCounty.Name, correct, points));
+            bool adjacent = !correct && county.IsNeighbor(_selectedCounty.Name);
+            int points = correct ? 100 : adjacent ? 50 : 0;
+            _mixedResults.Add(new MixedRoundResult(round, null, _selectedCounty.Name, correct, adjacent, points));
             _totalScore += points;
             SetPhase(Phase.Reveal);
             return;
@@ -932,7 +942,7 @@ else if (_phase == Phase.Results)
         double distance = DistanceService.HaversineMiles(
             _guessLat.Value, _guessLon.Value, city.Latitude, city.Longitude);
         int cityPoints = DistanceService.ScoreForDistance(distance);
-        _mixedResults.Add(new MixedRoundResult(round, distance, null, null, cityPoints));
+        _mixedResults.Add(new MixedRoundResult(round, distance, null, null, false, cityPoints));
         _totalScore += cityPoints;
         SetPhase(Phase.Reveal);
     }
@@ -945,14 +955,15 @@ else if (_phase == Phase.Results)
         }
 
         var county = _gameCounties[_roundIndex];
-        // Binary scoring, 1 point per correct answer: naming the right
-        // county is 1 point, any other county is 0. There is no "close" in
-        // a selection — you either named it or you didn't.
+        // 100 points for the right county, 50 for a county sharing a
+        // border with it ("Pretty close!"), 0 for any other county.
+        // Adjacency comes from the pack data (MapFeature.Neighbors).
         bool correct = string.Equals(
             _selectedCounty.Name, county.Name, StringComparison.Ordinal);
-        int points = correct ? 1 : 0;
+        bool adjacent = !correct && county.IsNeighbor(_selectedCounty.Name);
+        int points = correct ? 100 : adjacent ? 50 : 0;
         _nameResults.Add(new NameTheCountyRoundResult(
-            county.Name ?? "", _selectedCounty.Name, correct, points));
+            county.Name ?? "", _selectedCounty.Name, correct, adjacent, points));
         _totalScore += points;
         SetPhase(Phase.Reveal);
     }
@@ -1010,12 +1021,12 @@ else if (_phase == Phase.Results)
             var round = _mixedRounds[_roundIndex];
             if (round.IsCounty)
             {
-                _mixedResults.Add(new MixedRoundResult(round, null, null, false, 0));
+                _mixedResults.Add(new MixedRoundResult(round, null, null, false, false, 0));
                 _selectedCounty = null;
             }
             else
             {
-                _mixedResults.Add(new MixedRoundResult(round, null, null, null, 0));
+                _mixedResults.Add(new MixedRoundResult(round, null, null, null, false, 0));
                 _guessLat = null;
                 _guessLon = null;
             }
@@ -1026,7 +1037,7 @@ else if (_phase == Phase.Results)
         if (_mode == GameMode.NameTheCounty)
         {
             var namedCounty = _gameCounties[_roundIndex];
-            _nameResults.Add(new NameTheCountyRoundResult(namedCounty.Name ?? "", null, false, 0));
+            _nameResults.Add(new NameTheCountyRoundResult(namedCounty.Name ?? "", null, false, false, 0));
             _selectedCounty = null;
             SetPhase(Phase.Reveal);
             return;
@@ -1070,9 +1081,11 @@ else if (_phase == Phase.Results)
                 _bestMixedCity = cityScored.Count > 0 ? cityScored.MinBy(r => r.DistanceMiles) : null;
                 _hardestMixedCity = cityScored.Count > 0 ? cityScored.MaxBy(r => r.DistanceMiles) : null;
                 // Best county pick = the first county answered correctly;
-                // hardest county = the first one missed (preferring a
+                // if none was, the first adjacent pick (50 points) instead.
+                // Hardest county = the first one missed (preferring a
                 // picked wrong county over a pass).
-                _bestMixedCounty = _mixedResults.FirstOrDefault(r => r.Round.IsCounty && r.IsCorrect == true);
+                _bestMixedCounty = _mixedResults.FirstOrDefault(r => r.Round.IsCounty && r.IsCorrect == true)
+                    ?? _mixedResults.FirstOrDefault(r => r.Round.IsCounty && r.IsAdjacent);
                 _hardestMixedCounty = _mixedResults.FirstOrDefault(r => r.Round.IsCounty && r.IsCorrect == false && r.SelectedCountyName is not null)
                     ?? _mixedResults.FirstOrDefault(r => r.Round.IsCounty && r.IsCorrect == false);
                 SetPhase(Phase.Results);
@@ -1089,10 +1102,12 @@ else if (_phase == Phase.Results)
         {
             if (_roundIndex + 1 >= _gameCounties.Count)
             {
-                // Best = the first county named correctly, hardest = the
+                // Best = the first county named correctly — or, if none
+                // was, the first adjacent pick (50 points). Hardest = the
                 // first one missed. The results screen also shows how many
-                // were named correctly out of 10.
-                _bestName = _nameResults.FirstOrDefault(r => r.IsCorrect);
+                // were named correctly (and adjacent) out of 10.
+                _bestName = _nameResults.FirstOrDefault(r => r.IsCorrect)
+                    ?? _nameResults.FirstOrDefault(r => r.IsAdjacent);
                 _hardestName = _nameResults.FirstOrDefault(r => !r.IsCorrect && r.SelectedCountyName is not null)
                     ?? _nameResults.FirstOrDefault(r => !r.IsCorrect);
                 SetPhase(Phase.Results);
