@@ -164,9 +164,22 @@ lon/lat. Do not use these coordinates for distance or scoring — they
 are only for drawing the splash map.
 
 - Alaska: scaled 0.35 about its bounding-box centre, then translated so
-  its box sits at display lon −125…−112, lat 14…23.
+  its box sits at display lon −125…−112, lat 24.7…30.5.
 - Hawaii: translated (no scale) so its box sits at display lon
-  −110…−100, lat 14…22.
+  −110…−104.6, lat 25.5…28.8.
+- The insets sit just under the mainland, with only a small gap (about
+  2.5 degrees, ~54 px) to the mainland's southern edge in their own
+  longitude band — close enough to read as one map, not a separate
+  strip floating far below. The mainland's southern edge is not flat,
+  so the two insets sit at different heights: Alaska's top is 1.99
+  degrees below California's southern edge (32.5), and Hawaii's
+  closest approach is 2.50 degrees to Arizona. The overall map spans
+  lat 24.54…49.37 (Florida's tip is the southernmost point, just below
+  Alaska's bottom edge), so the viewBox is `0 0 1000 535.8` (was
+  763.3) — the old layout left a ~12-degree empty band under the
+  mainland. The viewBox height is computed from the data extents in
+  both the Blazor splash and the JS mirror, so it tightens
+  automatically when the data changes.
 - Hawaii keeps only the 8 main islands. The shapefile also carries the
   far northwestern atolls (Midway, Kure, …) as degenerate point-rings at
   lon −162…−178, lat 23…28 — uninhabited, and keeping them would stretch
@@ -174,10 +187,33 @@ are only for drawing the splash map.
   to nothing. Main islands are all below latitude 23; the atolls are all
   above it, so the filter is a latitude cut at 23.
 
+### Alaska ring-count quirk — the number of tiny islands kept is fragile
+Alaska's shape has 181 rings (the mainland plus many small Aleutian
+islands). After the 0.35 scaling the tiny islands are sub-pixel and
+cluster at the inset's corner, and `classify_rings` decides
+outer-vs-hole from each ring's first point only: a ring whose first
+point falls inside another ring is a hole, and a hole whose container
+is itself a hole is dropped entirely (the emitter has no way to
+represent an island inside a hole). Which tiny rings survive therefore
+depends on floating-point-sensitive point-in-polygon tests that flip
+when the inset is translated — moving Alaska from lat 14…19.8 to
+24.7…30.5 changed the kept rings from 30 to 68 (the extra 38 are tiny
+Aleutian islands at the corner, total area 0.041 sq deg, invisible at
+map scale). The main Alaska ring and the larger islands are unaffected.
+This is a pre-existing quirk, not a regression: the old layout also
+dropped most of the 181 rings (151 of them). If the tiny-island count
+ever matters, `classify_rings` needs a depth-based (even/odd) rule
+instead of first-point containment; until then, do not treat Alaska's
+ring count as meaningful.
+
 ## Validation (2026-11-09, after the Great Lakes land fix)
 - 51 features, all 50 state names + District of Columbia present.
 - Oregon is the only feature with `available: true`.
-- Total 4,369 points; file 88.9 KB (well under the 200 KB budget).
+- Total 4,695 points; file 95.0 KB (well under the 200 KB budget).
+  The point count rose from 4,369 because moving Alaska's inset
+  changed which of its tiny island rings `classify_rings` keeps (see
+  "Alaska ring-count quirk" above) — the other 50 states are
+  byte-identical to the previous file.
 - Michigan is a MultiPolygon whose two main parts are the Upper
   Peninsula (lon −90.41…−83.89, lat 45.1…47.24) and the Lower
   Peninsula (lon −86.84…−82.42, lat 41.7…45.8), plus the Keweenaw
@@ -189,11 +225,18 @@ are only for drawing the splash map.
   northeast, Alaska in the bottom-left inset, Hawaii to its right;
   Washington north of Oregon, Nevada east of California. All pass.
 - The splash projection (equirectangular, cos 37°) gives viewBox
-  `0 0 1000 763.3`; all 51 paths render inside it, none empty.
+  `0 0 1000 535.8` (was 763.3); all 51 paths render inside it, none empty.
+- Alaska/Hawaii insets (2026-11-09): Alaska lon −125…−111.65, lat
+  24.7…30.51; Hawaii lon −110…−104.64, lat 25.5…28.83. Neither inset
+  intersects any mainland state or each other (shapely check); closest
+  approaches are Alaska–California 2.48° and Hawaii–Arizona 2.50°
+  (~54 px each). The insets sit just under the mainland with only a
+  small gap, and the map has no big blank band at the bottom.
 - Visual check (rendered PNGs from the regenerated file): the Great
   Lakes close-up shows the lakes as water gaps between the states —
   Michigan as two separate peninsulas, Wisconsin's Door County and the
   Lake Michigan shore, Minnesota's North Shore — with the state
   outlines following the shorelines. Full-USA render is unchanged
-  apart from the Great Lakes states; Alaska/Hawaii insets intact.
+  apart from the Great Lakes states and the Alaska/Hawaii insets, which
+  now sit close under the mainland.
 - `dotnet publish -c Release` clean; standalone JS `node --check` clean.

@@ -28,10 +28,11 @@ point-in-polygon test so holes (if any) stay holes.
 Alaska / Hawaii insets: the coordinates in the output are DISPLAY
 coordinates, not true geography, for Alaska and Hawaii. Their lon/lat
 are scaled and translated into the standard inset layout (Alaska
-bottom-left, Hawaii below the southwest, both under the contiguous US),
-so a plain linear lon/lat -> SVG mapping puts them in the right place.
-The contiguous US keeps true lon/lat. Documented here and in
-data/USA-MAP-NOTES.md.
+bottom-left, Hawaii below the southwest, both just under the
+contiguous US with only a small gap — about 2 degrees — to the
+mainland's southern edge), so a plain linear lon/lat -> SVG mapping
+puts them in the right place. The contiguous US keeps true lon/lat.
+Documented here and in data/USA-MAP-NOTES.md.
 
 Writes:
   data/usa-states.geojson (source, read by build-game.py)
@@ -73,12 +74,21 @@ GREAT_LAKES = {"Lake Superior", "Lake Michigan", "Lake Huron", "Lake Erie", "Lak
 
 # Display canvas (lon/lat space) for the inset layout.
 # Contiguous US keeps true lon/lat (lon -125..-66, lat 24..50).
-# Alaska and Hawaii are moved into the band below it (lat ~14..23).
+# Alaska and Hawaii sit in the band just below the mainland, with only
+# a small (~2 deg) gap to the mainland's southern edge in their own
+# longitude band — close enough to read as one map, not a separate
+# strip floating far below. The mainland's southern edge is not flat:
+# under Alaska's band it is California at 32.5, under Hawaii's band
+# it is the Rio Grande at 28.3, so the two insets sit at different
+# heights (Alaska higher, Hawaii a little lower) with the same ~2 deg
+# gap. Only the target box's lonMin/latMin are used by transform_inset
+# (the shape is anchored by its minimum corner); lonMax/latMax are
+# the resulting box, for reference.
 AK_SCALE = 0.35
 # Target bounding boxes in display lon/lat for the insets:
-# Alaska bottom-left, Hawaii to its right, both under the contiguous US.
-AK_TARGET = (-125.0, -112.0, 14.0, 23.0)   # lonMin, lonMax, latMin, latMax
-HI_TARGET = (-110.0, -100.0, 14.0, 22.0)
+# Alaska bottom-left, Hawaii to its right, both just under the mainland.
+AK_TARGET = (-125.0, -112.0, 24.7, 30.5)   # lonMin, lonMax, latMin, latMax
+HI_TARGET = (-110.0, -100.0, 25.5, 28.8)
 
 
 def point_in_ring(px, py, ring):
