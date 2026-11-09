@@ -59,6 +59,37 @@ public sealed class SeededGameService
         return shuffled.Take(count).ToList();
     }
 
+    /// <summary>
+    /// A deterministic Fisher-Yates shuffle of a copy of
+    /// <paramref name="items"/>, using the same seed derivation as
+    /// <see cref="SelectItems{T}"/> (SHA-256, first 4 bytes as int,
+    /// new Random(seedInt)). The input list is not modified. Used to
+    /// interleave the 7 city + 3 county rounds of City County Mode into
+    /// one mixed order, deterministic from the seed.
+    /// </summary>
+    public IReadOnlyList<T> Shuffle<T>(IReadOnlyList<T> items, string seed)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        if (string.IsNullOrWhiteSpace(seed))
+        {
+            throw new ArgumentException("Seed must not be empty.", nameof(seed));
+        }
+
+        using var sha = SHA256.Create();
+        byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(seed.Trim()));
+        int seedInt = BitConverter.ToInt32(hash, 0);
+
+        var rng = new Random(seedInt);
+        var shuffled = items.ToList();
+        for (int i = shuffled.Count - 1; i > 0; i--)
+        {
+            int j = rng.Next(i + 1);
+            (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+        }
+
+        return shuffled;
+    }
+
     /// <summary>Today's daily seed, e.g. "OR-2026-11-06" (local date).</summary>
     public string DailySeed(string abbreviation = "OR")
         => $"{abbreviation}-{DateTime.Now:yyyy-MM-dd}";

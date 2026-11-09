@@ -90,7 +90,7 @@
   /* Game-mode buttons: large buttons in a 3-column grid, each with a small
      map preview of how that mode plays. Matches the Blazor start screen:
      selected button gets a green border and a soft green fill. */
-  .mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .mode-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
   .mode-button {
     display: flex; flex-direction: column; align-items: stretch; text-align: left;
     background: var(--panel); border: 2px solid var(--line); border-radius: 14px;
@@ -260,6 +260,17 @@
     <div class="card">
       <h2>Game mode</h2>
       <div class="mode-grid" role="group" aria-label="Game mode">
+        <button type="button" class="mode-button" data-mode="city-county" aria-pressed="false">
+          <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
+            <path d="M892.2,350.7 L921.2,360.4 L931.0,374.0 L921.0,386.4 L926.2,397.0 L915.2,428.3 L915.2,731.4 L60.0,731.7 L42.8,712.4 L33.7,677.8 L37.5,627.7 L17.9,593.2 L37.3,515.4 L57.4,473.8 L67.3,415.3 L92.5,125.6 L86.0,78.5 L93.6,62.7 L83.9,30.6 L102.5,43.6 L144.6,24.8 L160.0,45.4 L190.4,39.0 L215.6,55.8 L226.4,76.1 L232.3,126.4 L288.2,145.2 L345.7,118.2 L402.1,118.5 L422.3,134.8 L485.7,111.7 L513.2,119.4 L600.6,93.3 L608.8,83.0 L665.3,80.8 L681.8,69.7 L928.4,70.4 L944.2,98.5 L972.3,110.9 L982.2,135.4 L936.5,231.4 L935.4,254.8 L910.9,280.2 L891.6,320.7 L892.2,350.7 Z" class="preview-state" />
+            <path d="M737.5,283.8 L765.4,276.3 L783.8,227.7 L851.2,236.3 L851.3,222.0 L944.1,222.1 L891.6,320.7 L892.2,350.7 L860.4,350.9 L848.0,327.0 L802.7,327.1 L776.3,358.2 L740.1,358.3 L762.9,303.1 L737.5,283.8 Z M107.0,343.5 L133.1,328.9 L132.5,281.2 L195.4,291.6 L173.3,308.0 L182.8,353.6 L107.0,343.5 Z M220.0,182.6 L246.9,158.7 L344.7,158.7 L361.4,185.9 L363.9,224.1 L346.4,233.2 L357.2,250.6 L263.1,248.6 L220.0,182.6 Z M83.7,30.5 L102.5,43.6 L151.0,28.3 L161.2,106.1 L88.9,105.5 L83.7,30.5 Z M160.6,60.0 L160.9,45.4 L184.4,38.4 L215.7,55.8 L232.5,114.6 L161.2,106.1 L160.6,60.0 Z M30.2,567.4 L59.2,464.9 L100.0,465.3 L120.4,523.3 L107.6,600.9 L69.4,621.1 L66.0,585.3 L30.2,567.4 Z M429.4,357.2 L429.5,335.9 L462.9,321.7 L462.8,307.4 L515.3,307.2 L515.3,328.4 L558.7,327.9 L573.3,349.8 L602.3,349.7 L587.8,450.5 L530.6,450.4 L516.2,421.6 L443.9,407.0 L429.4,357.2 Z M18.0,592.3 L28.1,573.5 L54.5,573.4 L69.4,621.1 L119.0,601.5 L80.2,667.3 L110.0,692.1 L106.9,731.6 L60.0,731.7 L43.4,714.8 L37.5,627.7 L18.0,592.3 Z M323.0,464.0 L326.2,424.1 L350.7,383.8 L341.9,335.6 L429.5,335.9 L443.9,407.0 L516.2,421.6 L530.6,450.4 L573.5,450.5 L573.6,464.9 L323.0,464.0 Z M59.7,462.1 L66.3,423.1 L120.5,409.8 L148.3,432.0 L187.9,437.0 L191.4,476.6 L235.0,475.9 L235.0,493.6 L307.5,493.2 L326.3,522.7 L314.2,554.8 L289.6,554.8 L228.7,602.7 L139.7,614.0 L107.6,600.9 L120.4,523.3 L100.0,465.3 L59.7,462.1 Z M483.5,113.1 L513.2,119.4 L561.4,100.7 L560.5,192.5 L589.9,207.1 L589.8,221.6 L502.4,223.8 L498.4,168.9 L518.7,146.8 L483.5,113.1 Z M600.3,235.9 L770.2,242.0 L765.4,276.3 L737.5,283.8 L762.9,303.1 L740.1,358.3 L771.7,358.0 L772.2,393.9 L602.1,407.3 L600.3,235.9 Z M568.0,606.7 L573.5,450.5 L587.8,450.5 L588.0,407.3 L772.2,393.9 L775.8,731.9 L637.5,732.4 L636.8,607.5 L568.0,606.7 Z M332.8,144.5 L339.1,120.4 L389.8,119.7 L384.9,192.4 L359.4,192.4 L332.8,144.5 Z M176.7,730.6 L176.9,614.0 L289.6,566.6 L288.8,730.1 L176.7,730.6 Z M341.2,323.0 L352.7,263.2 L517.1,264.6 L515.3,307.2 L462.8,307.4 L443.7,336.0 L341.9,335.6 L341.2,323.0 Z M80.2,667.3 L119.0,601.7 L174.6,611.6 L176.7,730.8 L106.4,732.2 L110.0,692.1 L80.2,667.3 Z M288.7,710.4 L289.6,554.8 L314.2,554.8 L326.3,522.7 L307.7,473.8 L402.6,464.0 L400.7,607.9 L456.2,608.3 L456.6,732.5 L288.8,730.1 L288.7,710.4 Z M400.5,579.2 L402.6,464.0 L573.6,464.9 L568.0,607.9 L636.8,607.5 L637.5,732.4 L456.6,732.5 L456.2,608.3 L400.7,607.9 L400.5,579.2 Z M67.3,415.3 L71.6,354.7 L349.7,363.9 L307.5,493.2 L235.0,493.6 L235.0,475.9 L191.4,476.6 L187.9,437.0 L148.3,432.0 L120.5,409.8 L91.6,423.3 L67.3,415.3 Z M71.5,353.1 L84.2,227.7 L118.0,227.7 L133.1,328.9 L118.5,328.8 L111.9,353.6 L71.5,353.1 Z M173.2,308.3 L195.5,292.9 L187.1,276.6 L204.2,286.9 L230.1,269.1 L347.1,287.4 L347.1,357.8 L278.1,365.9 L220.2,353.0 L215.4,367.3 L184.6,367.4 L173.2,308.3 Z M771.7,358.2 L802.7,327.1 L848.0,327.0 L860.4,350.9 L905.5,354.1 L930.8,372.2 L914.4,428.7 L915.2,731.4 L775.8,731.9 L771.7,358.2 Z M182.7,258.7 L199.3,243.7 L208.1,187.9 L235.3,192.2 L229.4,213.5 L263.1,248.6 L355.0,254.5 L347.7,287.4 L230.1,269.1 L203.4,286.9 L182.7,258.7 Z M560.6,177.1 L561.4,100.7 L628.9,83.2 L628.6,135.3 L663.0,149.7 L660.9,235.7 L586.1,236.0 L589.9,207.1 L560.5,192.5 L560.6,177.1 Z M212.7,124.1 L232.5,114.5 L242.9,132.9 L288.2,145.2 L332.5,127.7 L344.7,158.7 L234.7,163.4 L212.7,124.1 Z M117.9,231.2 L196.1,222.7 L186.5,281.4 L120.4,281.2 L117.9,231.2 Z M438.6,187.8 L461.8,157.5 L452.3,129.0 L483.5,113.1 L508.9,131.5 L518.4,151.0 L502.3,158.1 L495.2,188.6 L506.2,218.4 L474.4,221.2 L438.6,187.8 Z M83.3,224.4 L87.7,107.2 L161.2,106.1 L146.5,117.8 L168.6,134.6 L146.5,161.1 L149.1,199.3 L110.9,199.3 L118.0,227.7 L83.3,224.4 Z M628.6,98.0 L628.9,83.2 L681.8,69.7 L802.0,69.5 L785.5,157.2 L716.3,177.9 L737.6,235.8 L660.9,235.7 L663.0,149.7 L628.6,135.3 L628.6,98.0 Z M716.3,177.9 L785.5,157.2 L794.0,99.9 L829.4,92.6 L839.4,174.6 L861.6,207.5 L886.7,207.5 L886.7,221.8 L747.4,241.3 L716.3,177.9 Z M802.0,69.5 L928.4,70.4 L972.3,110.8 L982.2,135.4 L944.1,222.1 L861.6,207.5 L831.8,149.9 L829.4,92.6 L802.0,92.7 L802.0,69.5 Z M346.4,233.2 L363.9,224.1 L359.4,192.4 L384.9,192.4 L389.8,119.7 L420.4,134.8 L448.9,126.5 L463.0,150.0 L439.4,198.9 L501.3,221.3 L517.1,264.6 L356.0,264.0 L346.4,233.2 Z M146.5,161.1 L168.6,137.0 L146.5,117.8 L200.6,106.2 L234.7,149.1 L234.7,180.2 L146.5,161.1 Z M502.4,223.8 L586.2,223.9 L600.3,235.9 L602.3,349.7 L573.3,349.8 L558.7,327.9 L515.3,328.4 L502.4,223.8 Z M110.8,207.5 L149.1,199.3 L148.9,163.4 L200.4,168.1 L222.1,192.1 L204.7,191.3 L196.1,222.7 L110.9,222.4 L110.8,207.5 Z" class="preview-grid" />
+            <path d="M323.0,464.0 L327.4,462.2 L326.2,424.1 L338.8,415.1 L350.7,383.8 L341.9,335.6 L429.5,335.9 L430.0,377.7 L443.8,378.4 L443.9,407.0 L472.2,407.6 L472.3,421.8 L516.2,421.6 L516.3,436.0 L530.5,436.1 L530.6,450.4 L573.5,450.5 L573.6,464.9 L323.0,464.0 Z" class="preview-selected" />
+            <circle cx="404.7" cy="390.9" r="16" class="preview-guess" />
+            <circle cx="404.7" cy="390.9" r="6" class="preview-guess-dot" />
+          </svg>
+          <span class="mode-button-title">City County Mode</span>
+          <span class="mode-button-desc">Pins and counties, mixed</span>
+        </button>
         <button type="button" class="mode-button" data-mode="cities" aria-pressed="true">
           <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
             <path d="M892.2,350.7 L921.2,360.4 L931.0,374.0 L921.0,386.4 L926.2,397.0 L915.2,428.3 L915.2,731.4 L60.0,731.7 L42.8,712.4 L33.7,677.8 L37.5,627.7 L17.9,593.2 L37.3,515.4 L57.4,473.8 L67.3,415.3 L92.5,125.6 L86.0,78.5 L93.6,62.7 L83.9,30.6 L102.5,43.6 L144.6,24.8 L160.0,45.4 L190.4,39.0 L215.6,55.8 L226.4,76.1 L232.3,126.4 L288.2,145.2 L345.7,118.2 L402.1,118.5 L422.3,134.8 L485.7,111.7 L513.2,119.4 L600.6,93.3 L608.8,83.0 L665.3,80.8 L681.8,69.7 L928.4,70.4 L944.2,98.5 L972.3,110.9 L982.2,135.4 L936.5,231.4 L935.4,254.8 L910.9,280.2 L891.6,320.7 L892.2,350.7 Z" class="preview-state" />
@@ -434,7 +445,7 @@
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.16.
+    Version 0.17.
   </footer>
 </div>
 
@@ -584,6 +595,20 @@ function selectItems(seedInt, pool, count) {
   }
   return arr.slice(0, count);
 }
+/* Seeded Fisher-Yates shuffle of a copy of any array (used to interleave
+   the 7 city + 3 county rounds of City County Mode): same seed -> same
+   order. The C# version uses System.Random, so the interleaving order
+   may differ between the two versions — the 7 cities and 3 counties
+   themselves are the same. */
+function shuffleItems(seedInt, arr) {
+  var rng = mulberry32(seedInt);
+  var shuffled = arr.slice();
+  for (var i = shuffled.length - 1; i > 0; i--) {
+    var j = Math.floor(rng() * (i + 1));
+    var t = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = t;
+  }
+  return shuffled;
+}
 function dailySeed() {
   var d = new Date();
   function p(n) { return String(n).padStart(2, "0"); }
@@ -714,11 +739,22 @@ function randomSeed() {
     seedInput.focus();
   });
 
-  /* ============ Game mode (Cities / Counties) ============
+  /* ============ Game mode (City County / Cities / Counties) ============
      The picker on the start screen; the lede, seed hint, game line and
      how-it-works steps all change with the mode, like the Blazor start
-     screen. A shared link carries ?mode=counties for a county game. */
+     screen. A shared link carries ?mode=city-county (or counties, or
+     name-the-county) for a non-city game. */
   var MODE_COPY = {
+    "city-county": {
+      lede: "A mix of both: 7 city rounds and 3 county rounds, shuffled together. City rounds: drop a pin where you think the city is. County rounds: click the county on the map. 100 points per question — full points for a pin within 5 miles, 100 for naming the right county. 10 questions per game.",
+      seedHint: "Same seed = same 7 cities and 3 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
+      gameLine: "Seven city questions and three county questions, 100 points per question, 1,000 points maximum.",
+      steps: [
+        ["Pick a seed", "Same seed, same 7 cities and 3 counties — share it to play together."],
+        ["Drop a pin or pick the county", "City rounds: tap the map where you think the city is. County rounds: click the county that matches the name."],
+        ["See how close", "The real spot or county is revealed, with your distance or pick and your points."]
+      ]
+    },
     cities: {
       lede: "Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin, the more points. Full points within 5 miles, then −1 point per mile beyond that.",
       seedHint: "Same seed = same 10 cities, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
@@ -768,7 +804,7 @@ function randomSeed() {
      All three variants are rendered in one grid cell and only the selected
      one is visible, so the block is always as tall as the tallest variant
      and switching modes never moves anything below it. */
-  var MODES = ["cities", "counties", "name-the-county"];
+  var MODES = ["city-county", "cities", "counties", "name-the-county"];
   function buildModeVariants() {
     var instructions = document.getElementById("mode-instructions");
     var lines = document.getElementById("game-lines");
@@ -828,14 +864,14 @@ function randomSeed() {
   /* The county modes are only offered when the pack has counties; this file
      always does (36), but the guard mirrors the Blazor disabled handling. */
   if (!counties || !counties.features || counties.features.length === 0) {
-    document.querySelectorAll('.mode-button[data-mode="counties"], .mode-button[data-mode="name-the-county"]').forEach(function (btn) {
+    document.querySelectorAll('.mode-button[data-mode="city-county"], .mode-button[data-mode="counties"], .mode-button[data-mode="name-the-county"]').forEach(function (btn) {
       btn.disabled = true;
     });
   }
   var urlMode = urlParams.get("mode");
   if (urlMode) {
     var modeValue = urlMode.toLowerCase();
-    if (modeValue === "counties" || modeValue === "name-the-county") {
+    if (modeValue === "city-county" || modeValue === "counties" || modeValue === "name-the-county") {
       setMode(modeValue);
     }
   }
@@ -852,13 +888,14 @@ function randomSeed() {
      which is not a shareable game link. */
   var LIVE_SITE_BASE = "https://matt-lane.github.io/where-in-the-state/";
   function modeQueryParam(mode) {
-    return mode === "counties" ? "?mode=counties"
+    return mode === "city-county" ? "?mode=city-county"
+      : mode === "counties" ? "?mode=counties"
       : mode === "name-the-county" ? "?mode=name-the-county" : "";
   }
   function gameLink() {
     return LIVE_SITE_BASE + "oregon/" + encodeURIComponent(game.seed) + modeQueryParam(game.mode);
   }
-  var game = null; /* { seed, mode, cities, counties, roundIndex, results, total } */
+  var game = null; /* { seed, mode, cities, counties, rounds (city-county only), roundIndex, results, total } */
   var guess = null; /* { lat, lon, x, y } */
   var phase = "guess"; /* "guess" | "revealed" */
   var dragging = false;
@@ -1086,7 +1123,7 @@ function randomSeed() {
     document.getElementById("hint-text").textContent = "Pin dropped — tap again or drag to move it, then confirm your guess.";
   }
   svg.addEventListener("pointerdown", function (ev) {
-    if (!game || phase !== "guess" || game.mode === "counties" || game.mode === "name-the-county") return;
+    if (!game || phase !== "guess" || game.mode === "counties" || game.mode === "name-the-county" || isMixedCountyRound()) return;
     ev.preventDefault();
     var loc = eventToSvg(ev);
     if (!loc) return;
@@ -1095,7 +1132,7 @@ function randomSeed() {
     placeGuessAt(loc.x, loc.y);
   });
   svg.addEventListener("pointermove", function (ev) {
-    if (!dragging || !game || phase !== "guess" || game.mode === "counties" || game.mode === "name-the-county") return;
+    if (!dragging || !game || phase !== "guess" || game.mode === "counties" || game.mode === "name-the-county" || isMixedCountyRound()) return;
     var loc = eventToSvg(ev);
     if (!loc) return;
     placeGuessAt(loc.x, loc.y);
@@ -1109,9 +1146,10 @@ function randomSeed() {
      counties tile the state, so a click lands in at most one). Clicking
      another county changes the selection; a click outside all counties
      (ocean, a neighbouring state) selects nothing. The selected county
-     is highlighted in blue and the Confirm bubble appears next to it. */
+     is highlighted in blue and the Confirm bubble appears next to it.
+     Also used for the county rounds of City County Mode. */
   svg.addEventListener("pointerdown", function (ev) {
-    if (!game || game.mode !== "name-the-county" || phase !== "guess") return;
+    if (!game || (game.mode !== "name-the-county" && !isMixedCountyRound()) || phase !== "guess") return;
     ev.preventDefault();
     var loc = eventToSvg(ev);
     if (!loc) return;
@@ -1182,10 +1220,16 @@ function randomSeed() {
   svg.addEventListener("pointercancel", endPieceDrag);
   svg.addEventListener("pointerleave", endPieceDrag);
 
-  function currentCity() { return game.cities[game.roundIndex]; }
-  function currentCounty() { return game.counties[game.roundIndex]; }
+  /* City County Mode keeps its 10 rounds — 7 city, 3 county, interleaved
+     by a seeded shuffle — in game.rounds; the round type decides whether
+     the pin UI or the county grid is shown. The other modes index
+     game.cities / game.counties directly. */
+  function currentRound() { return game.mode === "city-county" ? game.rounds[game.roundIndex] : null; }
+  function isMixedCountyRound() { var r = currentRound(); return r ? r.type === "county" : false; }
+  function currentCity() { return game.mode === "city-county" ? currentRound().city : game.cities[game.roundIndex]; }
+  function currentCounty() { return game.mode === "city-county" ? currentRound().county : game.counties[game.roundIndex]; }
   function updateRoundHeader() {
-    var itemName = (game.mode === "counties" || game.mode === "name-the-county")
+    var itemName = (game.mode === "counties" || game.mode === "name-the-county" || isMixedCountyRound())
       ? currentCounty().properties.name : currentCity().name;
     document.getElementById("round-heading").textContent =
       "Question " + (game.roundIndex + 1) + " of " + QUESTION_COUNT + " — Where is " + itemName + "?";
@@ -1234,9 +1278,10 @@ function randomSeed() {
       setPieceTransform();
       document.getElementById("hint-text").textContent = "Drag the county piece onto the map.";
       svg.setAttribute("aria-label", "Blank map of Oregon. Drag the county piece onto the map where the county belongs.");
-    } else if (game.mode === "name-the-county") {
+    } else if (game.mode === "name-the-county" || isMixedCountyRound()) {
       /* Show the grid of all county boundaries; the player clicks one to
-         select it. No piece, no pin — the counties are the map. */
+         select it. No piece, no pin — the counties are the map. Also used
+         for the county rounds of City County Mode. */
       countyRings = null;
       selectedCounty = null;
       countyGrid.classList.remove("layer-hidden");
@@ -1252,7 +1297,10 @@ function randomSeed() {
 
   function reveal(passed) {
     if (game.mode === "counties") { revealCounty(passed); return; }
-    if (game.mode === "name-the-county") { revealNameTheCounty(passed); return; }
+    if (game.mode === "name-the-county") { revealNameTheCounty(passed, 1); return; }
+    /* A county round of City County Mode uses the same reveal as
+       "Name the county", but a correct pick is worth 100 points, not 1. */
+    if (isMixedCountyRound()) { revealNameTheCounty(passed, 100); return; }
     var city = currentCity();
     phase = "revealed";
     btnConfirm.disabled = true;
@@ -1297,7 +1345,7 @@ function randomSeed() {
       setLine("truth-v2", fmt(tp[0]), fmt(tp[1] + 4), fmt(tp[0]), fmt(tp[1] + 13));
       truthMarker.classList.remove("layer-hidden");
     }
-    btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : "Next city";
+    btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : (game.mode === "city-county" ? "Next question" : "Next city");
     document.getElementById("guess-controls").hidden = true;
     document.getElementById("reveal-controls").hidden = false;
     /* Refresh the header (and the score bar) now that the round is scored. */
@@ -1349,11 +1397,12 @@ function randomSeed() {
   }
 
   /* "Name the county" reveal: the true county in green, and if the player
-     picked a different county, that one in rust. Binary scoring, 1 point per
-     correct answer: naming the right county is 1 point, any other county
+     picked a different county, that one in rust. Binary scoring: naming
+     the right county is pointsForCorrect points — 1 in "Name the county"
+     mode, 100 for a county round of City County Mode — any other county
      (or a pass) is 0. The boundary grid stays visible underneath, as in
      the Blazor version. */
-  function revealNameTheCounty(passed) {
+  function revealNameTheCounty(passed, pointsForCorrect) {
     var county = currentCounty();
     var countyName = county.properties.name;
     phase = "revealed";
@@ -1366,7 +1415,7 @@ function randomSeed() {
     if (!passed && selectedCounty) {
       pickedName = selectedCounty.properties.name;
       correct = pickedName === countyName;
-      points = correct ? 1 : 0;
+      points = correct ? pointsForCorrect : 0;
     }
     game.total += points;
     game.results.push({ county: county, selected: selectedCounty, correct: correct, points: points, passed: passed });
@@ -1385,11 +1434,11 @@ function randomSeed() {
     if (passed) {
       line.textContent = "You passed — the green county is " + countyName + ".";
     } else if (correct) {
-      line.textContent = "Correct — that's " + countyName + " · 1 point";
+      line.textContent = "Correct — that's " + countyName + " · " + pointsForCorrect + (pointsForCorrect === 1 ? " point" : " points");
     } else {
       line.textContent = "That's " + pickedName + ", not " + countyName + " · 0 points";
     }
-    btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : "Next county";
+    btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : (game.mode === "city-county" ? "Next question" : "Next county");
     document.getElementById("reveal-controls").hidden = false;
     /* Refresh the header (and the score bar) now that the round is scored. */
     updateRoundHeader();
@@ -1398,14 +1447,14 @@ function randomSeed() {
   btnConfirm.addEventListener("click", function () {
     if (phase !== "guess") return;
     if (game.mode === "counties") { if (countyDragged) reveal(false); }
-    else if (game.mode === "name-the-county") { if (selectedCounty) reveal(false); }
+    else if (game.mode === "name-the-county" || isMixedCountyRound()) { if (selectedCounty) reveal(false); }
     else if (guess) reveal(false);
   });
   btnPass.addEventListener("click", function () { if (phase === "guess") reveal(true); });
   pinConfirm.addEventListener("click", function () {
     if (phase !== "guess") return;
     if (game.mode === "counties") { if (countyDragged) reveal(false); }
-    else if (game.mode === "name-the-county") { if (selectedCounty) reveal(false); }
+    else if (game.mode === "name-the-county" || isMixedCountyRound()) { if (selectedCounty) reveal(false); }
     else if (guess) reveal(false);
   });
   btnNext.addEventListener("click", function () {
@@ -1421,7 +1470,22 @@ function randomSeed() {
     if (!seed) seed = randomSeed();
     var seedInt = await seedIntFromString(seed);
     var mode = selectedMode();
-    if (mode === "counties") {
+    if (mode === "city-county") {
+      /* 7 cities and 3 counties, then the 10 rounds interleaved by a
+         seeded shuffle — genuinely mixed, not 7-then-3. The same seed
+         picks the same 7 cities and 3 counties (same selection as the
+         single-type modes); only their order is shuffled. The C# version
+         uses System.Random where this version uses mulberry32, so the
+         same seed generally picks different cities/counties here than on
+         the live site, and the interleaving order can differ too —
+         accepted, same as the existing C#/JS divergence. */
+      var mixedCities = selectItems(seedInt, cities, 7);
+      var mixedCounties = selectItems(seedInt, counties.features, 3);
+      var rounds = mixedCities.map(function (c) { return { type: "city", city: c }; })
+        .concat(mixedCounties.map(function (c) { return { type: "county", county: c }; }));
+      rounds = shuffleItems(seedInt, rounds);
+      game = { seed: seed, mode: "city-county", cities: mixedCities, counties: mixedCounties, rounds: rounds, roundIndex: 0, results: [], total: 0 };
+    } else if (mode === "counties") {
       var pickedCounties = selectItems(seedInt, counties.features, QUESTION_COUNT);
       game = { seed: seed, mode: "counties", cities: [], counties: pickedCounties, roundIndex: 0, results: [], total: 0 };
     } else if (mode === "name-the-county") {
@@ -1456,15 +1520,27 @@ function randomSeed() {
     document.getElementById("final-total").textContent = game.total;
     var isCounties = game.mode === "counties";
     var isName = game.mode === "name-the-county";
+    var isMixed = game.mode === "city-county";
     var isCountyMode = isCounties || isName;
     document.getElementById("final-max").textContent = isName ? "10" : "1000";
-    document.getElementById("col-item").textContent = isCountyMode ? "County" : "City";
-    document.getElementById("col-metric").textContent = isCounties ? "Coverage" : isName ? "Your pick" : "Distance";
-    document.getElementById("share-note").textContent = isCountyMode
+    document.getElementById("col-item").textContent = isMixed ? "Target" : isCountyMode ? "County" : "City";
+    document.getElementById("col-metric").textContent = isMixed ? "Answer" : isCounties ? "Coverage" : isName ? "Your pick" : "Distance";
+    document.getElementById("share-note").textContent = isMixed
+      ? "Anyone opening this link with the same seed gets the same 7 cities and 3 counties in the same order."
+      : isCountyMode
       ? "Anyone opening this link with the same seed gets the same 10 counties in the same order."
       : "Anyone opening this link with the same seed gets the same 10 cities in the same order.";
     var scored = game.results.filter(function (r) { return !r.passed; });
-    if (isName) {
+    if (isMixed) {
+      /* City rounds: average distance; county rounds: how many named. */
+      var cityScored = scored.filter(function (r) { return typeof r.distance === "number"; });
+      var avgMixed = cityScored.length
+        ? (cityScored.reduce(function (s, r) { return s + r.distance; }, 0) / cityScored.length).toFixed(1)
+        : "—";
+      var namedMixed = game.results.filter(function (r) { return r.correct; }).length;
+      document.getElementById("final-sub").textContent =
+        "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · average distance " + avgMixed + " miles (city rounds) · you named " + namedMixed + " out of 3 counties correctly.";
+    } else if (isName) {
       var named = game.results.filter(function (r) { return r.correct; }).length;
       document.getElementById("final-sub").textContent =
         "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · you named " + named + " out of " + QUESTION_COUNT + " counties correctly.";
@@ -1482,7 +1558,25 @@ function randomSeed() {
         "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · average distance " + avg + " miles (guessed rounds).";
     }
     var best = null, hardest = null;
-    if (isName) {
+    /* City County Mode ranks each round type separately: best city guess =
+       smallest distance, hardest city = largest distance, best county pick
+       = first county named correctly, hardest county = first one missed
+       (preferring a picked wrong county over a pass). */
+    var bestMixedCity = null, hardestMixedCity = null, bestMixedCounty = null, hardestMixedCounty = null;
+    if (isMixed) {
+      game.results.forEach(function (r) {
+        if (typeof r.distance === "number") {
+          if (!bestMixedCity || r.distance < bestMixedCity.distance) bestMixedCity = r;
+          if (!hardestMixedCity || r.distance > hardestMixedCity.distance) hardestMixedCity = r;
+        } else {
+          if (!bestMixedCounty && r.correct) bestMixedCounty = r;
+          if (!hardestMixedCounty && !r.correct && r.selected) hardestMixedCounty = r;
+        }
+      });
+      if (!hardestMixedCounty) game.results.forEach(function (r) {
+        if (!hardestMixedCounty && r.distance === undefined && !r.correct) hardestMixedCounty = r;
+      });
+    } else if (isName) {
       /* Best pick = the first county named correctly, hardest county =
          the first one missed (preferring a picked wrong county over a
          pass), across all rounds. */
@@ -1507,7 +1601,32 @@ function randomSeed() {
       });
     }
     var hl = document.getElementById("final-highlights");
-    if (best && hardest && best !== hardest) {
+    if (isMixed) {
+      hl.innerHTML = "";
+      var mixedParts = [];
+      if (bestMixedCity && hardestMixedCity && bestMixedCity !== hardestMixedCity) {
+        mixedParts.push(["Best guess:", bestMixedCity.city.name + " — " + bestMixedCity.distance.toFixed(1) + " miles off (" + bestMixedCity.points + " pts). "]);
+        mixedParts.push(["Hardest city:", hardestMixedCity.city.name + " — " + hardestMixedCity.distance.toFixed(1) + " miles off (" + hardestMixedCity.points + " pts). "]);
+      } else if (bestMixedCity) {
+        mixedParts.push(["Best (and only scored) guess:", bestMixedCity.city.name + " — " + bestMixedCity.distance.toFixed(1) + " miles off. "]);
+      }
+      if (bestMixedCounty) {
+        mixedParts.push(["Best county pick:", bestMixedCounty.county.properties.name + " — you named it correctly (100 points). "]);
+      }
+      if (hardestMixedCounty) {
+        mixedParts.push(["Hardest county:", hardestMixedCounty.county.properties.name + " — you picked " + (hardestMixedCounty.selected ? hardestMixedCounty.selected.properties.name : "nothing") + " (0 points)."]);
+      }
+      if (mixedParts.length) {
+        mixedParts.forEach(function (part) {
+          var span = document.createElement("span");
+          span.innerHTML = "<strong>" + part[0] + "</strong> ";
+          span.appendChild(document.createTextNode(part[1]));
+          hl.appendChild(span);
+        });
+      } else {
+        hl.textContent = "Every round was passed — no guesses or picks to rank. Try placing a pin or clicking a county next time!";
+      }
+    } else if (best && hardest && best !== hardest) {
       hl.innerHTML = "";
       var b1 = document.createElement("span");
       var b2 = document.createElement("span");
@@ -1547,21 +1666,49 @@ function randomSeed() {
     tbody.innerHTML = "";
     game.results.forEach(function (r, i) {
       var tr = document.createElement("tr");
-      if (best && r === best && best !== hardest) tr.className = "best";
-      if (hardest && r === hardest && best !== hardest) tr.className = "hardest";
+      /* In City County Mode a row is "best" if it is the best city guess
+         or the best county pick, "hardest" if it is the hardest city or
+         county; a row that is both (only one scored round of its type)
+         gets no highlight, like the single-type modes. */
+      var mixedBest = isMixed && (r === bestMixedCity || r === bestMixedCounty);
+      var mixedHardest = isMixed && (r === hardestMixedCity || r === hardestMixedCounty);
+      if (isMixed) {
+        if (mixedBest && !mixedHardest) tr.className = "best";
+        if (mixedHardest && !mixedBest) tr.className = "hardest";
+      } else {
+        if (best && r === best && best !== hardest) tr.className = "best";
+        if (hardest && r === hardest && best !== hardest) tr.className = "hardest";
+      }
       var tdN = document.createElement("td"); tdN.textContent = String(i + 1);
       var tdCity = document.createElement("td");
-      tdCity.textContent = isCountyMode ? r.county.properties.name : r.city.name;
-      if (best && r === best && best !== hardest) {
-        var bb = document.createElement("span"); bb.className = "badge best"; bb.textContent = "Best";
-        tdCity.appendChild(bb);
-      }
-      if (hardest && r === hardest && best !== hardest) {
-        var hb = document.createElement("span"); hb.className = "badge hardest"; hb.textContent = "Hardest";
-        tdCity.appendChild(hb);
+      tdCity.textContent = isMixed
+        ? (game.rounds[i].type === "county" ? r.county.properties.name : r.city.name)
+        : isCountyMode ? r.county.properties.name : r.city.name;
+      if (isMixed) {
+        if (mixedBest && !mixedHardest) {
+          var mbb = document.createElement("span"); mbb.className = "badge best"; mbb.textContent = "Best";
+          tdCity.appendChild(mbb);
+        }
+        if (mixedHardest && !mixedBest) {
+          var mhb = document.createElement("span"); mhb.className = "badge hardest"; mhb.textContent = "Hardest";
+          tdCity.appendChild(mhb);
+        }
+      } else {
+        if (best && r === best && best !== hardest) {
+          var bb = document.createElement("span"); bb.className = "badge best"; bb.textContent = "Best";
+          tdCity.appendChild(bb);
+        }
+        if (hardest && r === hardest && best !== hardest) {
+          var hb = document.createElement("span"); hb.className = "badge hardest"; hb.textContent = "Hardest";
+          tdCity.appendChild(hb);
+        }
       }
       var tdD = document.createElement("td"); tdD.className = "num";
-      tdD.textContent = isCounties
+      tdD.textContent = isMixed
+        ? (game.rounds[i].type === "county"
+          ? (r.selected ? r.selected.properties.name : "—")
+          : (r.distance === null ? "—" : r.distance.toFixed(1) + " mi"))
+        : isCounties
         ? (r.overlap === null ? "—" : Math.round(r.overlap * 100) + "%")
         : isName
         ? (r.selected ? r.selected.properties.name : "—")
@@ -1572,7 +1719,7 @@ function randomSeed() {
     });
     document.getElementById("summary-text").textContent =
       "I scored " + game.total + "/" + (isName ? "10" : "1000") + " on Where in the " + STATE_NAME + "?!" +
-      (isCounties ? " (Counties)" : isName ? " (Name the county)" : "") + ", seed " + game.seed + "\nPlay the same game: " + gameLink();
+      (isMixed ? " (City County Mode)" : isCounties ? " (Counties)" : isName ? " (Name the county)" : "") + ", seed " + game.seed + "\nPlay the same game: " + gameLink();
   }
 
   function copyText(text, noteEl) {

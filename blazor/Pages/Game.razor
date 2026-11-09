@@ -49,6 +49,17 @@ else if (_phase == Phase.Start)
         <div class="mode-picker">
             <p class="field-label" id="mode-label">Game mode</p>
             <div class="mode-grid" role="group" aria-labelledby="mode-label">
+                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.CityCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.CityCounty">
+                    <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
+                        <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
+                        <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
+                        <path d="@ModePreviewArt.DeschutesPath" class="preview-selected" />
+                        <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="16" class="preview-guess" />
+                        <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="6" class="preview-guess-dot" />
+                    </svg>
+                    <span class="mode-button-title">City County Mode</span>
+                    <span class="mode-button-desc">Pins and counties, mixed</span>
+                </button>
                 <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Cities ? "true" : "false")" @onclick="() => _mode = GameMode.Cities">
                     <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
                         <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
@@ -95,6 +106,20 @@ else if (_phase == Phase.Start)
            as tall as the tallest variant: switching modes never moves the
            Seed / landmarks / Start controls below it. *@
         <div class="mode-instructions">
+            <div class="mode-instructions-set@(_mode == GameMode.CityCounty ? " is-active" : "")" aria-hidden="@(_mode == GameMode.CityCounty ? "false" : "true")">
+                <p class="lede">
+                    A mix of both: <strong>7 city rounds and 3 county rounds</strong>,
+                    shuffled together. City rounds: drop a pin where you think the
+                    city is. County rounds: click the county on the map. 100 points
+                    per question — full points for a pin within 5 miles, 100 for
+                    naming the right county. <strong>10 questions</strong> per game.
+                </p>
+                <ol class="how-it-works">
+                    <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 7 cities and 3 counties — share it to play together.</li>
+                    <li><strong><span class="step-num">2</span>Drop a pin or pick the county</strong>City rounds: tap the map where you think the city is. County rounds: click the county that matches the name.</li>
+                    <li><strong><span class="step-num">3</span>See how close</strong>The real spot or county is revealed, with your distance or pick and your points.</li>
+                </ol>
+            </div>
             <div class="mode-instructions-set@(_mode == GameMode.Cities ? " is-active" : "")" aria-hidden="@(_mode == GameMode.Cities ? "false" : "true")">
                 <p class="lede">
                     A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
@@ -149,7 +174,7 @@ else if (_phase == Phase.Start)
             <button @onclick="UseDailySeed">Use today's daily seed</button>
             <button @onclick="UseRandomSeed">Random seed</button>
         </div>
-        <p class="hint">Same seed = same @(_mode == GameMode.Cities ? "cities" : "counties"), same order. Share it to play the same game as another player.</p>
+        <p class="hint">Same seed = same @SeedPoolLabel, same order. Share it to play the same game as another player.</p>
 
         <fieldset>
             <legend>Landmarks (display only — they don't affect scoring)</legend>
@@ -166,7 +191,13 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
 {
     var isCounties = _mode == GameMode.Counties;
     var isNameTheCounty = _mode == GameMode.NameTheCounty;
-    var totalRounds = isCounties || isNameTheCounty ? _gameCounties.Count : _gameCities.Count;
+    var isCityCounty = _mode == GameMode.CityCounty;
+    // In City County Mode the round type comes from the shuffled mixed
+    // rounds: a county round uses the NameTheCounty UI, a city round the
+    // Cities UI.
+    var mixedRound = isCityCounty ? _mixedRounds[_roundIndex] : null;
+    var isMixedCounty = mixedRound?.IsCounty == true;
+    var totalRounds = isCityCounty ? _mixedRounds.Count : isCounties || isNameTheCounty ? _gameCounties.Count : _gameCities.Count;
     <div class="round-status">
         <div class="progress-wrap">
             <div class="progress-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="@MaxScore" aria-label="Score out of @MaxScore" aria-valuetext="@($"{_totalScore} out of {MaxScore}; maximum {(_roundIndex + 1) * PointsPerRound} after question {_roundIndex + 1}")">
@@ -176,9 +207,9 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
         </div>
         <p class="score-chip">Score: <strong>@_totalScore</strong> / @MaxScore</p>
     </div>
-    @if (isNameTheCounty)
+    @if (isNameTheCounty || isMixedCounty)
     {
-        var county = _gameCounties[_roundIndex];
+        var county = isMixedCounty ? mixedRound!.County! : _gameCounties[_roundIndex];
         <h1 class="question">Question @(_roundIndex + 1) of @totalRounds — Where is <strong>@county.Name</strong>?</h1>
         <p class="sr-only">Question @(_roundIndex + 1) of @totalRounds: Where is @county.Name?</p>
 
@@ -198,22 +229,27 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
             }
             else
             {
-                var result = _nameResults[_roundIndex];
+                // City County Mode county rounds are worth 100 points, not
+                // 1 point like "Name the county" mode.
+                var mixedResult = isMixedCounty ? _mixedResults[_roundIndex] : null;
+                var selectedName = isMixedCounty ? mixedResult!.SelectedCountyName : _nameResults[_roundIndex].SelectedCountyName;
+                var isCorrect = isMixedCounty ? mixedResult!.IsCorrect == true : _nameResults[_roundIndex].IsCorrect;
+                var pointsText = isMixedCounty ? "100 points" : "1 point";
                 <button class="primary" @onclick="NextRound">
-                    @(_roundIndex + 1 >= totalRounds ? "See results" : "Next county")
+                    @(_roundIndex + 1 >= totalRounds ? "See results" : isCityCounty ? "Next question" : "Next county")
                 </button>
                 <span class="reveal-line">
-                    @if (result.SelectedCountyName is null)
+                    @if (selectedName is null)
                     {
                         <text>You passed — the green county is @county.Name.</text>
                     }
-                    else if (result.IsCorrect)
+                    else if (isCorrect)
                     {
-                        <text>Correct — that's @county.Name · 1 point</text>
+                        <text>Correct — that's @county.Name · @pointsText</text>
                     }
                     else
                     {
-                        <text>That's @result.SelectedCountyName, not @county.Name · 0 points</text>
+                        <text>That's @selectedName, not @county.Name · 0 points</text>
                     }
                 </span>
             }
@@ -289,7 +325,7 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
     }
     else
     {
-        var city = _gameCities[_roundIndex];
+        var city = isCityCounty ? mixedRound!.City! : _gameCities[_roundIndex];
         <h1 class="question">Question @(_roundIndex + 1) of @totalRounds — Where is <strong>@city.Name</strong>?</h1>
         <p class="sr-only">Question @(_roundIndex + 1) of @totalRounds: Where is @city.Name?</p>
 
@@ -309,18 +345,20 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
             }
             else
             {
-                var result = _results[_roundIndex];
+                var mixedResult = isCityCounty ? _mixedResults[_roundIndex] : null;
+                var distance = isCityCounty ? mixedResult!.DistanceMiles : _results[_roundIndex].DistanceMiles;
+                var points = isCityCounty ? mixedResult!.Points : _results[_roundIndex].Points;
                 <button class="primary" @onclick="NextRound">
-                    @(_roundIndex + 1 >= totalRounds ? "See results" : "Next city")
+                    @(_roundIndex + 1 >= totalRounds ? "See results" : isCityCounty ? "Next question" : "Next city")
                 </button>
                 <span class="reveal-line">
-                    @if (result.DistanceMiles is null)
+                    @if (distance is null)
                     {
                         <text>You passed — the green pin is @city.Name.</text>
                     }
                     else
                     {
-                        <text>@result.DistanceMiles.Value.ToString("F1") mi off · @result.Points points</text>
+                        <text>@distance.Value.ToString("F1") mi off · @points points</text>
                     }
                 </span>
             }
@@ -361,10 +399,27 @@ else if (_phase == Phase.Results)
 
     <table class="results-table">
         <thead>
-            <tr><th>#</th><th>@(_mode == GameMode.Cities ? "City" : "County")</th><th>@(_mode == GameMode.Cities ? "Distance" : _mode == GameMode.Counties ? "Coverage" : "Your pick")</th><th>Points</th></tr>
+            <tr><th>#</th><th>@(_mode == GameMode.CityCounty ? "Target" : _mode == GameMode.Cities ? "City" : "County")</th><th>@(_mode == GameMode.CityCounty ? "Answer" : _mode == GameMode.Cities ? "Distance" : _mode == GameMode.Counties ? "Coverage" : "Your pick")</th><th>Points</th></tr>
         </thead>
         <tbody>
-            @if (_mode == GameMode.NameTheCounty)
+            @if (_mode == GameMode.CityCounty)
+            {
+                @for (int i = 0; i < _mixedResults.Count; i++)
+                {
+                    var r = _mixedResults[i];
+                    // Best city guess = smallest distance; hardest city =
+                    // largest distance; best county pick = first correct;
+                    // hardest county = first missed.
+                    var rowClass = (r == _bestMixedCity || r == _bestMixedCounty) ? "best" : (r == _hardestMixedCity || r == _hardestMixedCounty) ? "hardest" : "";
+                    <tr class="@rowClass">
+                        <td>@(i + 1)</td>
+                        <td>@(r.Round.IsCounty ? r.Round.County!.Name : r.Round.City!.Name)</td>
+                        <td>@(r.Round.IsCounty ? (r.SelectedCountyName ?? "—") : r.DistanceMiles is null ? "—" : $"{r.DistanceMiles.Value:F1} mi")</td>
+                        <td>@r.Points</td>
+                    </tr>
+                }
+            }
+            else if (_mode == GameMode.NameTheCounty)
             {
                 @for (int i = 0; i < _nameResults.Count; i++)
                 {
@@ -406,7 +461,26 @@ else if (_phase == Phase.Results)
         </tbody>
     </table>
 
-    @if (_mode == GameMode.NameTheCounty)
+    @if (_mode == GameMode.CityCounty)
+    {
+        @if (_bestMixedCity is not null)
+        {
+            <p>Best guess: <strong>@_bestMixedCity.Round.City!.Name</strong> (@_bestMixedCity.DistanceMiles?.ToString("F1") mi, @_bestMixedCity.Points points).</p>
+        }
+        @if (_hardestMixedCity is not null)
+        {
+            <p>Hardest city: <strong>@_hardestMixedCity.Round.City!.Name</strong> (@(_hardestMixedCity.DistanceMiles?.ToString("F1") ?? "—") mi, @_hardestMixedCity.Points points).</p>
+        }
+        @if (_bestMixedCounty is not null)
+        {
+            <p>Best county pick: <strong>@_bestMixedCounty.Round.County!.Name</strong> — you named it correctly (100 points).</p>
+        }
+        @if (_hardestMixedCounty is not null)
+        {
+            <p>Hardest county: <strong>@_hardestMixedCounty.Round.County!.Name</strong> — you picked @(_hardestMixedCounty.SelectedCountyName ?? "nothing") (0 points).</p>
+        }
+    }
+    else if (_mode == GameMode.NameTheCounty)
     {
         <p>You named @_nameResults.Count(r => r.IsCorrect) out of @_nameResults.Count counties correctly.</p>
         @if (_bestName is not null)
@@ -457,8 +531,8 @@ else if (_phase == Phase.Results)
 @code {
     private enum Phase { Start, Round, Reveal, Results }
 
-    /// <summary>Which game is being played: pin a city, place a county, or name a county.</summary>
-    private enum GameMode { Cities, Counties, NameTheCounty }
+    /// <summary>Which game is being played: pin a city, place a county, name a county, or the City County mix.</summary>
+    private enum GameMode { CityCounty, Cities, Counties, NameTheCounty }
 
     // Route parameters for the /{state}/{seed} URL form, e.g. /oregon/OR-2026-11-06.
     // The older ?state=...&seed=... query form still works (see OnInitializedAsync).
@@ -492,6 +566,10 @@ else if (_phase == Phase.Results)
 
     private List<City> _gameCities = [];
     private List<MapFeature> _gameCounties = [];
+    // City County Mode: the 7 city + 3 county rounds, interleaved by a
+    // seeded shuffle, and their results in game order.
+    private List<MixedRound> _mixedRounds = [];
+    private List<MixedRoundResult> _mixedResults = [];
     private int _roundIndex;
     private double? _guessLat;
     private double? _guessLon;
@@ -505,6 +583,14 @@ else if (_phase == Phase.Results)
     private CountyRoundResult? _hardestCounty;
     private NameTheCountyRoundResult? _bestName;
     private NameTheCountyRoundResult? _hardestName;
+    // City County Mode best/hardest, split by round type: best city guess
+    // is the smallest distance, hardest city the largest; best county pick
+    // is the first county answered correctly, hardest county the first one
+    // missed.
+    private MixedRoundResult? _bestMixedCity;
+    private MixedRoundResult? _hardestMixedCity;
+    private MixedRoundResult? _bestMixedCounty;
+    private MixedRoundResult? _hardestMixedCounty;
     private string? _copyMessage;
 
     // Counties mode: the placed piece's translation in SVG units, from the
@@ -520,6 +606,7 @@ else if (_phase == Phase.Results)
 
     private string ModeQueryParam => _mode switch
     {
+        GameMode.CityCounty => "?mode=city-county",
         GameMode.Counties => "?mode=counties",
         GameMode.NameTheCounty => "?mode=name-the-county",
         _ => ""
@@ -527,9 +614,19 @@ else if (_phase == Phase.Results)
 
     private string ModeSummaryLabel => _mode switch
     {
+        GameMode.CityCounty => " (City County Mode)",
         GameMode.Counties => " (Counties)",
         GameMode.NameTheCounty => " (Name the county)",
         _ => ""
+    };
+
+    // What the seed picks, for the start-screen hint: cities, counties,
+    // or (in City County Mode) 7 cities and 3 counties.
+    private string SeedPoolLabel => _mode switch
+    {
+        GameMode.CityCounty => "7 cities and 3 counties",
+        GameMode.Cities => "cities",
+        _ => "counties"
     };
 
     // "Name the county" scores 1 point per correct answer, so a perfect
@@ -631,13 +728,17 @@ else if (_phase == Phase.Results)
             ? seedFromUrl
             : GameService.DailySeed(_pack.Abbreviation);
 
-        // The mode comes from ?mode=counties or ?mode=name-the-county on a
-        // shared link; anything else (including no mode) is the city game.
-        // A pack with no counties can't play either county mode, so the
-        // mode falls back to Cities.
+        // The mode comes from ?mode=city-county, ?mode=counties or
+        // ?mode=name-the-county on a shared link; anything else (including
+        // no mode) is the city game. A pack with no counties can't play
+        // any county mode, so the mode falls back to Cities.
         if (query.TryGetValue("mode", out var mode) && _pack.Counties.Count > 0)
         {
-            if (mode.Equals("counties", StringComparison.OrdinalIgnoreCase))
+            if (mode.Equals("city-county", StringComparison.OrdinalIgnoreCase))
+            {
+                _mode = GameMode.CityCounty;
+            }
+            else if (mode.Equals("counties", StringComparison.OrdinalIgnoreCase))
             {
                 _mode = GameMode.Counties;
             }
@@ -685,7 +786,25 @@ else if (_phase == Phase.Results)
         }
 
         _seed = _seed.Trim();
-        if (_mode == GameMode.Counties || _mode == GameMode.NameTheCounty)
+        if (_mode == GameMode.CityCounty)
+        {
+            // 7 cities and 3 counties, then the 10 rounds interleaved by
+            // a seeded shuffle — genuinely mixed, not 7-then-3. The same
+            // seed picks the same 7 cities and 3 counties (same selection
+            // as the single-type modes), only their order is shuffled.
+            _gameCities = GameService.SelectCities(_pack.Cities, _seed, count: 7).ToList();
+            _gameCounties = GameService.SelectItems(_pack.Counties, _seed, count: 3).ToList();
+            if (_gameCities.Count == 0 || _gameCounties.Count == 0)
+            {
+                return;
+            }
+            var mixed = _gameCities.Select(c => new MixedRound(c, null))
+                .Concat(_gameCounties.Select(c => new MixedRound(null, c)))
+                .ToList();
+            _mixedRounds = GameService.Shuffle(mixed, _seed).ToList();
+            _mixedResults = [];
+        }
+        else if (_mode == GameMode.Counties || _mode == GameMode.NameTheCounty)
         {
             _gameCounties = GameService.SelectItems(_pack.Counties, _seed, count: 10).ToList();
             if (_gameCounties.Count == 0)
@@ -693,6 +812,7 @@ else if (_phase == Phase.Results)
                 return;
             }
             _gameCities = [];
+            _mixedRounds = [];
         }
         else
         {
@@ -702,11 +822,13 @@ else if (_phase == Phase.Results)
                 return;
             }
             _gameCounties = [];
+            _mixedRounds = [];
         }
         _roundIndex = 0;
         _results = [];
         _countyResults = [];
         _nameResults = [];
+        _mixedResults = [];
         _totalScore = 0;
         _bestGuess = null;
         _hardest = null;
@@ -714,6 +836,10 @@ else if (_phase == Phase.Results)
         _hardestCounty = null;
         _bestName = null;
         _hardestName = null;
+        _bestMixedCity = null;
+        _hardestMixedCity = null;
+        _bestMixedCounty = null;
+        _hardestMixedCounty = null;
         _guessLat = null;
         _guessLon = null;
         _pieceDx = 0;
@@ -752,6 +878,12 @@ else if (_phase == Phase.Results)
             return;
         }
 
+        if (_mode == GameMode.CityCounty)
+        {
+            ConfirmMixedRound();
+            return;
+        }
+
         if (_guessLat is null || _guessLon is null)
         {
             return;
@@ -763,6 +895,45 @@ else if (_phase == Phase.Results)
         int points = DistanceService.ScoreForDistance(distance);
         _results.Add(new RoundResult(city, _guessLat, _guessLon, distance, points));
         _totalScore += points;
+        SetPhase(Phase.Reveal);
+    }
+
+    /// <summary>
+    /// Confirm one City County Mode round. A county round scores 100 for
+    /// naming the right county (unlike "Name the county" mode, which is 1
+    /// point); a city round scores by distance, exactly like Cities mode.
+    /// </summary>
+    private void ConfirmMixedRound()
+    {
+        var round = _mixedRounds[_roundIndex];
+        if (round.IsCounty)
+        {
+            if (_selectedCounty is null)
+            {
+                return;
+            }
+
+            var county = round.County!;
+            bool correct = string.Equals(
+                _selectedCounty.Name, county.Name, StringComparison.Ordinal);
+            int points = correct ? 100 : 0;
+            _mixedResults.Add(new MixedRoundResult(round, null, _selectedCounty.Name, correct, points));
+            _totalScore += points;
+            SetPhase(Phase.Reveal);
+            return;
+        }
+
+        if (_guessLat is null || _guessLon is null)
+        {
+            return;
+        }
+
+        var city = round.City!;
+        double distance = DistanceService.HaversineMiles(
+            _guessLat.Value, _guessLon.Value, city.Latitude, city.Longitude);
+        int cityPoints = DistanceService.ScoreForDistance(distance);
+        _mixedResults.Add(new MixedRoundResult(round, distance, null, null, cityPoints));
+        _totalScore += cityPoints;
         SetPhase(Phase.Reveal);
     }
 
@@ -834,6 +1005,24 @@ else if (_phase == Phase.Results)
 
     private void Pass()
     {
+        if (_mode == GameMode.CityCounty)
+        {
+            var round = _mixedRounds[_roundIndex];
+            if (round.IsCounty)
+            {
+                _mixedResults.Add(new MixedRoundResult(round, null, null, false, 0));
+                _selectedCounty = null;
+            }
+            else
+            {
+                _mixedResults.Add(new MixedRoundResult(round, null, null, null, 0));
+                _guessLat = null;
+                _guessLon = null;
+            }
+            SetPhase(Phase.Reveal);
+            return;
+        }
+
         if (_mode == GameMode.NameTheCounty)
         {
             var namedCounty = _gameCounties[_roundIndex];
@@ -869,6 +1058,33 @@ else if (_phase == Phase.Results)
         _pieceDy = 0;
         _countyDragged = false;
         _selectedCounty = null;
+        if (_mode == GameMode.CityCounty)
+        {
+            if (_roundIndex + 1 >= _mixedRounds.Count)
+            {
+                var cityScored = _mixedResults
+                    .Where(r => !r.Round.IsCounty && r.DistanceMiles is not null).ToList();
+                // MinBy/MaxBy throw on an empty sequence, and cityScored is
+                // empty when every city round was passed — then there is no
+                // best or hardest guess to show.
+                _bestMixedCity = cityScored.Count > 0 ? cityScored.MinBy(r => r.DistanceMiles) : null;
+                _hardestMixedCity = cityScored.Count > 0 ? cityScored.MaxBy(r => r.DistanceMiles) : null;
+                // Best county pick = the first county answered correctly;
+                // hardest county = the first one missed (preferring a
+                // picked wrong county over a pass).
+                _bestMixedCounty = _mixedResults.FirstOrDefault(r => r.Round.IsCounty && r.IsCorrect == true);
+                _hardestMixedCounty = _mixedResults.FirstOrDefault(r => r.Round.IsCounty && r.IsCorrect == false && r.SelectedCountyName is not null)
+                    ?? _mixedResults.FirstOrDefault(r => r.Round.IsCounty && r.IsCorrect == false);
+                SetPhase(Phase.Results);
+            }
+            else
+            {
+                _roundIndex++;
+                SetPhase(Phase.Round);
+            }
+            return;
+        }
+
         if (_mode == GameMode.NameTheCounty)
         {
             if (_roundIndex + 1 >= _gameCounties.Count)
