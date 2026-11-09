@@ -9,8 +9,18 @@ available (true only for Oregon — the only state pack that exists).
 
 Simplification: pure-Python Douglas-Peucker per ring (shapely is not
 installed). Tolerance 0.12 degrees — coarse for a decorative overview
-map, which keeps the file small. Rings are classified outer-vs-hole by a
-point-in-polygon test so holes (if any) stay holes.
+map, which keeps the file small — except the Great Lakes states
+(Minnesota, Wisconsin, Illinois, Michigan, Ohio, Indiana), which use
+0.03 degrees so their shorelines read correctly. Rings are classified
+outer-vs-hole by a point-in-polygon test so holes (if any) stay holes.
+
+Michigan: Natural Earth stores Michigan as a SINGLE ring whose interior
+includes the Mackinac Strait water (the Great Lakes are separate
+features meant to be drawn on top), so the state alone renders as one
+blob with the two peninsulas fused. split_michigan_ring() cuts that
+ring into Upper and Lower Peninsula rings across the strait, so
+Michigan is emitted as a MultiPolygon. See that function for the
+details and the root cause.
 
 Alaska / Hawaii insets: the coordinates in the output are DISPLAY
 coordinates, not true geography, for Alaska and Hawaii. Their lon/lat
@@ -39,6 +49,15 @@ OUT_BLAZOR = "blazor/wwwroot/data/usa-states.geojson"
 
 # Douglas-Peucker tolerance in degrees.
 TOLERANCE = 0.12
+# Finer tolerance for the Great Lakes states (MN, WI, IL, MI, OH, IN).
+# Their shorelines — Minnesota's North Shore, Wisconsin's Door County,
+# the Lake Michigan shores — need more detail than 0.12° to read
+# correctly; at 0.12° they come out angular and distorted. 0.03° keeps
+# the Great Lakes shorelines recognizable while the file stays well
+# under its 200 KB budget. Every other state keeps TOLERANCE, so their
+# shapes are unchanged.
+GL_TOLERANCE = 0.03
+GREAT_LAKES_STATES = {"Minnesota", "Wisconsin", "Illinois", "Michigan", "Ohio", "Indiana"}
 
 # Display canvas (lon/lat space) for the inset layout.
 # Contiguous US keeps true lon/lat (lon -125..-66, lat 24..50).
@@ -155,6 +174,91 @@ def _ring_area(ring):
     return abs(a) / 2.0
 
 
+def _segments_cross(p1, p2, p3, p4):
+    """True if segments p1-p2 and p3-p4 cross (proper intersection)."""
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    d1 = cross(p3, p4, p1)
+    d2 = cross(p3, p4, p2)
+    d3 = cross(p1, p2, p3)
+    d4 = cross(p1, p2, p4)
+    return ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0))
+
+
+def split_michigan_ring(ring):
+    """Split Michigan's single ring into Upper and Lower Peninsula rings.
+
+    Root cause: Natural Earth stores Michigan as ONE ring (a single part)
+    whose interior includes the Mackinac Strait water — the Great Lakes
+    are separate features meant to be drawn on top, so the state polygon
+    alone fills the strait and the two peninsulas read as one blob. There
+    was never a separate Upper Peninsula ring for the processing to lose;
+    the separation has to be made explicitly by cutting the ring.
+
+    The cut runs from the Upper Peninsula's eastern tip to the Green Bay /
+    Menominee area, across northern Lake Michigan and the strait. The two
+    cut points are found geometrically (closest ring point to a target
+    coordinate in each area), not by hardcoded index, and the pair is
+    accepted only if the cut segment does not cross the ring anywhere
+    else — a crossed cut would make an invalid polygon. The cut points
+    are the ring's first/last vertices of each new ring, so simplification
+    keeps them and both new rings share the exact same cut edge.
+
+    Returns [up_ring, lp_ring] (each closed, first == last), or None if
+    no clean cut is found (caller falls back to the unsplit ring).
+    """
+    # Drop the closing duplicate for index math; re-close at the end.
+    pts = ring[:-1] if ring[0] == ring[-1] else list(ring)
+    n = len(pts)
+    if n < 10:
+        return None
+
+    def closest_to(tx, ty, lon_lo, lon_hi, lat_lo, lat_hi):
+        """Ring points in the given box, nearest target first."""
+        cands = []
+        for i, (x, y) in enumerate(pts):
+            if lon_lo <= x <= lon_hi and lat_lo <= y <= lat_hi:
+                cands.append((math.hypot(x - tx, y - ty), i))
+        cands.sort()
+        return [i for _, i in cands]
+
+    # Eastern cut: the Upper Peninsula's eastern tip (De Tour area).
+    # Western cut: the Green Bay / Menominee area, where the Lower
+    # Peninsula's west shore meets the Upper Peninsula's south shore.
+    a_cands = closest_to(-84.5, 46.5, -85.2, -84.0, 46.2, 46.7)
+    b_cands = closest_to(-87.85, 45.45, -88.2, -87.5, 45.3, 45.6)
+    for i_a in a_cands[:6]:
+        for i_b in b_cands[:6]:
+            a_pt, b_pt = pts[i_a], pts[i_b]
+            # The cut must not cross the ring anywhere except at its
+            # endpoints; a crossing would make an invalid polygon.
+            crossed = False
+            for i in range(n):
+                j = (i + 1) % n
+                if i in (i_a, i_b) or j in (i_a, i_b):
+                    continue
+                if _segments_cross(a_pt, b_pt, pts[i], pts[j]):
+                    crossed = True
+                    break
+            if crossed:
+                continue
+            # Arc 1 (i_a -> i_b forward) is the Lower Peninsula (its
+            # east shore, south border, west shore, Green Bay).
+            # Arc 2 (i_b -> i_a forward, wrapping) is the Upper
+            # Peninsula (south shore, west tip, north shore, east shore).
+            # Each is closed with the shared cut segment.
+            if i_a < i_b:
+                arc_lp = pts[i_a:i_b + 1]
+                arc_up = pts[i_b:] + pts[:i_a + 1]
+            else:
+                arc_lp = pts[i_a:] + pts[:i_b + 1]
+                arc_up = pts[i_b:i_a + 1]
+            ring_lp = arc_lp + [arc_lp[0]]
+            ring_up = arc_up + [arc_up[0]]
+            return [ring_up, ring_lp]
+    return None
+
+
 def transform_inset(pts, name, bbox):
     """Move Alaska / Hawaii into the standard inset layout (display lon/lat).
 
@@ -228,13 +332,35 @@ def main():
         rings = [r for r in rings if _ring_area(r) > 1e-6]
         if not rings:
             continue
+        # Michigan: split the single ring into Upper and Lower Peninsula
+        # rings (see split_michigan_ring — the source stores Michigan as
+        # one ring whose interior includes the Mackinac Strait water).
+        michigan_split = False
+        if name == "Michigan" and len(rings) == 1:
+            split = split_michigan_ring(rings[0])
+            if split is not None:
+                rings = split
+                michigan_split = True
+            else:
+                print("WARNING: Michigan split failed — keeping single ring")
         # Simplify each ring, then apply the inset transform ONCE for the
         # whole state (from its overall bbox) so the rings keep their
-        # relative positions.
-        simp_rings = [simplify_ring(ring, TOLERANCE) for ring in rings]
+        # relative positions. The Great Lakes states get the finer
+        # tolerance so their shorelines read correctly.
+        tol = GL_TOLERANCE if name in GREAT_LAKES_STATES else TOLERANCE
+        simp_rings = [simplify_ring(ring, tol) for ring in rings]
         bbox = _bbox_of(simp_rings)
         simp_rings = [transform_inset(ring, name, bbox) for ring in simp_rings]
-        polys = classify_rings(simp_rings)
+        if michigan_split:
+            # The two peninsulas share the cut edge, so they are two
+            # separate polygons — NOT one outer ring with a hole.
+            # classify_rings would mistake one for a hole of the other
+            # (the shared cut points lie on both rings' boundaries, and
+            # a point-on-boundary test is ambiguous), so bypass it and
+            # emit each ring as its own polygon.
+            polys = [[ring] for ring in simp_rings]
+        else:
+            polys = classify_rings(simp_rings)
         # GeoJSON: Polygon if one polygon, MultiPolygon otherwise.
         if len(polys) == 1:
             geom = {"type": "Polygon", "coordinates": [[[round(x, 4), round(y, 4)] for x, y in ring] for ring in polys[0]]}
