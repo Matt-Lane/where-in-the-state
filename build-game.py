@@ -120,8 +120,8 @@ function overlapFraction(ringsSvg, dx, dy) {
 }
 /* Points for an overlap fraction: 100 for a perfect placement, scaled
    linearly, floored at 0. Mirrors the city game's 100 per round so the
-   two modes share a /1000 game total. ("Name the county" is the exception:
-   1 point per correct answer, 10 per game — see revealNameTheCounty.) */
+   two modes share a /1000 game total. ("Name the county" scores 100 for
+   the right county, 50 for a neighboring one — see revealNameTheCounty.) */
 function scoreForOverlap(overlap) {
   if (!isFinite(overlap)) return 0;
   return Math.round(Math.min(1, Math.max(0, overlap)) * 100);
@@ -630,8 +630,9 @@ HTML = r"""<!doctype html>
     its exact inverse converts taps back. Distances use the Haversine formula (Earth radius 3,959 miles).
     Scoring: <code>100 if rounded miles &le; 5, else max(0, 100 &minus; (rounded miles &minus; 5))</code>.
     Counties mode scores by overlap: the percentage of the real county covered by the placed piece
-    (100 for a perfect fit), sampled on a 4-unit grid in map units. Name the county mode is binary:
-    1 point for naming the right county, 0 for any other county or a pass — 10 points maximum.<br />
+    (100 for a perfect fit), sampled on a 4-unit grid in map units. Name the county mode: 100 points
+    for naming the right county, 50 for a county that touches it, 0 for any other county or a pass —
+    1,000 points maximum.<br />
     Seeded shuffle: this web version hashes the seed with SHA-256 (WebCrypto) and uses the first 4 bytes as a
     signed 32-bit integer to drive a mulberry32 PRNG through a Fisher&ndash;Yates shuffle of the 241-city pool
     (or the 36-county pool in either county mode).
@@ -640,7 +641,7 @@ HTML = r"""<!doctype html>
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.17.
+    Version 0.18.
   </footer>
 </div>
 
@@ -774,7 +775,7 @@ __PURE_JS__
      name-the-county) for a non-city game. */
   var MODE_COPY = {
     "city-county": {
-      lede: "A mix of both: 7 city rounds and 3 county rounds, shuffled together. City rounds: drop a pin where you think the city is. County rounds: click the county on the map. 100 points per question — full points for a pin within 5 miles, 100 for naming the right county. 10 questions per game.",
+      lede: "A mix of both: 7 city rounds and 3 county rounds, shuffled together. City rounds: drop a pin where you think the city is. County rounds: click the county on the map. 100 points per question — full points for a pin within 5 miles, 100 for naming the right county, 50 for a county that touches it. 10 questions per game.",
       seedHint: "Same seed = same 7 cities and 3 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
       gameLine: "Seven city questions and three county questions, 100 points per question, 1,000 points maximum.",
       steps: [
@@ -804,9 +805,9 @@ __PURE_JS__
       ]
     },
     "name-the-county": {
-      lede: "A map of Oregon with every county outlined, but no county names. Each round names one county; click the county you think it is. 1 point for naming the right county, 0 for any other. 10 questions per game.",
+      lede: "A map of Oregon with every county outlined, but no county names. Each round names one county; click the county you think it is. 100 points for naming the right county, 50 for a county that touches it, 0 for any other. 10 questions per game.",
       seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
-      gameLine: "One county per question, 1 point per correct answer, 10 points maximum.",
+      gameLine: "One county per question, 100 points per correct answer, 50 for a neighboring county, 1,000 points maximum.",
       steps: [
         ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
         ["Pick the county", "Click the county on the map that matches the name, then confirm."],
@@ -1265,10 +1266,9 @@ __PURE_JS__
     document.getElementById("game-seed-label").textContent = game.seed;
     /* The bar fills by total score (out of the mode's maximum); the tick marks
        the best total possible once the question on screen is scored.
-       "Name the county" is 1 point per correct answer, so its maximum is 10;
-       the other modes are 100 per question, 1000 per game. */
-    var maxTotal = game.mode === "name-the-county" ? 10 : 1000;
-    var pointsPerRound = game.mode === "name-the-county" ? 1 : 100;
+       Every mode is 100 points per question, 1000 per game. */
+    var maxTotal = 1000;
+    var pointsPerRound = 100;
     var maxScore = (game.roundIndex + 1) * pointsPerRound;
     document.getElementById("progress-fill").style.width = (game.total * 100 / maxTotal) + "%";
     document.getElementById("progress-max").style.left = ((game.roundIndex + 1) * 10) + "%";
@@ -1325,10 +1325,10 @@ __PURE_JS__
 
   function reveal(passed) {
     if (game.mode === "counties") { revealCounty(passed); return; }
-    if (game.mode === "name-the-county") { revealNameTheCounty(passed, 1); return; }
-    /* A county round of City County Mode uses the same reveal as
-       "Name the county", but a correct pick is worth 100 points, not 1. */
-    if (isMixedCountyRound()) { revealNameTheCounty(passed, 100); return; }
+    /* A county round — in "Name the county" mode or in City County Mode —
+       uses the same reveal: 100 for the right county, 50 for a county
+       sharing a border with it, 0 otherwise. */
+    if (game.mode === "name-the-county" || isMixedCountyRound()) { revealNameTheCounty(passed); return; }
     var city = currentCity();
     phase = "revealed";
     btnConfirm.disabled = true;
@@ -1425,12 +1425,12 @@ __PURE_JS__
   }
 
   /* "Name the county" reveal: the true county in green, and if the player
-     picked a different county, that one in rust. Binary scoring: naming
-     the right county is pointsForCorrect points — 1 in "Name the county"
-     mode, 100 for a county round of City County Mode — any other county
-     (or a pass) is 0. The boundary grid stays visible underneath, as in
-     the Blazor version. */
-  function revealNameTheCounty(passed, pointsForCorrect) {
+     picked a different county, that one in rust. Scoring: naming the right
+     county is 100 points, a county sharing a border with it is 50
+     ("Pretty close!"), any other county (or a pass) is 0. Adjacency comes
+     from the counties data (properties.neighbors — see GAME-SPEC §6.5).
+     The boundary grid stays visible underneath, as in the Blazor version. */
+  function revealNameTheCounty(passed) {
     var county = currentCounty();
     var countyName = county.properties.name;
     phase = "revealed";
@@ -1439,14 +1439,16 @@ __PURE_JS__
     pinConfirm.hidden = true;
     document.getElementById("guess-controls").hidden = true;
     countySelectedEl.classList.add("layer-hidden");
-    var pickedName = null, correct = false, points = 0;
+    var pickedName = null, correct = false, adjacent = false, points = 0;
     if (!passed && selectedCounty) {
       pickedName = selectedCounty.properties.name;
       correct = pickedName === countyName;
-      points = correct ? pointsForCorrect : 0;
+      adjacent = !correct && county.properties.neighbors
+        && county.properties.neighbors.indexOf(pickedName) >= 0;
+      points = correct ? 100 : adjacent ? 50 : 0;
     }
     game.total += points;
-    game.results.push({ county: county, selected: selectedCounty, correct: correct, points: points, passed: passed });
+    game.results.push({ county: county, selected: selectedCounty, correct: correct, adjacent: adjacent, points: points, passed: passed });
     countyTruePath.setAttribute("d", ringsToPath(countyRingsSvg(county)));
     countyTrue.classList.remove("layer-hidden");
     if (!passed && selectedCounty && !correct) {
@@ -1462,7 +1464,9 @@ __PURE_JS__
     if (passed) {
       line.textContent = "You passed — the green county is " + countyName + ".";
     } else if (correct) {
-      line.textContent = "Correct — that's " + countyName + " · " + pointsForCorrect + (pointsForCorrect === 1 ? " point" : " points");
+      line.textContent = "Correct — that's " + countyName + " · 100 points";
+    } else if (adjacent) {
+      line.textContent = "Pretty close! That's " + pickedName + ", not " + countyName + " · 50 points";
     } else {
       line.textContent = "That's " + pickedName + ", not " + countyName + " · 0 points";
     }
@@ -1550,7 +1554,7 @@ __PURE_JS__
     var isName = game.mode === "name-the-county";
     var isMixed = game.mode === "city-county";
     var isCountyMode = isCounties || isName;
-    document.getElementById("final-max").textContent = isName ? "10" : "1000";
+    document.getElementById("final-max").textContent = "1000";
     document.getElementById("col-item").textContent = isMixed ? "Target" : isCountyMode ? "County" : "City";
     document.getElementById("col-metric").textContent = isMixed ? "Answer" : isCounties ? "Coverage" : isName ? "Your pick" : "Distance";
     document.getElementById("share-note").textContent = isMixed
@@ -1560,18 +1564,21 @@ __PURE_JS__
       : "Anyone opening this link with the same seed gets the same 10 cities in the same order.";
     var scored = game.results.filter(function (r) { return !r.passed; });
     if (isMixed) {
-      /* City rounds: average distance; county rounds: how many named. */
+      /* City rounds: average distance; county rounds: how many named
+         correctly, and how many adjacent. */
       var cityScored = scored.filter(function (r) { return typeof r.distance === "number"; });
       var avgMixed = cityScored.length
         ? (cityScored.reduce(function (s, r) { return s + r.distance; }, 0) / cityScored.length).toFixed(1)
         : "—";
       var namedMixed = game.results.filter(function (r) { return r.correct; }).length;
+      var adjacentMixed = game.results.filter(function (r) { return r.adjacent; }).length;
       document.getElementById("final-sub").textContent =
-        "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · average distance " + avgMixed + " miles (city rounds) · you named " + namedMixed + " out of 3 counties correctly.";
+        "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · average distance " + avgMixed + " miles (city rounds) · you named " + namedMixed + " out of 3 counties correctly" + (adjacentMixed > 0 ? " and were adjacent on " + adjacentMixed + " more" : "") + ".";
     } else if (isName) {
       var named = game.results.filter(function (r) { return r.correct; }).length;
+      var adjacentNamed = game.results.filter(function (r) { return r.adjacent; }).length;
       document.getElementById("final-sub").textContent =
-        "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · you named " + named + " out of " + QUESTION_COUNT + " counties correctly.";
+        "Seed " + game.seed + " · " + QUESTION_COUNT + " questions · you named " + named + " out of " + QUESTION_COUNT + " counties correctly" + (adjacentNamed > 0 ? " and were adjacent on " + adjacentNamed + " more" : "") + ".";
     } else if (isCounties) {
       var avgCov = scored.length
         ? Math.round(scored.reduce(function (s, r) { return s + r.overlap; }, 0) / scored.length * 100)
@@ -1601,16 +1608,24 @@ __PURE_JS__
           if (!hardestMixedCounty && !r.correct && r.selected) hardestMixedCounty = r;
         }
       });
+      /* No county named correctly? The best county pick is the first
+         adjacent one (50 points) instead. */
+      if (!bestMixedCounty) game.results.forEach(function (r) {
+        if (!bestMixedCounty && r.adjacent) bestMixedCounty = r;
+      });
       if (!hardestMixedCounty) game.results.forEach(function (r) {
         if (!hardestMixedCounty && r.distance === undefined && !r.correct) hardestMixedCounty = r;
       });
     } else if (isName) {
-      /* Best pick = the first county named correctly, hardest county =
-         the first one missed (preferring a picked wrong county over a
-         pass), across all rounds. */
+      /* Best pick = the first county named correctly — or, if none was,
+         the first adjacent pick (50 points). Hardest county = the first
+         one missed (preferring a picked wrong county over a pass). */
       game.results.forEach(function (r) {
         if (!best && r.correct) best = r;
         if (!hardest && !r.correct && r.selected) hardest = r;
+      });
+      if (!best) game.results.forEach(function (r) {
+        if (!best && r.adjacent) best = r;
       });
       if (!hardest) game.results.forEach(function (r) {
         if (!hardest && !r.correct) hardest = r;
@@ -1639,10 +1654,10 @@ __PURE_JS__
         mixedParts.push(["Best (and only scored) guess:", bestMixedCity.city.name + " — " + bestMixedCity.distance.toFixed(1) + " miles off. "]);
       }
       if (bestMixedCounty) {
-        mixedParts.push(["Best county pick:", bestMixedCounty.county.properties.name + " — you named it correctly (100 points). "]);
+        mixedParts.push(["Best county pick:", bestMixedCounty.county.properties.name + (bestMixedCounty.adjacent ? " — you picked a neighboring county (50 points). " : " — you named it correctly (100 points). ")]);
       }
       if (hardestMixedCounty) {
-        mixedParts.push(["Hardest county:", hardestMixedCounty.county.properties.name + " — you picked " + (hardestMixedCounty.selected ? hardestMixedCounty.selected.properties.name : "nothing") + " (0 points)."]);
+        mixedParts.push(["Hardest county:", hardestMixedCounty.county.properties.name + " — you picked " + (hardestMixedCounty.selected ? hardestMixedCounty.selected.properties.name : "nothing") + " (" + hardestMixedCounty.points + " points)."]);
       }
       if (mixedParts.length) {
         mixedParts.forEach(function (part) {
@@ -1660,9 +1675,9 @@ __PURE_JS__
       var b2 = document.createElement("span");
       if (isName) {
         b1.innerHTML = "<strong>Best pick:</strong> ";
-        b1.appendChild(document.createTextNode(best.county.properties.name + " — you named it correctly (1 point). "));
+        b1.appendChild(document.createTextNode(best.county.properties.name + (best.adjacent ? " — you picked a neighboring county (50 points). " : " — you named it correctly (100 points). ")));
         b2.innerHTML = "<strong>Hardest county:</strong> ";
-        b2.appendChild(document.createTextNode(hardest.county.properties.name + " — you picked " + (hardest.selected ? hardest.selected.properties.name : "nothing") + " (0 points)."));
+        b2.appendChild(document.createTextNode(hardest.county.properties.name + " — you picked " + (hardest.selected ? hardest.selected.properties.name : "nothing") + " (" + hardest.points + " points)."));
       } else if (isCounties) {
         b1.innerHTML = "<strong>Best placement:</strong> ";
         b1.appendChild(document.createTextNode(best.county.properties.name + " — " + Math.round(best.overlap * 100) + "% covered (" + best.points + " pts). "));
@@ -1677,7 +1692,9 @@ __PURE_JS__
       hl.appendChild(b1); hl.appendChild(b2);
     } else if (best) {
       hl.textContent = isName
-        ? "Best (and only correct) pick: " + best.county.properties.name + " — you named it correctly."
+        ? (best.adjacent
+          ? "Best (and only close) pick: " + best.county.properties.name + " — you picked a neighboring county (50 points)."
+          : "Best (and only correct) pick: " + best.county.properties.name + " — you named it correctly.")
         : isCounties
         ? "Best (and only scored) placement: " + best.county.properties.name + " — " + Math.round(best.overlap * 100) + "% covered."
         : "Best (and only scored) guess: " + best.city.name + " — " + best.distance.toFixed(1) + " miles off.";
@@ -1746,7 +1763,7 @@ __PURE_JS__
       tbody.appendChild(tr);
     });
     document.getElementById("summary-text").textContent =
-      "I scored " + game.total + "/" + (isName ? "10" : "1000") + " on Where in the " + STATE_NAME + "?!" +
+      "I scored " + game.total + "/1000 on Where in the " + STATE_NAME + "?!" +
       (isMixed ? " (City County Mode)" : isCounties ? " (Counties)" : isName ? " (Name the county)" : "") + ", seed " + game.seed + "\nPlay the same game: " + gameLink();
   }
 

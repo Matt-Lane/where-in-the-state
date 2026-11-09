@@ -90,6 +90,7 @@ public sealed class StatePackLoader
         {
             string layer = layerFallback ?? "unknown";
             string? name = null;
+            IReadOnlyList<string> neighbors = [];
             if (feature.TryGetProperty("properties", out var props))
             {
                 if (props.TryGetProperty("layer", out var layerEl)
@@ -102,6 +103,18 @@ public sealed class StatePackLoader
                     && nameEl.ValueKind == JsonValueKind.String)
                 {
                     name = nameEl.GetString();
+                }
+
+                // County adjacency: properties.neighbors is the list of
+                // county names sharing a border with this one (see
+                // GAME-SPEC §6.5). Only county features carry it.
+                if (props.TryGetProperty("neighbors", out var neighborsEl)
+                    && neighborsEl.ValueKind == JsonValueKind.Array)
+                {
+                    neighbors = neighborsEl.EnumerateArray()
+                        .Where(e => e.ValueKind == JsonValueKind.String)
+                        .Select(e => e.GetString()!)
+                        .ToList();
                 }
             }
 
@@ -138,7 +151,7 @@ public sealed class StatePackLoader
             }
 
             string kind = type is "Polygon" or "MultiPolygon" ? "Polygon" : "Line";
-            features.Add(new MapFeature(kind, layer, name, parts));
+            features.Add(new MapFeature(kind, layer, name, parts, neighbors));
         }
 
         return features;

@@ -9,7 +9,7 @@
   - 100 highway segments (US + state routes)
   - 40 river segments, 20 named rivers
   - 58 lakes/reservoirs (11 from Natural Earth, 47 more from OpenStreetMap, added 2026-11-07)
-- `counties.geojson` — 67,748 bytes, 36 Oregon counties (added 2026-11-07 for Counties mode)
+- `counties.geojson` — 71,147 bytes, 36 Oregon counties (added 2026-11-07 for Counties mode). Each county feature also carries `properties.neighbors` — the names of the counties sharing a border with it (added 2026-11-09 for adjacent-county partial credit, see GAME-SPEC §6.5), computed by `compute-county-adjacency.py` from the raw shapefile.
 - Each landmark feature has `properties.layer` = `interstate` | `highway` | `river` | `lake` and a `properties.name`. Each county feature has `properties.layer` = `county` and `properties.name` = e.g. "Multnomah County".
 
 ## Sources (all public domain / openly licensed)
