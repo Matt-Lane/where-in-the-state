@@ -42,12 +42,6 @@ else if (_phase == Phase.Start)
     }
 
     <div class="card">
-        @* The state is display-only (it comes from the URL/pack), so it shows
-           as a badge, not a disabled text box — the same badge the
-           standalone version uses. *@
-        <p class="field-label">State</p>
-        <p><span class="state-badge">@_pack.Name</span></p>
-
         @* Game mode: three large buttons, each with a small map preview of
            how that mode plays. Clicking a button selects the mode (it does
            not start the game — "Start game" still does that). The selected
@@ -143,16 +137,19 @@ else if (_phase == Phase.Start)
             </div>
         </div>
 
-        <label>
-            Seed
-            <input type="text" @bind="_seed" @bind:event="oninput" maxlength="100" />
-        </label>
-        <p class="hint">Same seed = same @(_mode == GameMode.Cities ? "cities" : "counties"), same order. Share it to play the same game as a co-worker. Seeds are case-sensitive.</p>
+        <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
+            Start game
+        </button>
 
-        <div class="button-row">
-            <button @onclick="UseRandomSeed">Random seed</button>
+        <div class="seed-row">
+            <label>
+                Seed
+                <input type="text" class="seed-input" @bind="_seed" @bind:event="oninput" maxlength="20" />
+            </label>
             <button @onclick="UseDailySeed">Use today's daily seed</button>
+            <button @onclick="UseRandomSeed">Random seed</button>
         </div>
+        <p class="hint">Same seed = same @(_mode == GameMode.Cities ? "cities" : "counties"), same order. Share it to play the same game as a player.</p>
 
         <fieldset>
             <legend>Landmarks (display only — they don't affect scoring)</legend>
@@ -163,12 +160,6 @@ else if (_phase == Phase.Start)
                 <button type="button" class="toggle" data-layer="lake" aria-pressed="@(_showLakes ? "true" : "false")" @onclick="() => _showLakes = !_showLakes"><span class="swatch fill"></span>Lakes</button>
             </div>
         </fieldset>
-
-        <p>Questions: <strong>10</strong>.</p>
-
-        <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
-            Start game
-        </button>
     </div>
 }
 else if (_phase == Phase.Round || _phase == Phase.Reveal)
@@ -482,7 +473,15 @@ else if (_phase == Phase.Results)
     // start screen shows the state-specific title ("Where in the Oregon?!")
     // in the header only when the URL named the state.
     private bool _stateFromUrl;
-    private string _seed = "";
+    private string _seedBacking = "";
+    // Seeds are forced to upper case, so "or-2026-11-06" and "OR-2026-11-06"
+    // are the same game. Every write (typing, URL, Random/Daily) goes
+    // through this setter, so the seed is canonical everywhere it is used.
+    private string _seed
+    {
+        get => _seedBacking;
+        set => _seedBacking = (value ?? "").ToUpperInvariant();
+    }
     private Phase _phase = Phase.Start;
     private GameMode _mode = GameMode.Cities;
 
