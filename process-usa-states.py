@@ -7,20 +7,23 @@ admin is "United States of America" are kept (50 states + District of
 Columbia). Each feature keeps: name, postal (state abbreviation), and
 available (true only for Oregon — the only state pack that exists).
 
-Simplification: pure-Python Douglas-Peucker per ring (shapely is not
-installed). Tolerance 0.12 degrees — coarse for a decorative overview
-map, which keeps the file small — except the Great Lakes states
-(Minnesota, Wisconsin, Illinois, Michigan, Ohio, Indiana), which use
-0.03 degrees so their shorelines read correctly. Rings are classified
-outer-vs-hole by a point-in-polygon test so holes (if any) stay holes.
+LAND, NOT TERRITORY: the state outlines follow the land — the Great
+Lakes water is subtracted from the states that border them, so the
+lakes read as water gaps between the states instead of being filled
+in as part of a state. The lake polygons come from Natural Earth 10m
+lakes (ne_10m_lakes); the five Great Lakes are unioned and subtracted
+from the eight lake-bordering states with shapely
+(polygon.difference). This also splits Michigan's land into its two
+peninsulas naturally (the Mackinac Strait water is removed), so the
+old manual split_michigan_ring() is gone. See "Great Lakes land fix"
+in data/USA-MAP-NOTES.md.
 
-Michigan: Natural Earth stores Michigan as a SINGLE ring whose interior
-includes the Mackinac Strait water (the Great Lakes are separate
-features meant to be drawn on top), so the state alone renders as one
-blob with the two peninsulas fused. split_michigan_ring() cuts that
-ring into Upper and Lower Peninsula rings across the strait, so
-Michigan is emitted as a MultiPolygon. See that function for the
-details and the root cause.
+Simplification: pure-Python Douglas-Peucker per ring (shapely is used
+only for the lake subtraction, not for simplification). Tolerance 0.12
+degrees — coarse for a decorative overview map, which keeps the file
+small — except the Great Lakes states, which use 0.03 degrees so their
+shorelines read correctly. Rings are classified outer-vs-hole by a
+point-in-polygon test so holes (if any) stay holes.
 
 Alaska / Hawaii insets: the coordinates in the output are DISPLAY
 coordinates, not true geography, for Alaska and Hawaii. Their lon/lat
@@ -35,6 +38,8 @@ Writes:
   blazor/wwwroot/data/usa-states.geojson (loaded by the Blazor splash page)
 
 Run from the project root:  python3 process-usa-states.py
+
+Requires: pyshp (shapefile) and shapely (pip install shapely).
 """
 import json
 import math
@@ -42,22 +47,29 @@ import os
 import sys
 
 import shapefile
+from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 SRC = "/tmp/ne_admin1/ne_10m_admin_1_states_provinces.shp"
+LAKES_SRC = "/tmp/ne_lakes/ne_10m_lakes.shp"
 OUT_SOURCE = "data/usa-states.geojson"
 OUT_BLAZOR = "blazor/wwwroot/data/usa-states.geojson"
 
 # Douglas-Peucker tolerance in degrees.
 TOLERANCE = 0.12
-# Finer tolerance for the Great Lakes states (MN, WI, IL, MI, OH, IN).
-# Their shorelines — Minnesota's North Shore, Wisconsin's Door County,
-# the Lake Michigan shores — need more detail than 0.12° to read
-# correctly; at 0.12° they come out angular and distorted. 0.03° keeps
-# the Great Lakes shorelines recognizable while the file stays well
-# under its 200 KB budget. Every other state keeps TOLERANCE, so their
-# shapes are unchanged.
+# Finer tolerance for the Great Lakes states. Their shorelines — now
+# the visible boundary, since the lake water is subtracted — need more
+# detail than 0.12° to read correctly; at 0.12° they come out angular
+# and distorted. 0.03° keeps the Great Lakes shorelines recognizable
+# while the file stays well under its 200 KB budget. Every other state
+# keeps TOLERANCE, so their shapes are unchanged.
 GL_TOLERANCE = 0.03
-GREAT_LAKES_STATES = {"Minnesota", "Wisconsin", "Illinois", "Michigan", "Ohio", "Indiana"}
+# The eight states that border a Great Lake. All eight get the lake
+# subtraction AND the finer tolerance; the other 43 states are
+# untouched by either.
+GREAT_LAKES_STATES = {"Minnesota", "Wisconsin", "Michigan", "Illinois", "Indiana", "Ohio", "Pennsylvania", "New York"}
+# The five Great Lakes, by name in the ne_10m_lakes dataset.
+GREAT_LAKES = {"Lake Superior", "Lake Michigan", "Lake Huron", "Lake Erie", "Lake Ontario"}
 
 # Display canvas (lon/lat space) for the inset layout.
 # Contiguous US keeps true lon/lat (lon -125..-66, lat 24..50).
@@ -174,89 +186,52 @@ def _ring_area(ring):
     return abs(a) / 2.0
 
 
-def _segments_cross(p1, p2, p3, p4):
-    """True if segments p1-p2 and p3-p4 cross (proper intersection)."""
-    def cross(o, a, b):
-        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-    d1 = cross(p3, p4, p1)
-    d2 = cross(p3, p4, p2)
-    d3 = cross(p1, p2, p3)
-    d4 = cross(p1, p2, p4)
-    return ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0))
+def load_lakes():
+    """Union of the five Great Lakes, from Natural Earth 10m lakes.
 
-
-def split_michigan_ring(ring):
-    """Split Michigan's single ring into Upper and Lower Peninsula rings.
-
-    Root cause: Natural Earth stores Michigan as ONE ring (a single part)
-    whose interior includes the Mackinac Strait water — the Great Lakes
-    are separate features meant to be drawn on top, so the state polygon
-    alone fills the strait and the two peninsulas read as one blob. There
-    was never a separate Upper Peninsula ring for the processing to lose;
-    the separation has to be made explicitly by cutting the ring.
-
-    The cut runs from the Upper Peninsula's eastern tip to the Green Bay /
-    Menominee area, across northern Lake Michigan and the strait. The two
-    cut points are found geometrically (closest ring point to a target
-    coordinate in each area), not by hardcoded index, and the pair is
-    accepted only if the cut segment does not cross the ring anywhere
-    else — a crossed cut would make an invalid polygon. The cut points
-    are the ring's first/last vertices of each new ring, so simplification
-    keeps them and both new rings share the exact same cut edge.
-
-    Returns [up_ring, lp_ring] (each closed, first == last), or None if
-    no clean cut is found (caller falls back to the unsplit ring).
+    Returns a shapely (Multi)Polygon covering the five lakes. The lake
+    polygons are used only for subtraction — they are never emitted —
+    so they are kept at full resolution.
     """
-    # Drop the closing duplicate for index math; re-close at the end.
-    pts = ring[:-1] if ring[0] == ring[-1] else list(ring)
-    n = len(pts)
-    if n < 10:
-        return None
+    reader = shapefile.Reader(LAKES_SRC)
+    fields = [f[0] for f in reader.fields[1:]]
+    name_i = fields.index("name")
+    polys = []
+    for shape_rec in reader.iterShapeRecords():
+        if shape_rec.record[name_i] not in GREAT_LAKES:
+            continue
+        shape = shape_rec.shape
+        parts = list(shape.parts) + [len(shape.points)]
+        rings = []
+        for i in range(len(shape.parts)):
+            ring = [(float(x), float(y)) for x, y in shape.points[parts[i]:parts[i + 1]]]
+            if len(ring) >= 4 and _ring_area(ring) > 1e-6:
+                rings.append(ring)
+        for poly in classify_rings(rings):
+            polys.append(Polygon(poly[0], poly[1:]))
+    return unary_union(polys)
 
-    def closest_to(tx, ty, lon_lo, lon_hi, lat_lo, lat_hi):
-        """Ring points in the given box, nearest target first."""
-        cands = []
-        for i, (x, y) in enumerate(pts):
-            if lon_lo <= x <= lon_hi and lat_lo <= y <= lat_hi:
-                cands.append((math.hypot(x - tx, y - ty), i))
-        cands.sort()
-        return [i for _, i in cands]
 
-    # Eastern cut: the Upper Peninsula's eastern tip (De Tour area).
-    # Western cut: the Green Bay / Menominee area, where the Lower
-    # Peninsula's west shore meets the Upper Peninsula's south shore.
-    a_cands = closest_to(-84.5, 46.5, -85.2, -84.0, 46.2, 46.7)
-    b_cands = closest_to(-87.85, 45.45, -88.2, -87.5, 45.3, 45.6)
-    for i_a in a_cands[:6]:
-        for i_b in b_cands[:6]:
-            a_pt, b_pt = pts[i_a], pts[i_b]
-            # The cut must not cross the ring anywhere except at its
-            # endpoints; a crossing would make an invalid polygon.
-            crossed = False
-            for i in range(n):
-                j = (i + 1) % n
-                if i in (i_a, i_b) or j in (i_a, i_b):
-                    continue
-                if _segments_cross(a_pt, b_pt, pts[i], pts[j]):
-                    crossed = True
-                    break
-            if crossed:
-                continue
-            # Arc 1 (i_a -> i_b forward) is the Lower Peninsula (its
-            # east shore, south border, west shore, Green Bay).
-            # Arc 2 (i_b -> i_a forward, wrapping) is the Upper
-            # Peninsula (south shore, west tip, north shore, east shore).
-            # Each is closed with the shared cut segment.
-            if i_a < i_b:
-                arc_lp = pts[i_a:i_b + 1]
-                arc_up = pts[i_b:] + pts[:i_a + 1]
-            else:
-                arc_lp = pts[i_a:] + pts[:i_b + 1]
-                arc_up = pts[i_b:i_a + 1]
-            ring_lp = arc_lp + [arc_lp[0]]
-            ring_up = arc_up + [arc_up[0]]
-            return [ring_up, ring_lp]
-    return None
+def rings_to_shapely(rings):
+    """Build a shapely geometry from rings (outer + hole classification)."""
+    polys = classify_rings(rings)
+    return unary_union([Polygon(poly[0], poly[1:]) for poly in polys])
+
+
+def shapely_to_rings(geom):
+    """Extract rings (exterior + interiors, each closed) from a shapely
+    Polygon or MultiPolygon. Returns a flat list of rings."""
+    rings = []
+    if geom.is_empty:
+        return rings
+    polys = list(geom.geoms) if geom.geom_type == "MultiPolygon" else [geom]
+    for poly in polys:
+        if poly.geom_type != "Polygon" or poly.is_empty:
+            continue
+        rings.append([(float(x), float(y)) for x, y in poly.exterior.coords])
+        for interior in poly.interiors:
+            rings.append([(float(x), float(y)) for x, y in interior.coords])
+    return rings
 
 
 def transform_inset(pts, name, bbox):
@@ -295,6 +270,13 @@ def main():
         print("Missing source shapefile:", SRC)
         print("Download https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_admin_1_states_provinces.zip and unzip it to /tmp/ne_admin1/")
         sys.exit(1)
+    if not os.path.exists(LAKES_SRC):
+        print("Missing lakes shapefile:", LAKES_SRC)
+        print("Download https://naturalearth.s3.amazonaws.com/10m_physical/ne_10m_lakes.zip and unzip it to /tmp/ne_lakes/")
+        sys.exit(1)
+
+    lakes = load_lakes()
+    print(f"Great Lakes union: {lakes.geom_type}, area {lakes.area:.2f} sq deg")
 
     reader = shapefile.Reader(SRC)
     fields = [f[0] for f in reader.fields[1:]]
@@ -332,17 +314,24 @@ def main():
         rings = [r for r in rings if _ring_area(r) > 1e-6]
         if not rings:
             continue
-        # Michigan: split the single ring into Upper and Lower Peninsula
-        # rings (see split_michigan_ring — the source stores Michigan as
-        # one ring whose interior includes the Mackinac Strait water).
-        michigan_split = False
-        if name == "Michigan" and len(rings) == 1:
-            split = split_michigan_ring(rings[0])
-            if split is not None:
-                rings = split
-                michigan_split = True
+        # Land, not territory: for the states that border a Great Lake,
+        # subtract the lakes so the outline follows the shoreline and
+        # the lake water reads as a gap, not as part of the state. The
+        # subtraction runs on the raw (unsimplified) geometry so the
+        # shoreline keeps its detail, then the result is simplified
+        # below. This also splits Michigan's land into its two
+        # peninsulas naturally — the Mackinac Strait water is removed —
+        # so there is no manual Michigan split any more. (The Keweenaw
+        # Peninsula and Michigan's islands come out as their own parts
+        # too; they are real Michigan land — the Keweenaw is cut off by
+        # the Portage waterway, which the lake data includes.)
+        if name in GREAT_LAKES_STATES:
+            land = rings_to_shapely(rings).difference(lakes)
+            sub_rings = shapely_to_rings(land)
+            if not sub_rings:
+                print(f"WARNING: {name} empty after lake subtraction — keeping raw rings")
             else:
-                print("WARNING: Michigan split failed — keeping single ring")
+                rings = sub_rings
         # Simplify each ring, then apply the inset transform ONCE for the
         # whole state (from its overall bbox) so the rings keep their
         # relative positions. The Great Lakes states get the finer
@@ -351,16 +340,7 @@ def main():
         simp_rings = [simplify_ring(ring, tol) for ring in rings]
         bbox = _bbox_of(simp_rings)
         simp_rings = [transform_inset(ring, name, bbox) for ring in simp_rings]
-        if michigan_split:
-            # The two peninsulas share the cut edge, so they are two
-            # separate polygons — NOT one outer ring with a hole.
-            # classify_rings would mistake one for a hole of the other
-            # (the shared cut points lie on both rings' boundaries, and
-            # a point-on-boundary test is ambiguous), so bypass it and
-            # emit each ring as its own polygon.
-            polys = [[ring] for ring in simp_rings]
-        else:
-            polys = classify_rings(simp_rings)
+        polys = classify_rings(simp_rings)
         # GeoJSON: Polygon if one polygon, MultiPolygon otherwise.
         if len(polys) == 1:
             geom = {"type": "Polygon", "coordinates": [[[round(x, 4), round(y, 4)] for x, y in ring] for ring in polys[0]]}

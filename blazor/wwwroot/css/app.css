@@ -603,9 +603,16 @@ tr.hardest { background: #fce8e6; }
 }
 .usa-state.usa-unavailable { fill: url(#usa-hatch); }
 .usa-state.usa-unavailable:hover { stroke: var(--faint); }
-.usa-state.usa-available { fill: var(--green-soft); stroke: var(--green); stroke-width: 2; }
-.usa-state.usa-available:hover { fill: #cfe3d4; }
-.usa-state.usa-selected { fill: var(--green); stroke: var(--green-dark); stroke-width: 2; }
+/* Oregon's border: a darker green (green-dark, not green) and a
+   slightly thicker stroke, so the whole outline — the north edge
+   along the Columbia included — reads clearly and consistently
+   against the neighbouring hatched states. */
+.usa-state.usa-available { fill: var(--green-soft); stroke: var(--green-dark); stroke-width: 2.5; }
+/* Hover: a noticeably stronger, more vivid green — clearly greener
+   than the resting soft fill, still lighter than the solid selected
+   fill. It should read as an inviting "this one is playable" state. */
+.usa-state.usa-available:hover { fill: #6fb98e; }
+.usa-state.usa-selected { fill: var(--green); stroke: var(--green-dark); stroke-width: 2.5; }
 .splash-hint { text-align: center; color: var(--muted); margin: 0.75rem 0 0.5rem; min-height: 1.5em; }
 .splash-actions { display: flex; justify-content: center; padding-bottom: 0.5rem; }
 .splash-play { font-size: 1.1rem; padding: 0.7rem 2rem; }

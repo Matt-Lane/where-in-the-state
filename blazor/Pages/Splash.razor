@@ -31,7 +31,13 @@
                         <line x1="0" y1="0" x2="0" y2="8" stroke="#c9c4b4" stroke-width="1.5" />
                     </pattern>
                 </defs>
-                @foreach (var state in _states)
+                @* Oregon renders last, so its border stroke is painted
+                   on top of the neighbouring states' fills. (The states
+                   arrive name-sorted, so Washington — drawn after
+                   Oregon — used to cover the outer half of Oregon's
+                   north-edge stroke with its hatch fill, which is why
+                   that edge looked lighter than the rest.) *@
+                @foreach (var state in _states.OrderBy(s => s.Available))
                 {
                     var isOregon = state.Available;
                     var isSelected = isOregon && _selectedOregon;

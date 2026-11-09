@@ -273,9 +273,16 @@ HTML = r"""<!doctype html>
   .usa-state { fill-rule: evenodd; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; cursor: pointer; transition: fill 0.15s ease; }
   .usa-state.usa-unavailable { fill: url(#usa-hatch); }
   .usa-state.usa-unavailable:hover { stroke: var(--faint); }
-  .usa-state.usa-available { fill: #e3ede6; stroke: var(--accent); stroke-width: 2; }
-  .usa-state.usa-available:hover { fill: #cfe3d4; }
-  .usa-state.usa-selected { fill: var(--accent); stroke: #173f31; stroke-width: 2; }
+  /* Oregon's border: a darker green (#173f31) and a slightly thicker
+     stroke, so the whole outline — the north edge along the Columbia
+     included — reads clearly and consistently against the neighbouring
+     hatched states. */
+  .usa-state.usa-available { fill: #e3ede6; stroke: #173f31; stroke-width: 2.5; }
+  /* Hover: a noticeably stronger, more vivid green — clearly greener
+     than the resting soft fill, still lighter than the solid selected
+     fill. */
+  .usa-state.usa-available:hover { fill: #6fb98e; }
+  .usa-state.usa-selected { fill: var(--accent); stroke: #173f31; stroke-width: 2.5; }
   .splash-hint { text-align: center; color: var(--muted); margin: 12px 0 8px; min-height: 1.5em; }
   .splash-actions { display: flex; justify-content: center; padding-bottom: 8px; }
   .splash-play { font-size: 17px; padding: 12px 32px; }
@@ -858,7 +865,15 @@ __PURE_JS__
     var scale = 1000 / ((b.lonMax - b.lonMin) * cos37);
     var height = (b.latMax - b.latMin) * scale;
     usaSvg.setAttribute("viewBox", "0 0 1000 " + fmt(height));
-    usaStates.features.forEach(function (f) {
+    /* Oregon renders last, so its border stroke is painted on top of
+       the neighbouring states' fills. (The features arrive
+       name-sorted, so Washington — drawn after Oregon — used to cover
+       the outer half of Oregon's north-edge stroke with its hatch
+       fill, which is why that edge looked lighter than the rest.) */
+    var ordered = usaStates.features.slice().sort(function (a, b) {
+      return (a.properties.available ? 1 : 0) - (b.properties.available ? 1 : 0);
+    });
+    ordered.forEach(function (f) {
       var name = f.properties.name;
       var available = !!f.properties.available;
       var path = document.createElementNS(SVGNS, "path");
