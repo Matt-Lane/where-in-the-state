@@ -494,7 +494,7 @@ HTML = r"""<!doctype html>
         <button type="button" id="btn-random-seed">Random seed</button>
       </div>
       <p class="muted small" style="margin-top:12px" id="seed-hint">Same seed = same 10 cities, in the same order, for anyone, any time.
-        Share the seed (or the game link) to play the same game as a player.</p>
+        Share the seed (or the game link) to play the same game as another player.</p>
     </div>
 
     <div class="card">
@@ -749,7 +749,7 @@ __PURE_JS__
   var MODE_COPY = {
     cities: {
       lede: "Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin, the more points. Full points within 5 miles, then −1 point per mile beyond that.",
-      seedHint: "Same seed = same 10 cities, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a player.",
+      seedHint: "Same seed = same 10 cities, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
       gameLine: "One pin per city, 100 points per question, 1,000 points maximum.",
       steps: [
         ["Pick a seed", "Same seed, same 10 cities — share it to play together."],
@@ -759,7 +759,7 @@ __PURE_JS__
     },
     counties: {
       lede: "A blank map of Oregon — outline and landmarks, but no county lines. Each round names one county; drag its shape onto the map where you think it belongs. 100 points for a perfect fit, scaled by how much of the real county you cover. 10 questions per game.",
-      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a player.",
+      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
       gameLine: "One county per question, 100 points per question, 1,000 points maximum.",
       steps: [
         ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
@@ -769,7 +769,7 @@ __PURE_JS__
     },
     "name-the-county": {
       lede: "A map of Oregon with every county outlined, but no county names. Each round names one county; click the county you think it is. 1 point for naming the right county, 0 for any other. 10 questions per game.",
-      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as a player.",
+      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
       gameLine: "One county per question, 1 point per correct answer, 10 points maximum.",
       steps: [
         ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
