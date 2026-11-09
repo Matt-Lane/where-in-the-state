@@ -71,7 +71,8 @@ Components/
                                No city labels, ever.
 Pages/
   Game.razor                   Full flow: Start -> 10 Rounds (+ Reveal) -> Results.
-                               Routed at "/", "/game", "/{state}" and "/{state}/{seed}".
+                               Routed at "/", "/{state}", "/{state}/{mode}" and
+                               "/{state}/{mode}/{seed}".
 wwwroot/
   index.html                   #app div + blazor.webassembly.js
   css/app.css                  Map + page styling (pins, layers, layout)
@@ -95,10 +96,11 @@ wwwroot/
    across runtimes/runs.
 4. Daily seed: `OR-yyyy-MM-dd` (local date). Random seed: `OR-` + 6
    alphanumeric characters. Seeds are forced to upper case and are written into
-   the URL on start (`/oregon/<seed>`), so a shared link loads the
-   same game; loading with a seed pre-fills the start screen. The older
-   `?state=oregon&seed=...` query form still works. An unknown state in
-   the URL shows a not-found screen instead of hanging on "Loading the map…".
+   the URL on start (`/oregon/cities/<seed>`), so a shared link loads the
+   same game; loading with a state/mode/seed pre-fills the start screen. The
+   old `?state=oregon&seed=...` query form and the `/{state}/{seed}` path form
+   are no longer supported. An unknown state or mode in the URL shows a
+   not-found screen instead of hanging on "Loading the map…".
 
 ### Scoring (DistanceService, GAME-SPEC.md §6, updated rule)
 
