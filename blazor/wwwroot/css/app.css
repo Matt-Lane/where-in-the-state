@@ -576,3 +576,42 @@ tr.hardest { background: #fce8e6; }
 .loading-progress circle:last-child { stroke: #1b6ec2; stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 130%; transition: stroke-dasharray .05s ease-in-out; }
 .loading-progress-text { position: absolute; text-align: center; font-weight: bold; inset: calc(20vh + 3.25rem) 0 auto .2rem; }
 .loading-progress-text:after { content: var(--blazor-load-percentage-text, "Loading"); }
+
+/* ---------- Splash / welcome page ("/") ---------- */
+.splash { max-width: 960px; margin: 0 auto; }
+.splash-hero { text-align: center; padding: 1.25rem 0 0.5rem; }
+.splash-logo { width: 4.5rem; height: 4.5rem; }
+.splash-logo .pin-fill { fill: var(--green); }
+.splash-logo .mark-fill { fill: #fff; }
+.splash-hero h1 { font-size: 2.6rem; margin: 0.5rem 0 0.5rem; }
+.splash-tagline { font-size: 1.15rem; color: var(--muted); max-width: 36rem; margin: 0 auto 1.5rem; }
+.splash-map-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1rem 1rem 0.75rem;
+}
+.splash-map { display: block; width: 100%; height: auto; }
+.usa-state {
+    fill-rule: evenodd;
+    stroke: #fff;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    cursor: pointer;
+    transition: fill 0.15s ease;
+}
+.usa-state.usa-unavailable { fill: url(#usa-hatch); }
+.usa-state.usa-unavailable:hover { stroke: var(--faint); }
+.usa-state.usa-available { fill: var(--green-soft); stroke: var(--green); stroke-width: 2; }
+.usa-state.usa-available:hover { fill: #cfe3d4; }
+.usa-state.usa-selected { fill: var(--green); stroke: var(--green-dark); stroke-width: 2; }
+.splash-hint { text-align: center; color: var(--muted); margin: 0.75rem 0 0.5rem; min-height: 1.5em; }
+.splash-actions { display: flex; justify-content: center; padding-bottom: 0.5rem; }
+.splash-play { font-size: 1.1rem; padding: 0.7rem 2rem; }
+.splash-note { text-align: center; color: var(--faint); font-size: 0.9rem; margin: 1rem 0 0; }
+@media (max-width: 700px) {
+    .splash-hero h1 { font-size: 2rem; }
+    .splash-tagline { font-size: 1.05rem; }
+    .splash-play { width: 100%; }
+}

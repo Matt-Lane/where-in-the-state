@@ -1,4 +1,3 @@
-@page "/"
 @page "/{StateId}"
 @page "/{StateId}/{ModeParam}"
 @page "/{StateId}/{ModeParam}/{SeedParam}"
@@ -29,17 +28,10 @@ else if (_pack is null)
 }
 else if (_phase == Phase.Start)
 {
-    @* When the URL named the state, the header already says
-       "Where in the Oregon?!" — don't repeat a title below it.
-       (At the root URL the header says "Where in the State", so the
-       hero heading stays.) The per-mode instructions (lede + steps)
-       live in the card under the mode picker, not here. *@
-    @if (!(_stateFromUrl && _pack is not null))
-    {
-        <div class="hero">
-            <h1>Where in the State</h1>
-        </div>
-    }
+    @* The start screen is reached at /{state} and below, so the URL
+       always named the state and the header already says
+       "Where in the {StateName}?!". The per-mode instructions (lede +
+       steps) live in the card under the mode picker, not here. *@
 
     <div class="card">
         @* Game mode: three large buttons, each with a small map preview of
@@ -785,10 +777,10 @@ else if (_phase == Phase.Results)
 
     private void PlayOregon()
     {
-        // Full reload back to the start screen with the default state.
-        // BaseUri is the app root both locally (/) and on GitHub Pages
-        // (/where-in-the-state/), so this lands on "/" of the app.
-        Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
+        // Back to the Oregon start screen. The app root ("/") is the
+        // splash page now, so going there would add a step; the button
+        // says "Play Oregon", so go straight to /oregon/.
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri("oregon/").ToString(), forceLoad: true);
     }
 
     private void UseRandomSeed() => _seed = GameService.RandomSeed(_pack?.Abbreviation ?? "OR");

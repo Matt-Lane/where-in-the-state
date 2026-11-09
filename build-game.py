@@ -14,15 +14,18 @@ cities = json.load(open(os.path.join(BASE, "oregon-cities-with-coords.json")))
 outline = json.load(open(os.path.join(BASE, "data/oregon/outline.geojson")))
 landmarks = json.load(open(os.path.join(BASE, "data/oregon/landmarks.geojson")))
 counties = json.load(open(os.path.join(BASE, "data/oregon/counties.geojson")))
+usa_states = json.load(open(os.path.join(BASE, "data/usa-states.geojson")))
 assert len(cities) == 241, len(cities)
 assert len(outline["features"]) == 1
 assert len(landmarks["features"]) == 224, len(landmarks["features"])
 assert len(counties["features"]) == 36, len(counties["features"])
+assert len(usa_states["features"]) == 51, len(usa_states["features"])
 
 CITIES_JSON = json.dumps(cities, separators=(",", ":"))
 OUTLINE_JSON = json.dumps(outline, separators=(",", ":"))
 LANDMARKS_JSON = json.dumps(landmarks, separators=(",", ":"))
 COUNTIES_JSON = json.dumps(counties, separators=(",", ":"))
+USA_STATES_JSON = json.dumps(usa_states, separators=(",", ":"))
 
 PURE_JS = r"""
 /* ============ Projection — the single source of truth ============
@@ -258,6 +261,30 @@ HTML = r"""<!doctype html>
   button:disabled { opacity: .45; cursor: default; }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .btn-primary { background: var(--accent-btn); border-color: var(--accent-btn); color: #fff; }
+  /* ---------- Splash / welcome page ---------- */
+  .splash-hero { text-align: center; padding: 16px 0 8px; }
+  .splash-logo { width: 72px; height: 72px; }
+  .splash-logo .pin-fill { fill: var(--accent); }
+  .splash-logo .mark-fill { fill: #fff; }
+  .splash-hero h1 { font-size: 40px; margin: 8px 0 8px; }
+  .splash-tagline { font-size: 18px; color: var(--muted); max-width: 560px; margin: 0 auto 24px; }
+  .splash-map-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 16px 12px; margin-bottom: 18px; }
+  .splash-map { display: block; width: 100%; height: auto; }
+  .usa-state { fill-rule: evenodd; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; cursor: pointer; transition: fill 0.15s ease; }
+  .usa-state.usa-unavailable { fill: url(#usa-hatch); }
+  .usa-state.usa-unavailable:hover { stroke: var(--faint); }
+  .usa-state.usa-available { fill: #e3ede6; stroke: var(--accent); stroke-width: 2; }
+  .usa-state.usa-available:hover { fill: #cfe3d4; }
+  .usa-state.usa-selected { fill: var(--accent); stroke: #173f31; stroke-width: 2; }
+  .splash-hint { text-align: center; color: var(--muted); margin: 12px 0 8px; min-height: 1.5em; }
+  .splash-actions { display: flex; justify-content: center; padding-bottom: 8px; }
+  .splash-play { font-size: 17px; padding: 12px 32px; }
+  .splash-note { text-align: center; color: var(--faint); font-size: 14px; margin: 16px 0 0; }
+  @media (max-width: 700px) {
+    .splash-hero h1 { font-size: 30px; }
+    .splash-tagline { font-size: 17px; }
+    .splash-play { width: 100%; }
+  }
   .btn-primary:hover:not(:disabled) { background: #184636; }
   .btn-big { font-size: 17px; padding: 12px 26px; }
 
@@ -450,8 +477,32 @@ HTML = r"""<!doctype html>
     <h1 id="game-title"><svg class="wordmark-logo" viewBox="0 0 96 96" aria-hidden="true"><path class="pin-fill" d="M48 8 C32.5 8 20 20.5 20 34 C20 55 48 86 48 86 C48 86 76 55 76 34 C76 20.5 63.5 8 48 8 Z" /><text class="mark-fill" x="48" y="46" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="34">?!</text></svg><span id="game-title-text">Where in the State</span></h1>
   </header>
 
+  <!-- ================= SPLASH / WELCOME ================= -->
+  <section id="screen-splash" class="screen" aria-label="Welcome">
+    <div class="splash-hero">
+      <svg class="splash-logo" viewBox="0 0 96 96" aria-hidden="true"><path class="pin-fill" d="M48 8 C32.5 8 20 20.5 20 34 C20 55 48 86 48 86 C48 86 76 55 76 34 C76 20.5 63.5 8 48 8 Z" /><text class="mark-fill" x="48" y="46" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="34">?!</text></svg>
+      <h1>Where in the State</h1>
+      <p class="splash-tagline">How well do you know your state? Pin the city, name the county &mdash; 10 questions, one blank map.</p>
+    </div>
+    <div class="splash-map-card">
+      <svg class="splash-map" id="usa-map" role="group" aria-label="Map of the United States. Oregon is ready to play; the other states are coming soon.">
+        <defs>
+          <pattern id="usa-hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <rect width="8" height="8" fill="#efece0" />
+            <line x1="0" y1="0" x2="0" y2="8" stroke="#c9c4b4" stroke-width="1.5" />
+          </pattern>
+        </defs>
+      </svg>
+      <p class="splash-hint" id="splash-hint" aria-live="polite">Oregon is ready to play &mdash; click it on the map.</p>
+      <div class="splash-actions">
+        <button type="button" class="btn-primary splash-play" id="btn-play-oregon" disabled>Play Oregon</button>
+      </div>
+    </div>
+    <p class="splash-note">Oregon is the first state. More states are on the way &mdash; pick Oregon to start playing.</p>
+  </section>
+
   <!-- ================= START ================= -->
-  <section id="screen-start" class="screen" aria-label="Start a game">
+  <section id="screen-start" class="screen" aria-label="Start a game" hidden>
     <div class="card">
       <h2>Game mode</h2>
       <div class="mode-grid" role="group" aria-label="Game mode">
@@ -641,7 +692,7 @@ HTML = r"""<!doctype html>
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.19.
+    Version 0.20.
   </footer>
 </div>
 
@@ -649,6 +700,7 @@ HTML = r"""<!doctype html>
 <script type="application/json" id="data-outline">__OUTLINE__</script>
 <script type="application/json" id="data-landmarks">__LANDMARKS__</script>
 <script type="application/json" id="data-counties">__COUNTIES__</script>
+<script type="application/json" id="data-usa-states">__USA_STATES__</script>
 
 <script>
 (function () {
@@ -660,6 +712,7 @@ __PURE_JS__
   var outline = JSON.parse(document.getElementById("data-outline").textContent);
   var landmarks = JSON.parse(document.getElementById("data-landmarks").textContent);
   var counties = JSON.parse(document.getElementById("data-counties").textContent);
+  var usaStates = JSON.parse(document.getElementById("data-usa-states").textContent);
   var SVGNS = "http://www.w3.org/2000/svg";
   function fmt(n) { return Math.round(n * 10) / 10; }
   function coordsToPath(coords, close) {
@@ -723,23 +776,127 @@ __PURE_JS__
   });
 
   /* ============ Screens ============ */
+  var screenSplash = document.getElementById("screen-splash");
   var screenStart = document.getElementById("screen-start");
   var screenGame = document.getElementById("screen-game");
   var screenResults = document.getElementById("screen-results");
   function showScreen(which) {
+    screenSplash.hidden = which !== "splash";
     screenStart.hidden = which !== "start";
     screenGame.hidden = which !== "game";
     screenResults.hidden = which !== "results";
-    /* Once a game starts, the header is the in-game title — and it stays
-       that way on the results screen. The start screen shows the state
-       title too, because this file is the Oregon edition (the state is
-       known); the browser tab follows the same rule. In the Blazor app
-       the start title is state-specific only when the URL named the state. */
-    var title = "Where in the " + STATE_NAME + "?!";
+    /* The splash page is the product name; once a game starts, the
+       header is the in-game title — and it stays that way on the
+       results screen. The start screen shows the state title too,
+       because this file is the Oregon edition (the state is known);
+       the browser tab follows the same rule. In the Blazor app the
+       start title is state-specific only when the URL named the state. */
+    var title = which === "splash" ? "Where in the State" : "Where in the " + STATE_NAME + "?!";
     document.getElementById("game-title-text").textContent = title;
     document.title = title;
     window.scrollTo(0, 0);
   }
+
+  /* ============ Splash / welcome page ============
+     The USA map: one path per state, from the embedded usa-states
+     GeoJSON. Projection is equirectangular with a cos(37 deg)
+     correction (the USA's mid-latitude), the same idea as the game
+     map's cos(44 deg) correction; the bounds come from the data, so
+     the map always fits the viewBox. Alaska and Hawaii are already in
+     their inset positions in the data. Unavailable states get the
+     diagonal hatch fill; Oregon is soft green, and fills solid green
+     when selected. Clicking Oregon toggles the selection and enables
+     the Play Oregon button; clicking another state only shows the
+     coming-soon hint. */
+  var usaSvg = document.getElementById("usa-map");
+  var splashHint = document.getElementById("splash-hint");
+  var btnPlayOregon = document.getElementById("btn-play-oregon");
+  var oregonSelected = false;
+  function usaProject(lon, lat, b) {
+    var cos37 = Math.cos(37 * Math.PI / 180);
+    var scale = 1000 / ((b.lonMax - b.lonMin) * cos37);
+    return [(lon - b.lonMin) * cos37 * scale, (b.latMax - lat) * scale];
+  }
+  function usaStatePath(feature, b) {
+    var d = "";
+    function ringToPath(ring) {
+      var s = "";
+      for (var i = 0; i < ring.length; i++) {
+        var p = usaProject(ring[i][0], ring[i][1], b);
+        s += (i === 0 ? "M" : "L") + fmt(p[0]) + "," + fmt(p[1]);
+      }
+      return s + "Z";
+    }
+    var geom = feature.geometry;
+    if (!geom) return "";
+    if (geom.type === "Polygon") {
+      for (var i = 0; i < geom.coordinates.length; i++) d += ringToPath(geom.coordinates[i]);
+    } else if (geom.type === "MultiPolygon") {
+      for (var p = 0; p < geom.coordinates.length; p++)
+        for (var r = 0; r < geom.coordinates[p].length; r++) d += ringToPath(geom.coordinates[p][r]);
+    }
+    return d;
+  }
+  function buildUsaMap() {
+    if (!usaSvg || !usaStates || !usaStates.features) return;
+    /* Bounds from the data (display lon/lat, insets included). */
+    var b = { lonMin: Infinity, lonMax: -Infinity, latMin: Infinity, latMax: -Infinity };
+    usaStates.features.forEach(function (f) {
+      function walk(c) {
+        if (typeof c[0] === "number") {
+          if (c[0] < b.lonMin) b.lonMin = c[0];
+          if (c[0] > b.lonMax) b.lonMax = c[0];
+          if (c[1] < b.latMin) b.latMin = c[1];
+          if (c[1] > b.latMax) b.latMax = c[1];
+        } else {
+          for (var i = 0; i < c.length; i++) walk(c[i]);
+        }
+      }
+      if (f.geometry) walk(f.geometry.coordinates);
+    });
+    var cos37 = Math.cos(37 * Math.PI / 180);
+    var scale = 1000 / ((b.lonMax - b.lonMin) * cos37);
+    var height = (b.latMax - b.latMin) * scale;
+    usaSvg.setAttribute("viewBox", "0 0 1000 " + fmt(height));
+    usaStates.features.forEach(function (f) {
+      var name = f.properties.name;
+      var available = !!f.properties.available;
+      var path = document.createElementNS(SVGNS, "path");
+      path.setAttribute("d", usaStatePath(f, b));
+      path.setAttribute("class", "usa-state " + (available ? "usa-available" : "usa-unavailable"));
+      path.setAttribute("data-state", name);
+      var title = document.createElementNS(SVGNS, "title");
+      title.textContent = name + (available ? " — ready to play" : " — coming soon");
+      path.appendChild(title);
+      path.addEventListener("click", function () { onUsaStateClicked(f, path); });
+      usaSvg.appendChild(path);
+    });
+  }
+  function onUsaStateClicked(feature, path) {
+    var name = feature.properties.name;
+    if (!feature.properties.available) {
+      /* An unavailable state never becomes the selection — just a
+         quiet one-line hint under the map, no popup or new card. */
+      oregonSelected = false;
+      btnPlayOregon.disabled = true;
+      var sel = usaSvg.querySelector(".usa-selected");
+      if (sel) sel.classList.remove("usa-selected");
+      splashHint.textContent = name + " isn't ready yet — Oregon is the first state.";
+      return;
+    }
+    /* Oregon toggles: click again to deselect. */
+    oregonSelected = !oregonSelected;
+    path.classList.toggle("usa-selected", oregonSelected);
+    btnPlayOregon.disabled = !oregonSelected;
+    splashHint.textContent = oregonSelected
+      ? "Oregon selected — ready when you are!"
+      : "Oregon is ready to play — click it on the map.";
+  }
+  btnPlayOregon.addEventListener("click", function () {
+    if (!oregonSelected) return;
+    showScreen("start");
+  });
+  buildUsaMap();
 
   /* ============ Start screen ============ */
   var seedInput = document.getElementById("seed-input");
@@ -929,6 +1086,11 @@ __PURE_JS__
     setMode(urlGame.mode);
   }
   updateModeUI();
+
+  /* The first screen: a game URL (/oregon/<mode>/<seed>) goes straight
+     to the prefilled start screen, like the Blazor app; anything else
+     lands on the splash/welcome page. */
+  showScreen(urlGame.mode || urlGame.seed ? "start" : "splash");
 
   /* ============ Game state ============ */
   var QUESTION_COUNT = 10;
@@ -1823,6 +1985,7 @@ html = (HTML
         .replace("__OUTLINE__", OUTLINE_JSON)
         .replace("__LANDMARKS__", LANDMARKS_JSON)
         .replace("__COUNTIES__", COUNTIES_JSON)
+        .replace("__USA_STATES__", USA_STATES_JSON)
         .replace("__PURE_JS__", PURE_JS))
 
 with open(OUT, "w") as f:
