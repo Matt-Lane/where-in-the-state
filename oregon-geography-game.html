@@ -258,12 +258,6 @@
   <!-- ================= START ================= -->
   <section id="screen-start" class="screen" aria-label="Start a game">
     <div class="card">
-      <h2>State</h2>
-      <div><span class="state-badge">Oregon</span></div>
-      <p class="muted small">Oregon is the only state in v1. More states will be added as data packs — the game itself is built to work for any state.</p>
-    </div>
-
-    <div class="card">
       <h2>Game mode</h2>
       <div class="mode-grid" role="group" aria-label="Game mode">
         <button type="button" class="mode-button" data-mode="cities" aria-pressed="true">
@@ -304,15 +298,10 @@
         </button>
       </div>
       <div class="mode-instructions" id="mode-instructions"></div>
-    </div>
-
-    <div class="card">
-      <h2>Game</h2>
       <div class="mode-lines" id="game-lines"></div>
       <div class="btn-row">
         <button type="button" class="btn-primary btn-big" id="btn-start">Start game</button>
       </div>
-      <p class="muted small" id="start-note">Starting writes the seed into the page&rsquo;s address, so the link can be shared. Refreshing mid-game restarts that game from question 1 with the same seed.</p>
     </div>
 
     <div class="card">
@@ -320,10 +309,8 @@
       <label class="field-label" for="seed-input">Game seed</label>
       <div class="seed-row">
         <input type="text" id="seed-input" autocomplete="off" spellcheck="false" maxlength="20" />
-      </div>
-      <div class="btn-row">
-        <button type="button" id="btn-random-seed">Random seed</button>
         <button type="button" id="btn-daily-seed">Use today&rsquo;s daily seed</button>
+        <button type="button" id="btn-random-seed">Random seed</button>
       </div>
       <p class="muted small" style="margin-top:12px" id="seed-hint">Same seed = same 10 cities, in the same order, for anyone, any time.
         Share the seed (or the game link) to play the same game as a player.</p>

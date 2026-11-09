@@ -42,12 +42,6 @@ else if (_phase == Phase.Start)
     }
 
     <div class="card">
-        @* The state is display-only (it comes from the URL/pack), so it shows
-           as a badge, not a disabled text box — the same badge the
-           standalone version uses. *@
-        <p class="field-label">State</p>
-        <p><span class="state-badge">@_pack.Name</span></p>
-
         @* Game mode: three large buttons, each with a small map preview of
            how that mode plays. Clicking a button selects the mode (it does
            not start the game — "Start game" still does that). The selected
@@ -147,16 +141,15 @@ else if (_phase == Phase.Start)
             Start game
         </button>
 
-        <label>
-            Seed
-            <input type="text" class="seed-input" @bind="_seed" @bind:event="oninput" maxlength="20" />
-        </label>
-        <p class="hint">Same seed = same @(_mode == GameMode.Cities ? "cities" : "counties"), same order. Share it to play the same game as a player.</p>
-
-        <div class="button-row">
-            <button @onclick="UseRandomSeed">Random seed</button>
+        <div class="seed-row">
+            <label>
+                Seed
+                <input type="text" class="seed-input" @bind="_seed" @bind:event="oninput" maxlength="20" />
+            </label>
             <button @onclick="UseDailySeed">Use today's daily seed</button>
+            <button @onclick="UseRandomSeed">Random seed</button>
         </div>
+        <p class="hint">Same seed = same @(_mode == GameMode.Cities ? "cities" : "counties"), same order. Share it to play the same game as a player.</p>
 
         <fieldset>
             <legend>Landmarks (display only — they don't affect scoring)</legend>
