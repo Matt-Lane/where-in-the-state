@@ -1,0 +1,153 @@
+@page "/"
+@using OregonGeographyGame.Models
+@using OregonGeographyGame.Services
+@inject StatePackLoader PackLoader
+@inject NavigationManager Navigation
+@inject HeaderTitleService HeaderTitle
+
+<PageTitle>Where in the State</PageTitle>
+
+<div class="splash">
+    <div class="splash-hero">
+        <svg class="splash-logo" viewBox="0 0 96 96" aria-hidden="true"><path class="pin-fill" d="M48 8 C32.5 8 20 20.5 20 34 C20 55 48 86 48 86 C48 86 76 55 76 34 C76 20.5 63.5 8 48 8 Z" /><text class="mark-fill" x="48" y="46" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="34">?!</text></svg>
+        <h1>Where in the State</h1>
+        <p class="splash-tagline">How well do you know your state? Pin the city, name the county — 10 questions, one blank map.</p>
+    </div>
+
+    @if (_states is null)
+    {
+        <p>Loading the map…</p>
+    }
+    else
+    {
+        <div class="splash-map-card">
+            <svg class="splash-map" viewBox="@ViewBox" role="group" aria-label="Map of the United States. Oregon is ready to play; the other states are coming soon.">
+                <defs>
+                    @* Light grey diagonal hatching for the states that are
+                       not ready yet — subtle, clearly "not yet", and it
+                       reads as a pattern rather than a fill. *@
+                    <pattern id="usa-hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+                        <rect width="8" height="8" fill="#efece0" />
+                        <line x1="0" y1="0" x2="0" y2="8" stroke="#c9c4b4" stroke-width="1.5" />
+                    </pattern>
+                </defs>
+                @* Oregon renders last, so its border stroke is painted
+                   on top of the neighbouring states' fills. (The states
+                   arrive name-sorted, so Washington — drawn after
+                   Oregon — used to cover the outer half of Oregon's
+                   north-edge stroke with its hatch fill, which is why
+                   that edge looked lighter than the rest.) *@
+                @foreach (var state in _states.OrderBy(s => s.Available))
+                {
+                    var isOregon = state.Available;
+                    var isSelected = isOregon && _selectedOregon;
+                    <path d="@StatePath(state)"
+                          class="@(isSelected ? "usa-state usa-available usa-selected" : isOregon ? "usa-state usa-available" : "usa-state usa-unavailable")"
+                          @onclick="() => OnStateClicked(state)"
+                          @onclick:preventDefault="true">
+                        <title>@state.Name@(isOregon ? " — ready to play" : " — coming soon")</title>
+                    </path>
+                }
+            </svg>
+            <p class="splash-hint" aria-live="polite">@_hint</p>
+            <div class="splash-actions">
+                <button class="primary splash-play" disabled="@(!_selectedOregon)" @onclick="PlayOregon">Play Oregon</button>
+            </div>
+        </div>
+        <p class="splash-note">Oregon is the first state. More states are on the way — pick Oregon to start playing.</p>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<UsaState>? _states;
+    private bool _selectedOregon;
+    private string _hint = "Oregon is ready to play — click it on the map.";
+
+    // Projection for the splash map: equirectangular with a cos(37°)
+    // correction (the USA's mid-latitude), the same idea as the game
+    // map's cos(44°) correction. The bounds come from the loaded data
+    // (display lon/lat, Alaska and Hawaii already in their inset
+    // positions), so the map always fits the viewBox. A plain linear
+    // mapping would stretch the map east–west; the cos factor keeps the
+    // proportions honest.
+    private static readonly double Cos37 = Math.Cos(37 * Math.PI / 180.0);
+    private const double ViewBoxWidth = 1000.0;
+    private double _lonMin = -125.0;
+    private double _lonMax = -67.0;
+    private double _latMin = 24.5;
+    private double _latMax = 49.4;
+    private double Scale => ViewBoxWidth / ((_lonMax - _lonMin) * Cos37);
+    private double ViewBoxHeight => (_latMax - _latMin) * Scale;
+    private string ViewBox => $"0 0 {ViewBoxWidth:F0} {ViewBoxHeight:F1}";
+
+    private (double X, double Y) Project(double lon, double lat)
+        => ((lon - _lonMin) * Cos37 * Scale, (_latMax - lat) * Scale);
+
+    protected override async Task OnInitializedAsync()
+    {
+        HeaderTitle.SetTitle("Where in the State");
+        try
+        {
+            _states = await PackLoader.LoadUsaStatesAsync();
+        }
+        catch (Exception)
+        {
+            _states = [];
+        }
+
+        if (_states.Count > 0)
+        {
+            _lonMin = _states.SelectMany(s => s.Parts).SelectMany(p => p).Min(p => p.Lon);
+            _lonMax = _states.SelectMany(s => s.Parts).SelectMany(p => p).Max(p => p.Lon);
+            _latMin = _states.SelectMany(s => s.Parts).SelectMany(p => p).Min(p => p.Lat);
+            _latMax = _states.SelectMany(s => s.Parts).SelectMany(p => p).Max(p => p.Lat);
+        }
+    }
+
+    private string StatePath(UsaState state)
+    {
+        // One subpath per ring (outer rings and holes alike); the
+        // fill-rule="evenodd" on the path class renders holes correctly.
+        var parts = new List<string>();
+        foreach (var ring in state.Parts)
+        {
+            var d = new System.Text.StringBuilder();
+            for (var i = 0; i < ring.Count; i++)
+            {
+                var (x, y) = Project(ring[i].Lon, ring[i].Lat);
+                d.Append(i == 0 ? "M" : "L");
+                d.Append($"{x:F1},{y:F1} ");
+            }
+            d.Append('Z');
+            parts.Add(d.ToString());
+        }
+        return string.Join(" ", parts);
+    }
+
+    private void OnStateClicked(UsaState state)
+    {
+        if (!state.Available)
+        {
+            // An unavailable state never becomes the selection — just a
+            // quiet one-line hint under the map, no popup or new card.
+            _selectedOregon = false;
+            _hint = $"{state.Name} isn't ready yet — Oregon is the first state.";
+            return;
+        }
+
+        // Oregon toggles: click again (or pick nothing) to deselect.
+        _selectedOregon = !_selectedOregon;
+        _hint = _selectedOregon
+            ? "Oregon selected — ready when you are!"
+            : "Oregon is ready to play — click it on the map.";
+    }
+
+    private void PlayOregon()
+    {
+        if (!_selectedOregon)
+        {
+            return;
+        }
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri("oregon/").ToString());
+    }
+}

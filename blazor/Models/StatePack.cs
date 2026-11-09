@@ -48,6 +48,18 @@ public sealed record MapFeature(
 }
 
 /// <summary>
+/// One state on the splash-page USA map: its name, whether a state pack
+/// exists for it (only Oregon in v1), and its outline rings. The
+/// coordinates are the display lon/lat from <c>data/usa-states.geojson</c>
+/// — Alaska and Hawaii are already moved into the standard inset layout
+/// there, so a plain lon/lat projection puts them in the right place.
+/// </summary>
+public sealed record UsaState(
+    string Name,
+    bool Available,
+    IReadOnlyList<IReadOnlyList<(double Lon, double Lat)>> Parts);
+
+/// <summary>
 /// A state pack: everything the game needs to play one state.
 /// The game logic knows nothing about Oregon (or any other state) — it
 /// only knows how to load a <see cref="StatePack"/> and play from it.
