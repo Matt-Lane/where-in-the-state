@@ -1087,17 +1087,19 @@ __PURE_JS__
   }
   updateModeUI();
 
-  /* The first screen: a game URL (/oregon/<mode>/<seed>) goes straight
-     to the prefilled start screen, like the Blazor app; anything else
-     lands on the splash/welcome page. */
-  showScreen(urlGame.mode || urlGame.seed ? "start" : "splash");
-
   /* ============ Game state ============ */
   var QUESTION_COUNT = 10;
   /* The state name, used to build the in-game title ("Where in the Oregon?!").
      A single constant keeps the generic-derivation principle: a future
      parameterized build only has to change this one value. */
   var STATE_NAME = "Oregon";
+  /* The first screen: a game URL (/oregon/<mode>/<seed>) goes straight
+     to the prefilled start screen, like the Blazor app; anything else
+     lands on the splash/welcome page. This must run after STATE_NAME is
+     assigned, because showScreen builds the start-screen title from it
+     ("Where in the Oregon?!") — calling it earlier would show
+     "Where in the undefined?!". */
+  showScreen(urlGame.mode || urlGame.seed ? "start" : "splash");
   /* The shareable destination is always the live site, never this page's
      own address — in the test-page preview the origin is the preview host,
      which is not a shareable game link. */

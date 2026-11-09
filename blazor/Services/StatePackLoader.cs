@@ -35,6 +35,64 @@ public sealed class StatePackLoader
         return entries ?? [];
     }
 
+    /// <summary>Load the USA states for the splash page (<c>wwwroot/data/usa-states.geojson</c>).</summary>
+    public async Task<IReadOnlyList<UsaState>> LoadUsaStatesAsync()
+    {
+        using var doc = JsonDocument.Parse(await _http.GetStringAsync("data/usa-states.geojson"));
+        var root = doc.RootElement;
+
+        var states = new List<UsaState>();
+        if (!root.TryGetProperty("features", out var featureArray))
+        {
+            return states;
+        }
+
+        foreach (var feature in featureArray.EnumerateArray())
+        {
+            string? name = null;
+            var available = false;
+            if (feature.TryGetProperty("properties", out var props))
+            {
+                if (props.TryGetProperty("name", out var nameEl)
+                    && nameEl.ValueKind == JsonValueKind.String)
+                {
+                    name = nameEl.GetString();
+                }
+
+                if (props.TryGetProperty("available", out var availEl)
+                    && availEl.ValueKind == JsonValueKind.True)
+                {
+                    available = true;
+                }
+            }
+
+            if (name is null
+                || !feature.TryGetProperty("geometry", out var geometry)
+                || geometry.ValueKind == JsonValueKind.Null
+                || !geometry.TryGetProperty("type", out var typeEl)
+                || !geometry.TryGetProperty("coordinates", out var coords))
+            {
+                continue;
+            }
+
+            var parts = typeEl.GetString() switch
+            {
+                "Polygon" => ReadRings(coords),
+                "MultiPolygon" => coords.EnumerateArray().SelectMany(ReadRings).ToList(),
+                _ => new List<IReadOnlyList<(double Lon, double Lat)>>()
+            };
+
+            if (parts.Count == 0)
+            {
+                continue;
+            }
+
+            states.Add(new UsaState(name, available, parts));
+        }
+
+        return states;
+    }
+
     /// <summary>Load one state pack by id (e.g. "oregon").</summary>
     public async Task<StatePack> LoadAsync(string stateId)
     {
