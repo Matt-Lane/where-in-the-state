@@ -1,7 +1,7 @@
 @page "/"
-@page "/game"
 @page "/{StateId}"
-@page "/{StateId}/{SeedParam}"
+@page "/{StateId}/{ModeParam}"
+@page "/{StateId}/{ModeParam}/{SeedParam}"
 @using OregonGeographyGame.Models
 @using OregonGeographyGame.Services
 @inject StatePackLoader PackLoader
@@ -541,15 +541,18 @@ else if (_phase == Phase.Results)
     /// <summary>Which game is being played: pin a city, place a county, name a county, or the City County mix.</summary>
     private enum GameMode { CityCounty, Cities, Counties, NameTheCounty }
 
-    // Route parameters for the /{state}/{seed} URL form, e.g. /oregon/OR-2026-11-06.
-    // The older ?state=...&seed=... query form still works (see OnInitializedAsync).
+    // Route parameters for the /{state}/{mode}/{seed} URL form, e.g.
+    // /oregon/cities/OR-2026-11-06. The mode segment is one of the mode
+    // slugs (cities, counties, name-the-county, city-county); /{state}/{mode}
+    // (no seed) preselects the mode on the start screen.
     [Parameter] public string? StateId { get; set; }
+    [Parameter] public string? ModeParam { get; set; }
     [Parameter] public string? SeedParam { get; set; }
 
     private StatePack? _pack;
     private bool _loadFailed;
     private string _stateId = "oregon";
-    // True when the state came from the URL (/{state}/... or ?state=...),
+    // True when the state came from the URL (/{state}/...),
     // as opposed to the default Oregon when no state is in the URL. The
     // start screen shows the state-specific title ("Where in the Oregon?!")
     // in the header only when the URL named the state.
@@ -611,12 +614,26 @@ else if (_phase == Phase.Results)
     // "Name the county" mode: the county the player has selected this round.
     private MapFeature? _selectedCounty;
 
-    private string ModeQueryParam => _mode switch
+    // The mode segment of the shareable URL: "cities", "counties",
+    // "name-the-county" or "city-county".
+    private string ModeSlug => _mode switch
     {
-        GameMode.CityCounty => "?mode=city-county",
-        GameMode.Counties => "?mode=counties",
-        GameMode.NameTheCounty => "?mode=name-the-county",
-        _ => ""
+        GameMode.CityCounty => "city-county",
+        GameMode.Counties => "counties",
+        GameMode.NameTheCounty => "name-the-county",
+        _ => "cities"
+    };
+
+    // Map a mode slug from the URL to a GameMode, or null when the slug is
+    // not a mode at all. An unrecognized mode segment shows the not-found
+    // screen, like an unknown state.
+    private static GameMode? ModeFromSlug(string? slug) => slug?.ToLowerInvariant() switch
+    {
+        "cities" => GameMode.Cities,
+        "counties" => GameMode.Counties,
+        "name-the-county" => GameMode.NameTheCounty,
+        "city-county" => GameMode.CityCounty,
+        _ => null
     };
 
     private string ModeSummaryLabel => _mode switch
@@ -648,8 +665,7 @@ else if (_phase == Phase.Results)
 
     private string GameLink =>
         Navigation.ToAbsoluteUri(
-            $"{Uri.EscapeDataString(_stateId)}/{Uri.EscapeDataString(_seed)}" +
-            ModeQueryParam).ToString();
+            $"{Uri.EscapeDataString(_stateId)}/{ModeSlug}/{Uri.EscapeDataString(_seed)}").ToString();
 
     private string SummaryText =>
         $"I scored {_totalScore}/{MaxScore} on Where in the {_pack?.Name ?? "Oregon"}?!" +
@@ -679,20 +695,15 @@ else if (_phase == Phase.Results)
 
     protected override async Task OnInitializedAsync()
     {
-        // Resolve the state/seed from the URL. The path form wins
-        // (/{state}/{seed}, e.g. /oregon/OR-2026-11-06); the older
-        // ?state=...&seed=... query form still works for shared links
-        // made before the path form existed. No state/seed in the URL
-        // means Oregon with today's daily seed.
-        var uri = new Uri(Navigation.Uri);
-        var query = ParseQuery(uri.Query);
-
-        var stateFromUrl = !string.IsNullOrWhiteSpace(StateId)
-            ? StateId
-            : query.TryGetValue("state", out var state) ? state : null;
-        if (!string.IsNullOrWhiteSpace(stateFromUrl))
+        // Resolve the state, mode and seed from the URL path:
+        // /{state}/{mode}/{seed}, e.g. /oregon/cities/OR-2026-11-06.
+        // /{state}/{mode} (no seed) preselects the mode on the start
+        // screen; /{state} or / shows the start screen with the default
+        // mode (Cities). No state/seed in the URL means Oregon with
+        // today's daily seed. There is no query-string form any more.
+        if (!string.IsNullOrWhiteSpace(StateId))
         {
-            _stateId = stateFromUrl.Trim().ToLowerInvariant();
+            _stateId = StateId.Trim().ToLowerInvariant();
             _stateFromUrl = true;
         }
 
@@ -704,6 +715,19 @@ else if (_phase == Phase.Results)
         {
             _loadFailed = true;
             return;
+        }
+
+        // An unrecognized mode segment is not a game URL at all: show the
+        // not-found screen, like an unknown state.
+        if (!string.IsNullOrWhiteSpace(ModeParam))
+        {
+            var modeFromUrl = ModeFromSlug(ModeParam);
+            if (modeFromUrl is null)
+            {
+                _loadFailed = true;
+                return;
+            }
+            _mode = modeFromUrl.Value;
         }
 
         // If the state pack can't be loaded (unknown state, missing or
@@ -729,32 +753,17 @@ else if (_phase == Phase.Results)
             return;
         }
 
-        var seedFromUrl = !string.IsNullOrWhiteSpace(SeedParam)
-            ? SeedParam
-            : query.TryGetValue("seed", out var seed) ? seed : null;
-        _seed = !string.IsNullOrWhiteSpace(seedFromUrl)
-            ? seedFromUrl
-            : GameService.DailySeed(_pack.Abbreviation);
-
-        // The mode comes from ?mode=city-county, ?mode=counties or
-        // ?mode=name-the-county on a shared link; anything else (including
-        // no mode) is the city game. A pack with no counties can't play
-        // any county mode, so the mode falls back to Cities.
-        if (query.TryGetValue("mode", out var mode) && _pack.Counties.Count > 0)
+        // A pack with no counties can't play any county mode, so the mode
+        // falls back to Cities.
+        if (_pack.Counties.Count == 0 &&
+            _mode is GameMode.CityCounty or GameMode.Counties or GameMode.NameTheCounty)
         {
-            if (mode.Equals("city-county", StringComparison.OrdinalIgnoreCase))
-            {
-                _mode = GameMode.CityCounty;
-            }
-            else if (mode.Equals("counties", StringComparison.OrdinalIgnoreCase))
-            {
-                _mode = GameMode.Counties;
-            }
-            else if (mode.Equals("name-the-county", StringComparison.OrdinalIgnoreCase))
-            {
-                _mode = GameMode.NameTheCounty;
-            }
+            _mode = GameMode.Cities;
         }
+
+        _seed = !string.IsNullOrWhiteSpace(SeedParam)
+            ? SeedParam
+            : GameService.DailySeed(_pack.Abbreviation);
 
         // Landmark defaults come from the pack manifest.
         foreach (var layer in _pack.Layers)
@@ -857,11 +866,10 @@ else if (_phase == Phase.Results)
         _copyMessage = null;
         SetPhase(Phase.Round);
 
-        // Write the seed into the URL so the game is shareable / refresh-safe.
+        // Write the game into the URL so it is shareable / refresh-safe.
         // ToAbsoluteUri resolves the relative path against the app's base
         // address, so this works both locally (/) and on GitHub Pages
-        // (/where-in-the-state/). County games add a mode query so a
-        // shared link replays the same mode.
+        // (/where-in-the-state/). The URL is /{state}/{mode}/{seed}.
         Navigation.NavigateTo(Navigation.ToAbsoluteUri(GameLink).ToString());
     }
 
@@ -1192,33 +1200,4 @@ else if (_phase == Phase.Results)
         }
     }
 
-    private static Dictionary<string, string> ParseQuery(string query)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (string.IsNullOrEmpty(query))
-        {
-            return result;
-        }
-
-        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var parts = pair.Split('=', 2);
-            if (parts.Length == 2)
-            {
-                // A malformed % escape (e.g. ?seed=%ZZ) makes
-                // UnescapeDataString throw; skip that pair instead of
-                // crashing page initialization.
-                try
-                {
-                    result[Uri.UnescapeDataString(parts[0])] = Uri.UnescapeDataString(parts[1]);
-                }
-                catch (UriFormatException)
-                {
-                    // Ignore this pair; the defaults apply.
-                }
-            }
-        }
-
-        return result;
-    }
 }

@@ -22,7 +22,7 @@ far off you were, and awards points.
   55 miles = 50, and 105+ miles = 0. Maximum 1,000 per game.
 - **Seeds:** the city list is shuffled deterministically from a seed, so the
   same seed gives the same 10 cities in the same order for anyone, at any
-  time. Share a seed (or a `/oregon/<seed>` link) to play the same
+  time. Share a seed (or a `/oregon/cities/<seed>` link) to play the same
   game as another player and compare scores. There's also a daily seed.
 
 ## Playable web version

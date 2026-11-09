@@ -446,7 +446,7 @@
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.18.
+    Version 0.19.
   </footer>
 </div>
 
@@ -715,11 +715,37 @@ function randomSeed() {
 
   /* ============ Start screen ============ */
   var seedInput = document.getElementById("seed-input");
-  function paramsFromUrl() {
-    try { return new URLSearchParams(window.location.search); } catch (e) { return new URLSearchParams(""); }
+  /* Parse the game URL from the path: /{state}/{mode}/{seed}, e.g.
+     /oregon/cities/OR-2026-11-06. This file is served from any path in
+     the test-page preview, so match the pattern at the END of the path:
+     the last segments must be a known state id, a mode slug, and a seed.
+     /{state}/{mode} (no seed) preselects the mode. Anything else shows
+     the start screen with the defaults rather than failing. */
+  function parseGameUrl() {
+    var segs;
+    try {
+      segs = window.location.pathname.split("/").filter(function (s) { return s.length > 0; });
+    } catch (e) { return {}; }
+    function decode(s) {
+      try { return decodeURIComponent(s); } catch (e) { return s; }
+    }
+    /* The mode slugs, kept local: this runs before the MODES list below
+       is initialized, so it cannot read that variable. */
+    var validModes = ["city-county", "cities", "counties", "name-the-county"];
+    var n = segs.length;
+    if (n >= 3 && decode(segs[n - 3]).toLowerCase() === "oregon"
+        && validModes.indexOf(decode(segs[n - 2]).toLowerCase()) >= 0
+        && decode(segs[n - 1]).length > 0) {
+      return { state: "oregon", mode: decode(segs[n - 2]).toLowerCase(), seed: decode(segs[n - 1]) };
+    }
+    if (n >= 2 && decode(segs[n - 2]).toLowerCase() === "oregon"
+        && validModes.indexOf(decode(segs[n - 1]).toLowerCase()) >= 0) {
+      return { state: "oregon", mode: decode(segs[n - 1]).toLowerCase() };
+    }
+    return {};
   }
-  var urlParams = paramsFromUrl();
-  var urlSeed = urlParams.get("seed");
+  var urlGame = parseGameUrl();
+  var urlSeed = urlGame.seed;
   seedInput.value = (urlSeed && urlSeed.trim()) ? urlSeed.trim().toUpperCase() : dailySeed();
   /* Force seeds to upper case as the player types, so the box always
      shows the canonical form. The cursor is kept where it was. */
@@ -743,8 +769,8 @@ function randomSeed() {
   /* ============ Game mode (City County / Cities / Counties) ============
      The picker on the start screen; the lede, seed hint, game line and
      how-it-works steps all change with the mode, like the Blazor start
-     screen. A shared link carries ?mode=city-county (or counties, or
-     name-the-county) for a non-city game. */
+     screen. A shared link carries the mode as a path segment:
+     /oregon/city-county/<seed> (or counties, or name-the-county). */
   var MODE_COPY = {
     "city-county": {
       lede: "A mix of both: 7 city rounds and 3 county rounds, shuffled together. City rounds: drop a pin where you think the city is. County rounds: click the county on the map. 100 points per question — full points for a pin within 5 miles, 100 for naming the right county, 50 for a county that touches it. 10 questions per game.",
@@ -869,12 +895,10 @@ function randomSeed() {
       btn.disabled = true;
     });
   }
-  var urlMode = urlParams.get("mode");
-  if (urlMode) {
-    var modeValue = urlMode.toLowerCase();
-    if (modeValue === "city-county" || modeValue === "counties" || modeValue === "name-the-county") {
-      setMode(modeValue);
-    }
+  /* The mode from the game URL (/oregon/<mode>/...) preselects the mode
+     on the start screen; anything else leaves the default (Cities). */
+  if (urlGame.mode) {
+    setMode(urlGame.mode);
   }
   updateModeUI();
 
@@ -888,13 +912,8 @@ function randomSeed() {
      own address — in the test-page preview the origin is the preview host,
      which is not a shareable game link. */
   var LIVE_SITE_BASE = "https://matt-lane.github.io/where-in-the-state/";
-  function modeQueryParam(mode) {
-    return mode === "city-county" ? "?mode=city-county"
-      : mode === "counties" ? "?mode=counties"
-      : mode === "name-the-county" ? "?mode=name-the-county" : "";
-  }
   function gameLink() {
-    return LIVE_SITE_BASE + "oregon/" + encodeURIComponent(game.seed) + modeQueryParam(game.mode);
+    return LIVE_SITE_BASE + "oregon/" + game.mode + "/" + encodeURIComponent(game.seed);
   }
   var game = null; /* { seed, mode, cities, counties, rounds (city-county only), roundIndex, results, total } */
   var guess = null; /* { lat, lon, x, y } */
@@ -1502,10 +1521,9 @@ function randomSeed() {
       game = { seed: seed, mode: "cities", cities: pickedCities, counties: [], roundIndex: 0, results: [], total: 0 };
     }
     try {
-      /* County games add a mode query so a shared link (and a refresh)
-         replays the same mode. */
-      history.replaceState(null, "", "?state=oregon&seed=" + encodeURIComponent(seed) +
-        (mode === "cities" ? "" : "&mode=" + mode));
+      /* The game URL is /{state}/{mode}/{seed}, so a shared link (and a
+         refresh) replays the same mode and seed. */
+      history.replaceState(null, "", "/oregon/" + mode + "/" + encodeURIComponent(seed));
     } catch (e) {}
     showScreen("game");
     startRound();
