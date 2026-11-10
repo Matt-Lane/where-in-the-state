@@ -479,7 +479,13 @@ HTML = r"""<!doctype html>
      pre-line keeps the line break between the score line and the link;
      the long URL wraps instead of overflowing the box. */
   .summary-box { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13.5px; width: 100%; padding: 12px 14px; min-height: 48px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); white-space: pre-line; overflow-wrap: break-word; }
-  .copied { color: var(--truth); font-weight: 600; font-size: 13.5px; }
+  /* The Copy button sits on the same row as the summary box. */
+  .summary-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .summary-row .summary-box { flex: 1 1 auto; min-width: 0; width: auto; }
+  .summary-row button { flex: 0 0 auto; }
+  /* Always rendered: visibility toggles, so the "Copied!" note never
+     moves anything on the screen. The min-height reserves one line. */
+  .copied { color: var(--truth); font-weight: 600; font-size: 13.5px; min-height: 1.25em; margin: 0.25rem 0 0; }
   footer { margin-top: 22px; color: var(--faint); font-size: 12.5px; line-height: 1.6; max-width: 900px; }
   footer code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
   @media (max-width: 700px) {
@@ -699,14 +705,15 @@ HTML = r"""<!doctype html>
     <div class="card">
       <h2>Share this game</h2>
       <p class="muted small" id="share-note">Anyone opening this link with the same seed gets the same 10 cities in the same order.</p>
-      <div class="btn-row">
-        <button type="button" id="btn-copy-link">Copy game link</button>
-        <button type="button" class="btn-primary" id="btn-again">Play again (new seed)</button>
-        <span class="copied" id="copy-note" hidden>Copied!</span>
-      </div>
-      <div class="summary-box" id="summary-text" style="margin-top:16px"></div>
-      <div class="btn-row">
+      <div class="summary-row">
+        <div class="summary-box" id="summary-text"></div>
         <button type="button" id="btn-copy-summary">Copy</button>
+      </div>
+      <!-- Always rendered: visibility toggles, so showing "Copied!" never
+           moves anything on the screen. -->
+      <p class="copied" id="copy-note" style="visibility:hidden">Copied!</p>
+      <div class="btn-row">
+        <button type="button" class="btn-primary" id="btn-again">Play again (new seed)</button>
       </div>
     </div>
 
@@ -732,7 +739,7 @@ HTML = r"""<!doctype html>
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.24.
+    Version 0.25.
   </footer>
 </div>
 
@@ -2069,7 +2076,9 @@ __PURE_JS__
   }
 
   function copyText(text, noteEl) {
-    function done() { if (noteEl) { noteEl.hidden = false; setTimeout(function () { noteEl.hidden = true; }, 2000); } }
+    // The note is always rendered with a reserved line; only its
+    // visibility toggles, so showing "Copied!" never moves anything.
+    function done() { if (noteEl) { noteEl.style.visibility = "visible"; setTimeout(function () { noteEl.style.visibility = "hidden"; }, 2000); } }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
     } else { fallbackCopy(text); done(); }
@@ -2081,9 +2090,6 @@ __PURE_JS__
     try { document.execCommand("copy"); } catch (e) {}
     document.body.removeChild(ta);
   }
-  document.getElementById("btn-copy-link").addEventListener("click", function () {
-    copyText(gameLink(), document.getElementById("copy-note"));
-  });
   document.getElementById("btn-copy-summary").addEventListener("click", function () {
     copyText(document.getElementById("summary-text").textContent, document.getElementById("copy-note"));
   });
