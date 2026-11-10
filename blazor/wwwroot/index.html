@@ -9,6 +9,26 @@
     <title>Where in the State — Oregon</title>
     <base href="/" />
     <link rel="stylesheet" href="css/app.css" />
+    <!-- PostHog analytics (see GAME-SPEC §13). The project API key below
+         is a public client key, designed to be embedded in frontend code;
+         this snippet is the single place the key and host are defined
+         for the Blazor app. capture_pageview and autocapture are off, so
+         only the four explicit game events (game_started,
+         round_completed, game_completed, game_abandoned) are ever sent.
+         The snippet defines window.posthog as a queuing stub, so capture
+         calls made before array.js loads are queued, not dropped — and
+         if an ad blocker stops the library loading entirely, the calls
+         just queue forever, harmlessly. -->
+    <script>
+        !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagResult isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+
+        posthog.init('phc_m9r8eSEfJH6ZaEby76WZGTgafxtKYdEg6xFQbpsUNw3i', {
+            api_host: 'https://us.i.posthog.com',
+            defaults: '2026-08-30',
+            capture_pageview: false,
+            autocapture: false
+        })
+    </script>
 </head>
 
 <body>
@@ -39,8 +59,44 @@
             svgRect: function (el) {
                 var r = el.getBoundingClientRect();
                 return [r.left, r.top, r.width, r.height];
+            },
+            // Analytics (PostHog) — see GAME-SPEC §13. captureEvent is the
+            // only way the game talks to PostHog. It is fully guarded: if
+            // an ad blocker stops the library loading, or the network is
+            // down, the call is a no-op and the game plays exactly the
+            // same. It never throws.
+            captureEvent: function (name, props) {
+                try {
+                    if (window.posthog && typeof window.posthog.capture === "function") {
+                        window.posthog.capture(name, props || {});
+                    }
+                } catch (e) { /* Analytics must never break the game. */ }
+            },
+            // The in-progress game's context, for the game_abandoned event:
+            // the game page sets it when a game starts (and updates it
+            // after each scored round) and clears it when the results
+            // screen is reached. If the player leaves the page (tab close,
+            // refresh, navigating to another site) while it is set, the
+            // pagehide handler below reports the game as abandoned.
+            // In-app navigation inside the Blazor SPA does not unload the
+            // page, so it is not captured — best effort only.
+            _gameContext: null,
+            setGameContext: function (ctx) {
+                try { window.whereInTheState._gameContext = ctx || null; } catch (e) {}
+            },
+            clearGameContext: function () {
+                try { window.whereInTheState._gameContext = null; } catch (e) {}
             }
         };
+        // Best-effort game_abandoned: only when a game is in progress.
+        window.addEventListener("pagehide", function () {
+            try {
+                var ctx = window.whereInTheState._gameContext;
+                if (ctx) {
+                    window.whereInTheState.captureEvent("game_abandoned", ctx);
+                }
+            } catch (e) { /* Analytics must never break the game. */ }
+        });
     </script>
     <script src="_framework/blazor.webassembly.js"></script>
 </body>

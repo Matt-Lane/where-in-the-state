@@ -421,6 +421,28 @@ Whichever option is chosen, the same conversion is needed:
 
 ---
 
+## 13. Analytics — PostHog (added 2026-11-09)
+
+Anonymous gameplay stats only, so Matt can see how the game is used (games played, modes, scores) without knowing who played. No accounts, no login — the player is anonymous by default.
+
+- **Service:** PostHog Cloud (US), free tier (1M events/month). Project API key `phc_m9r8eSEfJH6ZaEby76WZGTgafxtKYdEg6xFQbpsUNw3i`, host `https://us.i.posthog.com`.
+- **Where configured (one place per codebase):** the key and host live in the PostHog JS snippet in `blazor/wwwroot/index.html` (Blazor) and as the `POSTHOG_KEY` / `POSTHOG_HOST` constants in `build-game.py`, substituted into the snippet at build time (standalone JS). The C# / JS game code never touches the key — it only calls a guarded capture helper. The key is a public client key, designed to be embedded in frontend code.
+- **Library loading:** the standard PostHog JS snippet in `<head>`. It defines `window.posthog` as a queuing stub, so `capture` calls made before `array.js` loads are queued, not dropped. `capture_pageview` and `autocapture` are off, so only the four explicit game events below are ever sent — no automatic pageviews, no autocaptured clicks.
+- **Events (all anonymous):**
+
+  | Event | When | Properties |
+  |---|---|---|
+  | `game_started` | A game starts (Start game / Play again / Replay) | `state`, `mode`, `seed`, `questions` (10) |
+  | `round_completed` | A round is revealed/scored (confirmed or passed) | `state`, `mode`, `seed`, `round` (1–10), `question_type` (`"city"` \| `"county"`), `question` (city or county name asked), `points`; city rounds add `distance_miles` (1 decimal; omitted on a pass); name-the-county / mixed county rounds add `correct`, `adjacent`; drag-county rounds add `overlap_fraction` (3 decimals; omitted on a pass) instead of `correct`/`adjacent` |
+  | `game_completed` | The results screen is reached | `state`, `mode`, `seed`, `total_score`, `max_score` (1000), `rounds` (10) |
+  | `game_abandoned` | The player leaves the page mid-game (tab close, refresh, navigating to another site) | `state`, `mode`, `seed`, `rounds_completed`, `score_so_far` |
+
+  `mode` is the URL slug: `"cities"`, `"counties"`, `"name-the-county"`, `"city-county"`. `state` is the state id (e.g. `"oregon"`).
+- **No PII.** The events above contain no personal data: no names, emails, IP addresses, user-agent strings, device fingerprints, or any identifier that could pick out a player. The seed and the city/county names are game data, not personal data. No `identify` call is made — players stay on PostHog's anonymous distinct id. No visible UI is added for this (no cookie banner, no notice).
+- **No timing.** The game does not track per-round or total time, so `time_seconds` / `duration_seconds` are not reported. If timing is ever added, it should be reported the same way (seconds, as a number).
+- **Never breaks the game.** Every tracking call is guarded: the capture helper checks that the PostHog library loaded (`window.posthog` exists and `capture` is a function) and wraps the call in try/catch, and the Blazor side additionally wraps the JS-interop call in try/catch. Ad blockers commonly block PostHog, and the endpoint may be unreachable — in all of those cases the calls are no-ops and the game plays identically, with no error, freeze, or visible change. Tracking is fire-and-forget; it never blocks gameplay.
+- **`game_abandoned` is best-effort.** It fires from a `pagehide` listener when the page is left while a game is in progress (Blazor: a context set at game start, updated after each scored round, cleared at results; standalone JS: the in-progress `game`/`phase` state). A `pagehide` capture may not always reach the server before the page goes away. In-app navigation inside the Blazor SPA does not unload the page, so leaving a game that way is not captured.
+
 ## Appendix — Decisions already locked (2026-11-06)
 
 - Web-based, C# with Blazor (WebAssembly preferred).

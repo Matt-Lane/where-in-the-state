@@ -606,6 +606,128 @@ else if (_phase == Phase.Results)
     // "Name the county" mode: the county the player has selected this round.
     private MapFeature? _selectedCounty;
 
+    // ---- Analytics (PostHog) — see GAME-SPEC §13. ----
+    // Every tracking call is fire-and-forget and fully guarded: the JS
+    // helper checks that the PostHog library loaded, and any failure here
+    // (ad blocker, missing library, network down) is swallowed, so the
+    // game plays identically with tracking blocked. Nothing here can
+    // throw into the game.
+    private async Task TrackEventAsync(string eventName, Dictionary<string, object?> props)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("whereInTheState.captureEvent", eventName, props);
+        }
+        catch
+        {
+            // Analytics must never break the game.
+        }
+    }
+
+    // Rounds completed so far, for the game_abandoned context: whichever
+    // results list the current mode fills.
+    private int CompletedRounds => _mode switch
+    {
+        GameMode.CityCounty => _mixedResults.Count,
+        GameMode.Counties => _countyResults.Count,
+        GameMode.NameTheCounty => _nameResults.Count,
+        _ => _results.Count
+    };
+
+    // The in-progress game's context for the game_abandoned event (fired
+    // by the pagehide handler in index.html if the player leaves
+    // mid-game). Set when a game starts, updated after every scored
+    // round, cleared when the results screen is reached.
+    private async Task SetGameContextAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("whereInTheState.setGameContext", new Dictionary<string, object?>
+            {
+                ["state"] = _stateId,
+                ["mode"] = ModeSlug,
+                ["seed"] = _seed,
+                ["rounds_completed"] = CompletedRounds,
+                ["score_so_far"] = _totalScore
+            });
+        }
+        catch
+        {
+            // Analytics must never break the game.
+        }
+    }
+
+    private async Task ClearGameContextAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("whereInTheState.clearGameContext");
+        }
+        catch
+        {
+            // Analytics must never break the game.
+        }
+    }
+
+    // Properties every game event carries.
+    private Dictionary<string, object?> BaseProps() => new()
+    {
+        ["state"] = _stateId,
+        ["mode"] = ModeSlug,
+        ["seed"] = _seed
+    };
+
+    // A city round was revealed (confirmed or passed). distanceMiles is
+    // null for a pass, so the property is omitted, not sent as null.
+    // Also refreshes the game_abandoned context (call after the result
+    // is recorded, so the round count and score are current).
+    private Task TrackCityRoundAsync(City city, double? distanceMiles, int points)
+    {
+        var props = BaseProps();
+        props["round"] = _roundIndex + 1;
+        props["question_type"] = "city";
+        props["question"] = city.Name;
+        if (distanceMiles is not null)
+        {
+            props["distance_miles"] = Math.Round(distanceMiles.Value, 1);
+        }
+        props["points"] = points;
+        _ = SetGameContextAsync();
+        return TrackEventAsync("round_completed", props);
+    }
+
+    // A "Name the county" / City County county round was revealed.
+    private Task TrackCountyPickRoundAsync(string countyName, bool correct, bool adjacent, int points)
+    {
+        var props = BaseProps();
+        props["round"] = _roundIndex + 1;
+        props["question_type"] = "county";
+        props["question"] = countyName;
+        props["correct"] = correct;
+        props["adjacent"] = adjacent;
+        props["points"] = points;
+        _ = SetGameContextAsync();
+        return TrackEventAsync("round_completed", props);
+    }
+
+    // A Counties drag round was revealed. Drag scoring is by overlap, so
+    // there is no correct/adjacent — the overlap fraction is the metric.
+    // overlapFraction is null for a pass, so the property is omitted.
+    private Task TrackCountyDragRoundAsync(string countyName, double? overlapFraction, int points)
+    {
+        var props = BaseProps();
+        props["round"] = _roundIndex + 1;
+        props["question_type"] = "county";
+        props["question"] = countyName;
+        if (overlapFraction is not null)
+        {
+            props["overlap_fraction"] = Math.Round(overlapFraction.Value, 3);
+        }
+        props["points"] = points;
+        _ = SetGameContextAsync();
+        return TrackEventAsync("round_completed", props);
+    }
+
     // The mode segment of the shareable URL: "cities", "counties",
     // "name-the-county" or "city-county".
     private string ModeSlug => _mode switch
@@ -683,6 +805,19 @@ else if (_phase == Phase.Results)
     {
         _phase = phase;
         HeaderTitle.SetTitle(TitleForPhase(phase));
+        if (phase == Phase.Results)
+        {
+            // The game is over: report it, and clear the abandonment
+            // context so leaving the results screen is not an abandonment.
+            // (The game has no per-round or total timing, so no duration
+            // is reported — see GAME-SPEC §13.)
+            var props = BaseProps();
+            props["total_score"] = _totalScore;
+            props["max_score"] = MaxScore;
+            props["rounds"] = 10;
+            _ = TrackEventAsync("game_completed", props);
+            _ = ClearGameContextAsync();
+        }
     }
 
     protected override async Task OnInitializedAsync()
@@ -858,6 +993,14 @@ else if (_phase == Phase.Results)
         _copyMessage = null;
         SetPhase(Phase.Round);
 
+        // Report the game start (and set the abandonment context) before
+        // the URL is rewritten — the navigation is in-app, so the page
+        // is not unloaded and the interop calls still run.
+        var startedProps = BaseProps();
+        startedProps["questions"] = 10;
+        _ = TrackEventAsync("game_started", startedProps);
+        _ = SetGameContextAsync();
+
         // Write the game into the URL so it is shareable / refresh-safe.
         // ToAbsoluteUri resolves the relative path against the app's base
         // address, so this works both locally (/) and on GitHub Pages
@@ -903,6 +1046,7 @@ else if (_phase == Phase.Results)
         int points = DistanceService.ScoreForDistance(distance);
         _results.Add(new RoundResult(city, _guessLat, _guessLon, distance, points));
         _totalScore += points;
+        _ = TrackCityRoundAsync(city, distance, points);
         SetPhase(Phase.Reveal);
     }
 
@@ -929,6 +1073,7 @@ else if (_phase == Phase.Results)
             int points = correct ? 100 : adjacent ? 50 : 0;
             _mixedResults.Add(new MixedRoundResult(round, null, _selectedCounty.Name, correct, adjacent, points));
             _totalScore += points;
+            _ = TrackCountyPickRoundAsync(county.Name ?? "", correct, adjacent, points);
             SetPhase(Phase.Reveal);
             return;
         }
@@ -944,6 +1089,7 @@ else if (_phase == Phase.Results)
         int cityPoints = DistanceService.ScoreForDistance(distance);
         _mixedResults.Add(new MixedRoundResult(round, distance, null, null, false, cityPoints));
         _totalScore += cityPoints;
+        _ = TrackCityRoundAsync(city, distance, cityPoints);
         SetPhase(Phase.Reveal);
     }
 
@@ -965,6 +1111,7 @@ else if (_phase == Phase.Results)
         _nameResults.Add(new NameTheCountyRoundResult(
             county.Name ?? "", _selectedCounty.Name, correct, adjacent, points));
         _totalScore += points;
+        _ = TrackCountyPickRoundAsync(county.Name ?? "", correct, adjacent, points);
         SetPhase(Phase.Reveal);
     }
 
@@ -982,6 +1129,7 @@ else if (_phase == Phase.Results)
         int points = OverlapService.ScoreForOverlap(overlap);
         _countyResults.Add(new CountyRoundResult(county.Name ?? "", overlap, points));
         _totalScore += points;
+        _ = TrackCountyDragRoundAsync(county.Name ?? "", overlap, points);
         SetPhase(Phase.Reveal);
     }
 
@@ -1022,11 +1170,13 @@ else if (_phase == Phase.Results)
             if (round.IsCounty)
             {
                 _mixedResults.Add(new MixedRoundResult(round, null, null, false, false, 0));
+                _ = TrackCountyPickRoundAsync(round.County!.Name ?? "", false, false, 0);
                 _selectedCounty = null;
             }
             else
             {
                 _mixedResults.Add(new MixedRoundResult(round, null, null, null, false, 0));
+                _ = TrackCityRoundAsync(round.City!, null, 0);
                 _guessLat = null;
                 _guessLon = null;
             }
@@ -1038,6 +1188,7 @@ else if (_phase == Phase.Results)
         {
             var namedCounty = _gameCounties[_roundIndex];
             _nameResults.Add(new NameTheCountyRoundResult(namedCounty.Name ?? "", null, false, false, 0));
+            _ = TrackCountyPickRoundAsync(namedCounty.Name ?? "", false, false, 0);
             _selectedCounty = null;
             SetPhase(Phase.Reveal);
             return;
@@ -1047,6 +1198,7 @@ else if (_phase == Phase.Results)
         {
             var county = _gameCounties[_roundIndex];
             _countyResults.Add(new CountyRoundResult(county.Name ?? "", null, 0));
+            _ = TrackCountyDragRoundAsync(county.Name ?? "", null, 0);
             _pieceDx = 0;
             _pieceDy = 0;
             _countyDragged = false;
@@ -1056,6 +1208,7 @@ else if (_phase == Phase.Results)
 
         var city = _gameCities[_roundIndex];
         _results.Add(new RoundResult(city, null, null, null, 0));
+        _ = TrackCityRoundAsync(city, null, 0);
         _guessLat = null;
         _guessLon = null;
         SetPhase(Phase.Reveal);
