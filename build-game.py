@@ -727,7 +727,7 @@ HTML = r"""<!doctype html>
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.21.
+    Version 0.22.
   </footer>
 </div>
 
@@ -1613,8 +1613,11 @@ __PURE_JS__
     }
     game.total += points;
     game.results.push({ city: city, distance: dist, points: points, passed: passed });
-    /* A pass has no distance, so the property is omitted, not sent as null. */
-    var cityRoundProps = { question_type: "city", question: city.name, points: points };
+    /* A pass has no distance, so the property is omitted, not sent as null.
+       `target` is the correct answer (the grouping key for analysis —
+       it duplicates `question` for city rounds on purpose, so every
+       round_completed event carries one uniform `target` field). */
+    var cityRoundProps = { question_type: "city", question: city.name, target: city.name, points: points };
     if (dist !== null) cityRoundProps.distance_miles = Math.round(dist * 10) / 10;
     trackRoundCompleted(cityRoundProps);
     /* The controls row at the top of the map card swaps to the result:
@@ -1677,8 +1680,9 @@ __PURE_JS__
     game.results.push({ county: county, overlap: overlap, points: points, passed: passed });
     /* Drag scoring is by overlap, so there is no correct/adjacent — the
        overlap fraction is the metric. A pass has no overlap, so the
-       property is omitted, not sent as null. */
-    var dragRoundProps = { question_type: "county", question: countyName, points: points };
+       property is omitted, not sent as null. `target` is the correct
+       answer (the grouping key for analysis). */
+    var dragRoundProps = { question_type: "county", question: countyName, target: countyName, points: points };
     if (overlap !== null) dragRoundProps.overlap_fraction = Math.round(overlap * 1000) / 1000;
     trackRoundCompleted(dragRoundProps);
     countyTruePath.setAttribute("d", ringsToPath(countyRings));
@@ -1727,7 +1731,8 @@ __PURE_JS__
     }
     game.total += points;
     game.results.push({ county: county, selected: selectedCounty, correct: correct, adjacent: adjacent, points: points, passed: passed });
-    trackRoundCompleted({ question_type: "county", question: countyName, correct: correct, adjacent: adjacent, points: points });
+    /* `target` is the correct answer (the grouping key for analysis). */
+    trackRoundCompleted({ question_type: "county", question: countyName, target: countyName, correct: correct, adjacent: adjacent, points: points });
     countyTruePath.setAttribute("d", ringsToPath(countyRingsSvg(county)));
     countyTrue.classList.remove("layer-hidden");
     if (!passed && selectedCounty && !correct) {
