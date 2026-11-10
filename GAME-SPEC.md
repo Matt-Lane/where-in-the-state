@@ -2,7 +2,7 @@
 
 **First edition:** Oregon. The game name is generic for any state; Oregon is the first state pack. There is no "Oregon Edition" label in the UI; once a game starts, the header title is `Where in the {StateName}?!` — derived from the state pack's `Name` field (so a future state gets its own title automatically) — and it stays that way through the results screen; the browser tab follows the same rule. Before a game starts the title is "Where in the State" — except when the URL named the state (e.g. `/oregon/`), in which case the start screen header already says `Where in the {StateName}?!`. The root URL `/` is the splash/welcome page (see §4.1), not the start screen.
 
-**Version:** 0.23, shown in the footer of both the Blazor app and the standalone JavaScript version. Format is `major.minor`; the minor number is incremented on every merge to main.
+**Version:** 0.24, shown in the footer of both the Blazor app and the standalone JavaScript version. Format is `major.minor`; the minor number is incremented on every merge to main.
 
 **Date:** 2026-11-06
 **Status:** Draft for Matt to review — map approach decided 2026-11-06: SVG + GeoJSON natively in Blazor (see §9, Option A). Click-test prototype built and audited 2026-11-06 (see Appendix).
@@ -44,7 +44,7 @@ A web game shows a blank map of a state — outline plus landmarks for orientati
 
 **Target browsers:** Modern desktop and mobile browsers. Touch (tap to place a pin) is a first-class input, not an afterthought — see §8.
 
-**Favicon:** the pin logo (green pin, white "?!") ships as `blazor/wwwroot/favicon.svg` (SVG favicon, linked from `index.html`); the standalone version inlines the same SVG as a data URI so it stays a single file. No `.ico` — the push tooling only handles UTF-8 text files, so the binary ICO cannot be pushed via the API, and every browser that runs the game supports SVG favicons.
+**Favicon:** the pin logo (green pin, white "?!") ships as `blazor/wwwroot/favicon.svg` (SVG favicon, linked from `index.html`); the pin has a white stroke so it is invisible against light browser chrome but pops in dark mode. The standalone version inlines the same SVG as a data URI so it stays a single file. No `.ico` — the push tooling only handles UTF-8 text files, so the binary ICO cannot be pushed via the API, and every browser that runs the game supports SVG favicons.
 
 **Blazor source maps:** `blazor/wwwroot/_framework/dotnet.js.map` and `dotnet.runtime.js.map` are committed (from the .NET 8.0.33 runtime pack) because `dotnet publish` does not emit them even though the runtime JS references them — without them DevTools logs 404s when it is open (players and gameplay are unaffected). If the runtime version changes, replace them with the matching version's maps from the runtime pack.
 
@@ -136,8 +136,8 @@ The game service takes a `StatePack` + `GameConfig` and produces a game. Swappin
 4. **Results screen**
    - Total score out of 1000, plus a per-round table: city, distance, points.
    - Best guess (smallest distance) and hardest city (largest distance) highlighted — these are the learning hooks.
-   - "Play again" (new random seed), "Replay same seed" (same cities/order — useful for practice), and "Copy game link" (URL with the seed, so a player can play the identical game).
-   - A two-line summary in a styled box under a "Send a challenge!" label, with a "Copy" button: "I scored 742/1000 on Where in the Oregon?!, seed OR-2026-11-06" followed by "Play the same game: https://matt-lane.github.io/where-in-the-state/oregon/cities/OR-2026-11-06", so the recipient can open the same seed with one tap. The summary is read-only (no text field), and the link is clickable on the results screen.
+   - "Play again" (new random seed), "Copy game link" (URL with the seed, so a player can play the identical game), and "Back to game selection" (returns to the start screen). There is no replay-same-seed button and no separate shareable-link textbox — the summary box already carries the game link.
+   - A two-line summary in a styled box, with a "Copy" button directly under it: "I scored 742/1000 on Where in the Oregon?!, seed OR-2026-11-06" followed by "Play the same game: https://matt-lane.github.io/where-in-the-state/oregon/cities/OR-2026-11-06", so the recipient can open the same seed with one tap. The summary is read-only (no text field), and the link is clickable on the results screen. There is no "Send a challenge!" label.
 
 ### 4.2 State during play
 - The selected 10 cities and their order are fixed when the game starts (from the seed). They do not change on refresh if the seed is in the URL.

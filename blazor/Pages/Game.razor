@@ -387,11 +387,17 @@ else if (_phase == Phase.Results)
         <div class="score-bar-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="@MaxScore" aria-label="Score out of @MaxScore">
             <div class="score-bar-fill" style="width: @(_totalScore * 100 / MaxScore)%"></div>
         </div>
-        <p class="challenge-label">Send a challenge!</p>
         <div class="summary-box">
             <p>I scored @_totalScore/@MaxScore on Where in the @(_pack?.Name ?? "Oregon")?!@ModeSummaryLabel, seed @_seed</p>
             <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
         </div>
+        <div class="button-row">
+            <button @onclick="CopySummary">Copy</button>
+        </div>
+        @if (_copyMessage is not null)
+        {
+            <p role="status">@_copyMessage</p>
+        }
     </div>
 
     <table class="results-table">
@@ -516,15 +522,9 @@ else if (_phase == Phase.Results)
 
     <div class="button-row">
         <button class="primary" @onclick="PlayAgainNewSeed">Play again (new random seed)</button>
-        <button @onclick="ReplaySameSeed">Replay same seed</button>
         <button @onclick="CopyGameLink">Copy game link</button>
-        <button @onclick="CopySummary">Copy</button>
+        <button @onclick="BackToGameSelection">Back to game selection</button>
     </div>
-    @if (_copyMessage is not null)
-    {
-        <p role="status">@_copyMessage</p>
-    }
-    <p class="hint">Shareable link: <input type="text" readonly value="@GameLink" class="link-box" /></p>
 }
 
 @code {
@@ -1326,7 +1326,15 @@ else if (_phase == Phase.Results)
         StartGame();
     }
 
-    private void ReplaySameSeed() => StartGame();
+    private void BackToGameSelection()
+    {
+        // Back to the state start screen (game selection: mode picker
+        // and seed). Force a full reload so the page re-initializes to
+        // the start screen: an in-app navigation to the same component
+        // would not re-run OnInitializedAsync, so the phase would stay
+        // on Results.
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri($"{Uri.EscapeDataString(_stateId)}/").ToString(), forceLoad: true);
+    }
 
     private async Task CopyGameLink()
     {
@@ -1337,7 +1345,7 @@ else if (_phase == Phase.Results)
         }
         catch
         {
-            _copyMessage = "Copy didn't work in this browser — copy the link in the box below instead.";
+            _copyMessage = "Copy didn't work in this browser — the link is in the summary above; you can select it to copy by hand.";
         }
     }
 

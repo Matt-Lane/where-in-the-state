@@ -299,7 +299,6 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .mode-instructions > :not(.is-active) { visibility: hidden; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
 .hint { color: var(--muted); font-size: 0.9rem; }
-.link-box { width: 100%; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ---------- Round screen: progress & score ---------- */
@@ -526,7 +525,6 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 }
 .score-bar-fill { height: 100%; background: var(--green); border-radius: 999px; transition: width 0.5s ease; }
 /* The summary is read-only, so it sits in a styled box, not a text field. */
-.challenge-label { font-weight: 700; margin: 0.75rem 0 0.35rem; }
 .summary-box {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 0.85rem;
