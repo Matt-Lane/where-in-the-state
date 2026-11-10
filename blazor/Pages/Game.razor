@@ -387,17 +387,17 @@ else if (_phase == Phase.Results)
         <div class="score-bar-track" role="progressbar" aria-valuenow="@_totalScore" aria-valuemin="0" aria-valuemax="@MaxScore" aria-label="Score out of @MaxScore">
             <div class="score-bar-fill" style="width: @(_totalScore * 100 / MaxScore)%"></div>
         </div>
-        <div class="summary-box">
-            <p>I scored @_totalScore/@MaxScore on Where in the @(_pack?.Name ?? "Oregon")?!@ModeSummaryLabel, seed @_seed</p>
-            <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
-        </div>
-        <div class="button-row">
+        <div class="summary-row">
+            <div class="summary-box">
+                <p>I scored @_totalScore/@MaxScore on Where in the @(_pack?.Name ?? "Oregon")?!@ModeSummaryLabel, seed @_seed</p>
+                <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
+            </div>
             <button @onclick="CopySummary">Copy</button>
         </div>
-        @if (_copyMessage is not null)
-        {
-            <p role="status">@_copyMessage</p>
-        }
+        @* Always rendered: visibility toggles, so showing the "Copied"
+           note never moves anything on the screen. The non-breaking
+           space keeps the line's height when there is no message. *@
+        <p class="copy-status" role="status" style="visibility: @(_copyMessage is null ? "hidden" : "visible")">@(_copyMessage ?? "\u00a0")</p>
     </div>
 
     <table class="results-table">
@@ -522,7 +522,6 @@ else if (_phase == Phase.Results)
 
     <div class="button-row">
         <button class="primary" @onclick="PlayAgainNewSeed">Play again (new random seed)</button>
-        <button @onclick="CopyGameLink">Copy game link</button>
         <button @onclick="BackToGameSelection">Back to game selection</button>
     </div>
 }
@@ -1336,19 +1335,6 @@ else if (_phase == Phase.Results)
         Navigation.NavigateTo(Navigation.ToAbsoluteUri($"{Uri.EscapeDataString(_stateId)}/").ToString(), forceLoad: true);
     }
 
-    private async Task CopyGameLink()
-    {
-        try
-        {
-            await JS.InvokeVoidAsync("navigator.clipboard.writeText", GameLink);
-            _copyMessage = "Game link copied.";
-        }
-        catch
-        {
-            _copyMessage = "Copy didn't work in this browser — the link is in the summary above; you can select it to copy by hand.";
-        }
-    }
-
     private async Task CopySummary()
     {
         try
@@ -1358,7 +1344,8 @@ else if (_phase == Phase.Results)
         }
         catch
         {
-            _copyMessage = "Copy didn't work in this browser — you can select the summary above to copy it by hand.";
+            // Kept to one line so it fits the reserved status line.
+            _copyMessage = "Copy didn't work in this browser.";
         }
     }
 

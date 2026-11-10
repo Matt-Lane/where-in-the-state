@@ -537,6 +537,13 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 }
 .summary-box p { margin: 0; }
 .summary-box p + p { margin-top: 0.25rem; }
+/* The Copy button sits on the same row as the summary box. */
+.summary-row { display: flex; align-items: center; gap: 0.5rem; }
+.summary-row .summary-box { flex: 1 1 auto; min-width: 0; }
+.summary-row button { flex: 0 0 auto; }
+/* Always rendered: visibility toggles, so the "Copied" note never moves
+   anything on the screen. The min-height reserves exactly one line. */
+.copy-status { margin: 0.25rem 0 0; min-height: 1.25em; }
 table { border-collapse: collapse; margin: 1rem 0; width: 100%; }
 table.results-table { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
 th, td { border-bottom: 1px solid #e7e2d0; padding: 0.5rem 0.75rem; text-align: left; }
