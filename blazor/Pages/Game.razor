@@ -687,6 +687,11 @@ else if (_phase == Phase.Results)
         props["round"] = _roundIndex + 1;
         props["question_type"] = "city";
         props["question"] = city.Name;
+        // The correct answer, as the grouping key for analysis ("which
+        // target is missed most"). Duplicates `question` for city rounds
+        // on purpose, so every round_completed event carries one uniform
+        // `target` field across all modes.
+        props["target"] = city.Name;
         if (distanceMiles is not null)
         {
             props["distance_miles"] = Math.Round(distanceMiles.Value, 1);
@@ -703,6 +708,8 @@ else if (_phase == Phase.Results)
         props["round"] = _roundIndex + 1;
         props["question_type"] = "county";
         props["question"] = countyName;
+        // The correct answer, as the grouping key for analysis.
+        props["target"] = countyName;
         props["correct"] = correct;
         props["adjacent"] = adjacent;
         props["points"] = points;
@@ -719,6 +726,8 @@ else if (_phase == Phase.Results)
         props["round"] = _roundIndex + 1;
         props["question_type"] = "county";
         props["question"] = countyName;
+        // The correct answer, as the grouping key for analysis.
+        props["target"] = countyName;
         if (overlapFraction is not null)
         {
             props["overlap_fraction"] = Math.Round(overlapFraction.Value, 3);
