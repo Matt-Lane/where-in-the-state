@@ -27,6 +27,14 @@ LANDMARKS_JSON = json.dumps(landmarks, separators=(",", ":"))
 COUNTIES_JSON = json.dumps(counties, separators=(",", ":"))
 USA_STATES_JSON = json.dumps(usa_states, separators=(",", ":"))
 
+# PostHog analytics (see GAME-SPEC §13): the project API key and host.
+# The key is a public client key, designed to be embedded in frontend
+# code. This is the single place the key and host are defined for the
+# standalone version — the generated HTML gets them via the
+# __POSTHOG_KEY__ / __POSTHOG_HOST__ placeholders in the snippet.
+POSTHOG_KEY = "phc_m9r8eSEfJH6ZaEby76WZGTgafxtKYdEg6xFQbpsUNw3i"
+POSTHOG_HOST = "https://us.i.posthog.com"
+
 PURE_JS = r"""
 /* ============ Projection — the single source of truth ============
    Equirectangular with cos(44 deg) correction. The SAME function draws
@@ -477,6 +485,26 @@ HTML = r"""<!doctype html>
     #round-heading { font-size: 19px; }
   }
 </style>
+<!-- PostHog analytics (see GAME-SPEC §13). The project API key below is
+     a public client key, designed to be embedded in frontend code; the
+     key and host are defined once in build-game.py (POSTHOG_KEY /
+     POSTHOG_HOST) and substituted here at build time.
+     capture_pageview and autocapture are off, so only the four explicit
+     game events (game_started, round_completed, game_completed,
+     game_abandoned) are ever sent. The snippet defines window.posthog
+     as a queuing stub, so capture calls made before array.js loads are
+     queued, not dropped — and if an ad blocker stops the library loading
+     entirely, the calls just queue forever, harmlessly. -->
+<script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagResult isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+
+    posthog.init('__POSTHOG_KEY__', {
+        api_host: '__POSTHOG_HOST__',
+        defaults: '2026-08-30',
+        capture_pageview: false,
+        autocapture: false
+    })
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -1124,7 +1152,49 @@ __PURE_JS__
   }
   var game = null; /* { seed, mode, cities, counties, rounds (city-county only), roundIndex, results, total } */
   var guess = null; /* { lat, lon, x, y } */
-  var phase = "guess"; /* "guess" | "revealed" */
+  var phase = "guess"; /* "guess" | "revealed" | "results" */
+
+  /* ============ Analytics (PostHog) — see GAME-SPEC §13 ============ */
+  /* captureEvent is the only way the game talks to PostHog. It is fully
+     guarded: if an ad blocker stops the library loading, or the network
+     is down, the call is a no-op and the game plays exactly the same.
+     It never throws. The PostHog snippet in <head> defines
+     window.posthog as a queuing stub, so calls made before array.js
+     loads are queued, not dropped. */
+  function captureEvent(name, props) {
+    try {
+      if (window.posthog && typeof window.posthog.capture === "function") {
+        window.posthog.capture(name, props || {});
+      }
+    } catch (e) { /* Analytics must never break the game. */ }
+  }
+  /* Common properties for every game event. */
+  function baseProps() {
+    return { state: STATE_NAME.toLowerCase(), mode: game.mode, seed: game.seed };
+  }
+  /* A round was revealed (confirmed or passed). `extra` holds the
+     round-type properties; the common fields are added here. */
+  function trackRoundCompleted(extra) {
+    var props = baseProps();
+    props.round = game.roundIndex + 1;
+    for (var k in extra) props[k] = extra[k];
+    captureEvent("round_completed", props);
+  }
+  /* Best-effort game_abandoned: if the player leaves the page (tab
+     close, refresh, navigating to another site) while a game is in
+     progress — phase "guess" or "revealed" — report how far they got.
+     Once the results screen is reached, phase is "results", so leaving
+     a finished game is not an abandonment. */
+  window.addEventListener("pagehide", function () {
+    try {
+      if (game && (phase === "guess" || phase === "revealed")) {
+        var props = baseProps();
+        props.rounds_completed = game.results.length;
+        props.score_so_far = game.total;
+        captureEvent("game_abandoned", props);
+      }
+    } catch (e) { /* Analytics must never break the game. */ }
+  });
   var dragging = false;
   /* Counties mode: the current county's rings in SVG units, the piece's
      translation in SVG units, and whether it has been dragged this round
@@ -1543,6 +1613,10 @@ __PURE_JS__
     }
     game.total += points;
     game.results.push({ city: city, distance: dist, points: points, passed: passed });
+    /* A pass has no distance, so the property is omitted, not sent as null. */
+    var cityRoundProps = { question_type: "city", question: city.name, points: points };
+    if (dist !== null) cityRoundProps.distance_miles = Math.round(dist * 10) / 10;
+    trackRoundCompleted(cityRoundProps);
     /* The controls row at the top of the map card swaps to the result:
        distance and points, plus the Next button. No separate reveal
        panel, and no running total here — the score line at the top
@@ -1601,6 +1675,12 @@ __PURE_JS__
     }
     game.total += points;
     game.results.push({ county: county, overlap: overlap, points: points, passed: passed });
+    /* Drag scoring is by overlap, so there is no correct/adjacent — the
+       overlap fraction is the metric. A pass has no overlap, so the
+       property is omitted, not sent as null. */
+    var dragRoundProps = { question_type: "county", question: countyName, points: points };
+    if (overlap !== null) dragRoundProps.overlap_fraction = Math.round(overlap * 1000) / 1000;
+    trackRoundCompleted(dragRoundProps);
     countyTruePath.setAttribute("d", ringsToPath(countyRings));
     countyTrue.classList.remove("layer-hidden");
     countyPiece.setAttribute("class", "");
@@ -1647,6 +1727,7 @@ __PURE_JS__
     }
     game.total += points;
     game.results.push({ county: county, selected: selectedCounty, correct: correct, adjacent: adjacent, points: points, passed: passed });
+    trackRoundCompleted({ question_type: "county", question: countyName, correct: correct, adjacent: adjacent, points: points });
     countyTruePath.setAttribute("d", ringsToPath(countyRingsSvg(county)));
     countyTrue.classList.remove("layer-hidden");
     if (!passed && selectedCounty && !correct) {
@@ -1734,6 +1815,9 @@ __PURE_JS__
     } catch (e) {}
     showScreen("game");
     startRound();
+    var startedProps = baseProps();
+    startedProps.questions = QUESTION_COUNT;
+    captureEvent("game_started", startedProps);
   }
 
   document.getElementById("btn-start").addEventListener("click", function () {
@@ -1745,6 +1829,16 @@ __PURE_JS__
 
   /* ============ Results ============ */
   function showResults() {
+    /* The game is over: leaving the page from here is not an
+       abandonment (see the pagehide handler), and the game is reported
+       as completed. The game has no per-round or total timing, so no
+       duration is reported — see GAME-SPEC §13. */
+    phase = "results";
+    var completedProps = baseProps();
+    completedProps.total_score = game.total;
+    completedProps.max_score = 1000;
+    completedProps.rounds = QUESTION_COUNT;
+    captureEvent("game_completed", completedProps);
     showScreen("results");
     document.getElementById("final-total").textContent = game.total;
     var isCounties = game.mode === "counties";
@@ -2003,6 +2097,8 @@ html = (HTML
         .replace("__LANDMARKS__", LANDMARKS_JSON)
         .replace("__COUNTIES__", COUNTIES_JSON)
         .replace("__USA_STATES__", USA_STATES_JSON)
+        .replace("__POSTHOG_KEY__", POSTHOG_KEY)
+        .replace("__POSTHOG_HOST__", POSTHOG_HOST)
         .replace("__PURE_JS__", PURE_JS))
 
 with open(OUT, "w") as f:
