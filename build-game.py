@@ -210,7 +210,10 @@ HTML = r"""<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="light" />
-<link rel="icon" href="data:," />
+<!-- Favicon: the pin logo (green pin, white "?!"), inlined as a data-URI
+     SVG so the standalone file stays self-contained. Same artwork as
+     blazor/wwwroot/favicon.svg. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Cpath%20fill%3D%22%23205c46%22%20d%3D%22M48%208%20C32.5%208%2020%2020.5%2020%2034%20C20%2055%2048%2086%2048%2086%20C48%2086%2076%2055%2076%2034%20C76%2020.5%2063.5%208%2048%208%20Z%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2246%22%20text-anchor%3D%22middle%22%20font-family%3D%22Georgia%2C%20%27Times%20New%20Roman%27%2C%20serif%22%20font-weight%3D%22700%22%20font-size%3D%2234%22%20fill%3D%22%23fff%22%3E%3F%21%3C%2Ftext%3E%3C%2Fsvg%3E" />
 <title>Where in the State — Oregon</title>
 <style>
   :root {
@@ -727,7 +730,7 @@ HTML = r"""<!doctype html>
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.22.
+    Version 0.23.
   </footer>
 </div>
 
