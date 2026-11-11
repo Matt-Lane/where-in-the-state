@@ -57,7 +57,7 @@ Models/
   RoundResult.cs               RoundResult(City, GuessLat/Lon, DistanceMiles, Points)
 Services/
   SeededGameService.cs         SHA-256 -> int -> Random -> Fisher-Yates, Take(10);
-                               DailySeed() "OR-yyyy-MM-dd", RandomSeed() "OR-" + 6 chars
+                               DailySeed() "yyyy-MM-dd", RandomSeed() 6 chars
   DistanceService.cs           Haversine (R = 3959 mi) + ScoreForDistance
   MapProjection.cs             Equirectangular + cos(44°); LatLonToSvg / SvgToLatLon
                                are exact inverses; viewBox 0 0 1000 757.4
@@ -94,7 +94,7 @@ wwwroot/
 3. Take the first 10. No repeats within a game (shuffle = sampling without
    replacement). `string.GetHashCode()` is never used — it is not stable
    across runtimes/runs.
-4. Daily seed: `OR-yyyy-MM-dd` (local date). Random seed: `OR-` + 6
+4. Daily seed: `yyyy-MM-dd` (local date). Random seed: 6
    alphanumeric characters. Seeds are forced to upper case and are written into
    the URL on start (`/oregon/cities/<seed>`), so a shared link loads the
    same game; loading with a state/mode/seed pre-fills the start screen. The

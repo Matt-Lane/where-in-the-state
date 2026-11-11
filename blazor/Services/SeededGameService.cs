@@ -90,16 +90,17 @@ public sealed class SeededGameService
         return shuffled;
     }
 
-    /// <summary>Today's daily seed, e.g. "OR-2026-11-06" (local date).</summary>
-    public string DailySeed(string abbreviation = "OR")
-        => $"{abbreviation}-{DateTime.Now:yyyy-MM-dd}";
+    /// <summary>Today's daily seed, e.g. "2026-11-06" (local date). The state
+    /// is already in the URL, so the date alone identifies the game.</summary>
+    public string DailySeed()
+        => $"{DateTime.Now:yyyy-MM-dd}";
 
     /// <summary>
-    /// A short human-friendly random seed, e.g. "OR-7K2Q9P".
+    /// A short human-friendly random seed, e.g. "7K2Q9P".
     /// This is only for *generating* a seed string; game selection itself
     /// stays deterministic via <see cref="SelectCities"/>.
     /// </summary>
-    public string RandomSeed(string abbreviation = "OR")
+    public string RandomSeed()
     {
         const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         Span<char> chars = stackalloc char[6];
@@ -108,6 +109,6 @@ public sealed class SeededGameService
             chars[i] = alphabet[Random.Shared.Next(alphabet.Length)];
         }
 
-        return $"{abbreviation}-{new string(chars)}";
+        return new string(chars);
     }
 }

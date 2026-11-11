@@ -9,9 +9,10 @@ preview of how that mode plays:
   - Name the county: the county-boundary grid with one county highlighted.
 
 The previews reuse the real Oregon outline and county geometry, projected
-with the same equirectangular function as the game and simplified hard
-(Douglas-Peucker) so the paths stay small. Run it and paste the printed
-path data into the Blazor and JS mode buttons.
+with the same equirectangular function as the game and simplified lightly
+(Douglas-Peucker, tolerance 1.0 SVG unit) so the county boundaries follow
+the real shapes instead of looking sketched on. Run it and paste the
+printed path data into the Blazor and JS mode buttons.
 
 City County Mode (added 2026-11-08) needs no new geometry: its preview is
 a composition of the constants this script already prints — the Oregon
@@ -20,6 +21,10 @@ Deschutes County piece (DESCHUTES_D, highlighted blue with the
 preview-selected style), and a pin at Bend (BEND, the blue guess-pin
 style). So there is nothing new to generate here; the Blazor button
 (ModePreviewArt) and the JS button compose those four pieces by hand.
+(2026-11-10: the City County preview became a diagonal split — Douglas
+County highlighted green on the lower-left triangle, and a La Grande
+city reveal on the upper-right triangle. Douglas (DOUGLAS_D), La Grande
+(LA_GRANDE) and its guess point (SPLIT_GUESS) are printed below.)
 
 Usage: python3 make-mode-previews.py
 """
@@ -92,14 +97,14 @@ def main():
     outline = load_geojson(f"{BASE}/data/oregon/outline.geojson")
     counties = load_geojson(f"{BASE}/data/oregon/counties.geojson")
 
-    # --- Oregon outline, simplified hard for a small preview ---
+    # --- Oregon outline, simplified lightly so it stays exact ---
     outer = outline["features"][0]["geometry"]["coordinates"][0]
-    outline_d = ring_to_path(outer, 6.0)
+    outline_d = ring_to_path(outer, 1.0)
     print("OUTLINE_D =")
     print(outline_d)
     print()
 
-    # --- County grid: every county boundary, simplified ---
+    # --- County grid: every county boundary, simplified lightly ---
     grid_parts = []
     for feat in counties["features"]:
         geom = feat["geometry"]
@@ -110,7 +115,7 @@ def main():
             for poly in geom["coordinates"]:
                 rings.extend(poly)
         for ring in rings:
-            p = ring_to_path(ring, 10.0)
+            p = ring_to_path(ring, 1.0)
             if p:
                 grid_parts.append(p)
     grid_d = " ".join(grid_parts)
@@ -126,7 +131,7 @@ def main():
         [p for poly in geom["coordinates"] for p in poly]
     # Largest ring by point count is the main body.
     main_ring = max(rings, key=len)
-    piece_d = ring_to_path(main_ring, 4.0)
+    piece_d = ring_to_path(main_ring, 1.0)
     print("DESCHUTES_D =")
     print(piece_d)
     # Centroid (SVG) of the piece, for the staged offset and the arrow.
@@ -143,6 +148,29 @@ def main():
     gx, gy = project(guess[1], guess[0])
     print(f"BEND (actual) = ({bx:.1f}, {by:.1f})")
     print(f"GUESS = ({gx:.1f}, {gy:.1f})")
+    print()
+
+    # --- Douglas County, highlighted in the City County split preview ---
+    douglas = next(f for f in counties["features"]
+                   if f["properties"]["name"] == "Douglas County")
+    geom = douglas["geometry"]
+    rings = geom["coordinates"] if geom["type"] == "Polygon" else \
+        [p for poly in geom["coordinates"] for p in poly]
+    main_ring = max(rings, key=len)
+    douglas_d = ring_to_path(main_ring, 1.0)
+    print("DOUGLAS_D =")
+    print(douglas_d)
+    print()
+
+    # --- City County split preview, city half: La Grande (actual) and a
+    # guess southwest of it. Both sit in the upper-right triangle (above
+    # the top-left to bottom-right diagonal), so they survive the clip.
+    la_grande = (45.324, -118.093)
+    split_guess = (44.85, -119.6)
+    lx, ly = project(la_grande[1], la_grande[0])
+    sx, sy = project(split_guess[1], split_guess[0])
+    print(f"LA_GRANDE (actual) = ({lx:.1f}, {ly:.1f})")
+    print(f"SPLIT_GUESS = ({sx:.1f}, {sy:.1f})")
     print()
 
 
