@@ -456,8 +456,31 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     background: #f8f5ea;
     border: 1px solid var(--line);
     border-radius: 8px;
-    touch-action: manipulation;
+    /* none, not manipulation: pinch/pan gestures are handled by the map
+       components via Pointer Events, so the browser must not take the
+       touch over for page scroll or its own zoom. */
+    touch-action: none;
     cursor: crosshair;
+}
+/* Reset view: only shown once zoomed in, small and in the map's top-right
+   corner, so the player can always get back to the full state without
+   pushing the game off one screen. */
+.map-reset-view {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    min-height: 32px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.85rem;
+    background: #fffdf5;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.15);
+    cursor: pointer;
+}
+.map-reset-view:hover {
+    background: #fff;
 }
 /* Small Confirm bubble next to the pin while placing, so the player
    doesn't have to travel back to the controls row. The tail points
