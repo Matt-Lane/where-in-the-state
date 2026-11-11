@@ -184,8 +184,9 @@ input[type="text"] {
     max-width: 26rem;
 }
 input[type="text"]:focus { outline: 3px solid var(--green); outline-offset: 1px; border-color: var(--green); }
-/* The seed box is short (20 chars max) and sits below Start, out of the
-   normal player's path — keep it narrow so it reads as a secondary control. */
+/* The seed box is short (20 chars max) and sits below "Play today's game",
+   out of the normal player's path — keep it narrow so it reads as a
+   secondary control. */
 input[type="text"].seed-input { max-width: 15rem; }
 /* The seed box and its two buttons sit on one line, daily seed first; the
    buttons line up with the input (not the "Seed" label above it). */
@@ -244,36 +245,69 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .toggle[aria-pressed="true"] { color: var(--ink); border-color: #aebbbd; background: var(--panel-soft); }
 .toggle[aria-pressed="false"] { opacity: 0.55; }
 
-/* ---------- Game mode buttons (large, with a map preview) ---------- */
-/* The mode picker is three large buttons in a row (stacked on narrow
-   screens), each with a small schematic map showing how that mode plays.
-   The selected button gets a green border and a soft green fill. */
-.mode-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
-.mode-button {
+/* ---------- Game mode selector: one big preview + three small buttons ---------- */
+/* One big preview image of the selected mode (all four previews stacked in
+   one grid cell, only the selected visible — the same trick as the
+   instructions — so the big image is always the same size and switching
+   modes never moves the Play button below it), with three compact buttons
+   underneath to change the mode. The selected button gets a green border
+   and a soft green fill. The Counties drag mode is hidden from the picker;
+   its preview is still stacked here so a /oregon/counties/ link still
+   shows the right image. */
+.mode-preview-big { display: grid; }
+.mode-preview-big > * { grid-area: 1 / 1; }
+.mode-preview-big > :not(.is-active) { visibility: hidden; }
+.mode-switch-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+.mode-switch {
+    flex: 1 1 0;
+    min-height: 44px;
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    text-align: left;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
     background: var(--panel);
     border: 2px solid var(--line);
     border-radius: var(--radius);
-    padding: 0.75rem;
+    padding: 0.5rem 0.4rem;
     cursor: pointer;
     font: inherit;
+    font-weight: 700;
     color: var(--ink);
 }
-.mode-button:hover:not(:disabled) { transform: none; border-color: var(--green); box-shadow: var(--shadow); }
-.mode-button[aria-pressed="true"] { border-color: var(--green); background: var(--green-soft); box-shadow: var(--shadow); }
-.mode-button:disabled { opacity: 0.45; cursor: not-allowed; }
-.mode-button-title { font-weight: 700; font-size: 1.05rem; margin-top: 0.6rem; }
-.mode-button-desc { font-size: 0.9rem; color: var(--muted); margin-top: 0.15rem; }
-@media (max-width: 700px) {
-    .mode-grid { grid-template-columns: 1fr; }
-}
+.mode-switch:hover:not(:disabled) { transform: none; border-color: var(--green); box-shadow: var(--shadow); }
+.mode-switch[aria-pressed="true"] { border-color: var(--green); background: var(--green-soft); box-shadow: var(--shadow); }
+.mode-switch:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* Mode preview illustrations: small schematic maps inside the buttons.
-   They reuse the real state/county geometry (see ModePreviewArt), drawn
-   with the game's own colors. */
+/* "Play today's game": the prominent first-screen action — full width, so
+   a new player can just jump in. */
+.play-today { width: 100%; font-size: 1.15rem; padding: 0.85rem 1rem; margin: 1rem 0 0.5rem; }
+
+/* Collapsible start-screen sections ("How to play", "Advanced options"):
+   a full-width header button, minimized by default. Expanding one changes
+   the page height (expected for a collapsed section); the button itself
+   never moves when the mode changes. */
+.start-section { margin-top: 1rem; }
+.section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    font-weight: 700;
+    font-size: 1rem;
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.65rem 0.9rem;
+    cursor: pointer;
+    color: var(--ink);
+}
+.section-toggle:hover { background: var(--panel); }
+
+/* Mode preview illustrations: small schematic maps for the big preview
+   image. They reuse the real state/county geometry (see ModePreviewArt),
+   drawn with the game's own colors. */
 .mode-preview { width: 100%; height: auto; display: block; border-radius: 8px; background: var(--bg); }
 .preview-state { fill: #e7edda; stroke: #4a6b52; stroke-width: 2; stroke-linejoin: round; }
 .preview-grid { fill: none; stroke: #6b8a6f; stroke-width: 1.5; }
@@ -288,10 +322,10 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .preview-arrowhead { fill: var(--ink); }
 .preview-selected { fill: #3b82c4; fill-opacity: 0.45; stroke: #1d4ed8; stroke-width: 2.5; }
 
-/* ---------- Mode instructions (lede + steps under the picker) ---------- */
-/* All three mode variants are rendered in one grid cell; only the selected
+/* ---------- Mode instructions (lede + steps, behind "How to play") ---------- */
+/* All four mode variants are rendered in one grid cell; only the selected
    mode's is visible. The block is always as tall as the tallest variant, so
-   switching modes never moves the Seed / landmarks / Start controls below it.
+   switching modes while "How to play" is open never moves anything below it.
    (The hidden variants are visibility:hidden, not display:none, so they
    still size the grid; aria-hidden keeps them out of screen readers.) */
 .mode-instructions { display: grid; margin-top: 1rem; }

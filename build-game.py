@@ -258,8 +258,8 @@ HTML = r"""<!doctype html>
   }
   input[type="text"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .seed-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
-  /* The seed box is short (20 chars max) and sits below Start, out of the
-     normal player's path — keep it narrow so it reads as a secondary control. */
+  /* The seed box is short (20 chars max) and sits below "Play today's game",
+     out of the normal player's path — keep it narrow so it reads as a secondary control. */
   .seed-row input { flex: 0 1 240px; max-width: 240px; }
   .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 
@@ -327,21 +327,38 @@ HTML = r"""<!doctype html>
   .toggle[data-layer="river"]      { --c: var(--river); }
   .toggle[data-layer="lake"]       { --c: var(--river); }
   .toggle .swatch { color: var(--c, var(--muted)); }
-  /* Game-mode buttons: large buttons in a 3-column grid, each with a small
-     map preview of how that mode plays. Matches the Blazor start screen:
-     selected button gets a green border and a soft green fill. */
-  .mode-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  .mode-button {
-    display: flex; flex-direction: column; align-items: stretch; text-align: left;
+  /* Game-mode selector: one big preview image of the selected mode, with
+     three compact buttons underneath to change it. Matches the Blazor
+     start screen: selected button gets a green border and a soft green
+     fill. All four previews are stacked in one grid cell and only the
+     selected mode's is visible, so the big image is always the same size
+     and switching modes never moves the Play button below it. The
+     Counties drag mode is hidden from the picker; its preview is still
+     stacked here so a /oregon/counties/ link still shows the right image. */
+  .mode-preview-big { display: grid; }
+  .mode-preview-big > * { grid-area: 1 / 1; }
+  .mode-preview-big > :not(.is-active) { visibility: hidden; }
+  .mode-switch-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .mode-switch {
+    flex: 1 1 0; min-height: 48px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
     background: var(--panel); border: 2px solid var(--line); border-radius: 14px;
-    padding: 12px; cursor: pointer; font: inherit; color: var(--ink);
+    padding: 8px 6px; cursor: pointer; font: inherit; font-weight: 700; color: var(--ink);
   }
-  .mode-button:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 1px 2px rgba(30, 42, 36, 0.06), 0 6px 18px rgba(30, 42, 36, 0.07); }
-  .mode-button[aria-pressed="true"] { border-color: var(--accent); background: #e3ede6; box-shadow: 0 1px 2px rgba(30, 42, 36, 0.06), 0 6px 18px rgba(30, 42, 36, 0.07); }
-  .mode-button:disabled { opacity: 0.45; cursor: not-allowed; }
-  .mode-button-title { font-weight: 700; font-size: 17px; margin-top: 10px; }
-  .mode-button-desc { font-size: 14px; color: var(--muted); margin-top: 2px; }
-  @media (max-width: 700px) { .mode-grid { grid-template-columns: 1fr; } }
+  .mode-switch:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 1px 2px rgba(30, 42, 36, 0.06), 0 6px 18px rgba(30, 42, 36, 0.07); }
+  .mode-switch[aria-pressed="true"] { border-color: var(--accent); background: #e3ede6; box-shadow: 0 1px 2px rgba(30, 42, 36, 0.06), 0 6px 18px rgba(30, 42, 36, 0.07); }
+  .mode-switch:disabled { opacity: 0.45; cursor: not-allowed; }
+  /* "Play today's game": the prominent first-screen action — full width. */
+  .play-today { width: 100%; }
+  /* Collapsible start-screen sections ("How to play", "Advanced options"):
+     a full-width header button, minimized by default. */
+  .section-toggle {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    font: inherit; font-weight: 700; font-size: 16px;
+    background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 14px; cursor: pointer; color: var(--ink); margin-top: 16px;
+  }
+  .section-toggle:hover:not(:disabled) { background: var(--panel); }
   .mode-preview { width: 100%; height: auto; display: block; border-radius: 8px; background: var(--bg); }
   .preview-state { fill: var(--state-fill); stroke: var(--state-stroke); stroke-width: 2; stroke-linejoin: round; }
   .preview-grid { fill: none; stroke: #6b8a6f; stroke-width: 1.5; }
@@ -357,7 +374,7 @@ HTML = r"""<!doctype html>
   .preview-selected { fill: #3b82c4; fill-opacity: 0.45; stroke: #1d4ed8; stroke-width: 2.5; }
   .lede { margin: 0 0 20px; color: var(--muted); font-size: 15.5px; max-width: 760px; }
   .lede strong { color: var(--ink); }
-  /* Mode instructions (lede + steps under the picker) and the Game card's
+  /* Mode instructions (lede + steps, behind "How to play") and the Game card's
      game lines: all three variants are rendered in one grid cell and only
      the selected mode's is visible, so the block is always as tall as the
      tallest variant and switching modes never moves anything below it.
@@ -549,8 +566,8 @@ HTML = r"""<!doctype html>
   <section id="screen-start" class="screen" aria-label="Start a game" hidden>
     <div class="card">
       <h2>Game mode</h2>
-      <div class="mode-grid" role="group" aria-label="Game mode">
-        <button type="button" class="mode-button" data-mode="city-county" aria-pressed="false">
+      <div class="mode-preview-big" id="mode-preview-big" aria-hidden="true">
+        <div class="mode-preview-set is-active" data-mode="city-county">
           <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
             <path d="M892.2,350.7 L921.2,360.4 L931.0,374.0 L921.0,386.4 L926.2,397.0 L915.2,428.3 L915.2,731.4 L60.0,731.7 L42.8,712.4 L33.7,677.8 L37.5,627.7 L17.9,593.2 L37.3,515.4 L57.4,473.8 L67.3,415.3 L92.5,125.6 L86.0,78.5 L93.6,62.7 L83.9,30.6 L102.5,43.6 L144.6,24.8 L160.0,45.4 L190.4,39.0 L215.6,55.8 L226.4,76.1 L232.3,126.4 L288.2,145.2 L345.7,118.2 L402.1,118.5 L422.3,134.8 L485.7,111.7 L513.2,119.4 L600.6,93.3 L608.8,83.0 L665.3,80.8 L681.8,69.7 L928.4,70.4 L944.2,98.5 L972.3,110.9 L982.2,135.4 L936.5,231.4 L935.4,254.8 L910.9,280.2 L891.6,320.7 L892.2,350.7 Z" class="preview-state" />
             <path d="M737.5,283.8 L765.4,276.3 L783.8,227.7 L851.2,236.3 L851.3,222.0 L944.1,222.1 L891.6,320.7 L892.2,350.7 L860.4,350.9 L848.0,327.0 L802.7,327.1 L776.3,358.2 L740.1,358.3 L762.9,303.1 L737.5,283.8 Z M107.0,343.5 L133.1,328.9 L132.5,281.2 L195.4,291.6 L173.3,308.0 L182.8,353.6 L107.0,343.5 Z M220.0,182.6 L246.9,158.7 L344.7,158.7 L361.4,185.9 L363.9,224.1 L346.4,233.2 L357.2,250.6 L263.1,248.6 L220.0,182.6 Z M83.7,30.5 L102.5,43.6 L151.0,28.3 L161.2,106.1 L88.9,105.5 L83.7,30.5 Z M160.6,60.0 L160.9,45.4 L184.4,38.4 L215.7,55.8 L232.5,114.6 L161.2,106.1 L160.6,60.0 Z M30.2,567.4 L59.2,464.9 L100.0,465.3 L120.4,523.3 L107.6,600.9 L69.4,621.1 L66.0,585.3 L30.2,567.4 Z M429.4,357.2 L429.5,335.9 L462.9,321.7 L462.8,307.4 L515.3,307.2 L515.3,328.4 L558.7,327.9 L573.3,349.8 L602.3,349.7 L587.8,450.5 L530.6,450.4 L516.2,421.6 L443.9,407.0 L429.4,357.2 Z M18.0,592.3 L28.1,573.5 L54.5,573.4 L69.4,621.1 L119.0,601.5 L80.2,667.3 L110.0,692.1 L106.9,731.6 L60.0,731.7 L43.4,714.8 L37.5,627.7 L18.0,592.3 Z M323.0,464.0 L326.2,424.1 L350.7,383.8 L341.9,335.6 L429.5,335.9 L443.9,407.0 L516.2,421.6 L530.6,450.4 L573.5,450.5 L573.6,464.9 L323.0,464.0 Z M59.7,462.1 L66.3,423.1 L120.5,409.8 L148.3,432.0 L187.9,437.0 L191.4,476.6 L235.0,475.9 L235.0,493.6 L307.5,493.2 L326.3,522.7 L314.2,554.8 L289.6,554.8 L228.7,602.7 L139.7,614.0 L107.6,600.9 L120.4,523.3 L100.0,465.3 L59.7,462.1 Z M483.5,113.1 L513.2,119.4 L561.4,100.7 L560.5,192.5 L589.9,207.1 L589.8,221.6 L502.4,223.8 L498.4,168.9 L518.7,146.8 L483.5,113.1 Z M600.3,235.9 L770.2,242.0 L765.4,276.3 L737.5,283.8 L762.9,303.1 L740.1,358.3 L771.7,358.0 L772.2,393.9 L602.1,407.3 L600.3,235.9 Z M568.0,606.7 L573.5,450.5 L587.8,450.5 L588.0,407.3 L772.2,393.9 L775.8,731.9 L637.5,732.4 L636.8,607.5 L568.0,606.7 Z M332.8,144.5 L339.1,120.4 L389.8,119.7 L384.9,192.4 L359.4,192.4 L332.8,144.5 Z M176.7,730.6 L176.9,614.0 L289.6,566.6 L288.8,730.1 L176.7,730.6 Z M341.2,323.0 L352.7,263.2 L517.1,264.6 L515.3,307.2 L462.8,307.4 L443.7,336.0 L341.9,335.6 L341.2,323.0 Z M80.2,667.3 L119.0,601.7 L174.6,611.6 L176.7,730.8 L106.4,732.2 L110.0,692.1 L80.2,667.3 Z M288.7,710.4 L289.6,554.8 L314.2,554.8 L326.3,522.7 L307.7,473.8 L402.6,464.0 L400.7,607.9 L456.2,608.3 L456.6,732.5 L288.8,730.1 L288.7,710.4 Z M400.5,579.2 L402.6,464.0 L573.6,464.9 L568.0,607.9 L636.8,607.5 L637.5,732.4 L456.6,732.5 L456.2,608.3 L400.7,607.9 L400.5,579.2 Z M67.3,415.3 L71.6,354.7 L349.7,363.9 L307.5,493.2 L235.0,493.6 L235.0,475.9 L191.4,476.6 L187.9,437.0 L148.3,432.0 L120.5,409.8 L91.6,423.3 L67.3,415.3 Z M71.5,353.1 L84.2,227.7 L118.0,227.7 L133.1,328.9 L118.5,328.8 L111.9,353.6 L71.5,353.1 Z M173.2,308.3 L195.5,292.9 L187.1,276.6 L204.2,286.9 L230.1,269.1 L347.1,287.4 L347.1,357.8 L278.1,365.9 L220.2,353.0 L215.4,367.3 L184.6,367.4 L173.2,308.3 Z M771.7,358.2 L802.7,327.1 L848.0,327.0 L860.4,350.9 L905.5,354.1 L930.8,372.2 L914.4,428.7 L915.2,731.4 L775.8,731.9 L771.7,358.2 Z M182.7,258.7 L199.3,243.7 L208.1,187.9 L235.3,192.2 L229.4,213.5 L263.1,248.6 L355.0,254.5 L347.7,287.4 L230.1,269.1 L203.4,286.9 L182.7,258.7 Z M560.6,177.1 L561.4,100.7 L628.9,83.2 L628.6,135.3 L663.0,149.7 L660.9,235.7 L586.1,236.0 L589.9,207.1 L560.5,192.5 L560.6,177.1 Z M212.7,124.1 L232.5,114.5 L242.9,132.9 L288.2,145.2 L332.5,127.7 L344.7,158.7 L234.7,163.4 L212.7,124.1 Z M117.9,231.2 L196.1,222.7 L186.5,281.4 L120.4,281.2 L117.9,231.2 Z M438.6,187.8 L461.8,157.5 L452.3,129.0 L483.5,113.1 L508.9,131.5 L518.4,151.0 L502.3,158.1 L495.2,188.6 L506.2,218.4 L474.4,221.2 L438.6,187.8 Z M83.3,224.4 L87.7,107.2 L161.2,106.1 L146.5,117.8 L168.6,134.6 L146.5,161.1 L149.1,199.3 L110.9,199.3 L118.0,227.7 L83.3,224.4 Z M628.6,98.0 L628.9,83.2 L681.8,69.7 L802.0,69.5 L785.5,157.2 L716.3,177.9 L737.6,235.8 L660.9,235.7 L663.0,149.7 L628.6,135.3 L628.6,98.0 Z M716.3,177.9 L785.5,157.2 L794.0,99.9 L829.4,92.6 L839.4,174.6 L861.6,207.5 L886.7,207.5 L886.7,221.8 L747.4,241.3 L716.3,177.9 Z M802.0,69.5 L928.4,70.4 L972.3,110.8 L982.2,135.4 L944.1,222.1 L861.6,207.5 L831.8,149.9 L829.4,92.6 L802.0,92.7 L802.0,69.5 Z M346.4,233.2 L363.9,224.1 L359.4,192.4 L384.9,192.4 L389.8,119.7 L420.4,134.8 L448.9,126.5 L463.0,150.0 L439.4,198.9 L501.3,221.3 L517.1,264.6 L356.0,264.0 L346.4,233.2 Z M146.5,161.1 L168.6,137.0 L146.5,117.8 L200.6,106.2 L234.7,149.1 L234.7,180.2 L146.5,161.1 Z M502.4,223.8 L586.2,223.9 L600.3,235.9 L602.3,349.7 L573.3,349.8 L558.7,327.9 L515.3,328.4 L502.4,223.8 Z M110.8,207.5 L149.1,199.3 L148.9,163.4 L200.4,168.1 L222.1,192.1 L204.7,191.3 L196.1,222.7 L110.9,222.4 L110.8,207.5 Z" class="preview-grid" />
@@ -558,10 +575,8 @@ HTML = r"""<!doctype html>
             <circle cx="404.7" cy="390.9" r="16" class="preview-guess" />
             <circle cx="404.7" cy="390.9" r="6" class="preview-guess-dot" />
           </svg>
-          <span class="mode-button-title">City County Mode</span>
-          <span class="mode-button-desc">Pins and counties, mixed</span>
-        </button>
-        <button type="button" class="mode-button" data-mode="cities" aria-pressed="true">
+        </div>
+        <div class="mode-preview-set" data-mode="cities">
           <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
             <path d="M892.2,350.7 L921.2,360.4 L931.0,374.0 L921.0,386.4 L926.2,397.0 L915.2,428.3 L915.2,731.4 L60.0,731.7 L42.8,712.4 L33.7,677.8 L37.5,627.7 L17.9,593.2 L37.3,515.4 L57.4,473.8 L67.3,415.3 L92.5,125.6 L86.0,78.5 L93.6,62.7 L83.9,30.6 L102.5,43.6 L144.6,24.8 L160.0,45.4 L190.4,39.0 L215.6,55.8 L226.4,76.1 L232.3,126.4 L288.2,145.2 L345.7,118.2 L402.1,118.5 L422.3,134.8 L485.7,111.7 L513.2,119.4 L600.6,93.3 L608.8,83.0 L665.3,80.8 L681.8,69.7 L928.4,70.4 L944.2,98.5 L972.3,110.9 L982.2,135.4 L936.5,231.4 L935.4,254.8 L910.9,280.2 L891.6,320.7 L892.2,350.7 Z" class="preview-state" />
             <line x1="228.0" y1="466.7" x2="404.7" y2="390.9" class="preview-line" />
@@ -570,10 +585,8 @@ HTML = r"""<!doctype html>
             <circle cx="404.7" cy="390.9" r="14" class="preview-target" />
             <circle cx="404.7" cy="390.9" r="5" class="preview-target-dot" />
           </svg>
-          <span class="mode-button-title">Cities</span>
-          <span class="mode-button-desc">Drop a pin for a named city</span>
-        </button>
-        <button type="button" class="mode-button" data-mode="counties" aria-pressed="false">
+        </div>
+        <div class="mode-preview-set" data-mode="counties">
           <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
             <defs>
               <marker id="preview-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -585,23 +598,22 @@ HTML = r"""<!doctype html>
             <path d="M323.0,464.0 L327.4,462.2 L326.2,424.1 L338.8,415.1 L350.7,383.8 L341.9,335.6 L429.5,335.9 L430.0,377.7 L443.8,378.4 L443.9,407.0 L472.2,407.6 L472.3,421.8 L516.2,421.6 L516.3,436.0 L530.5,436.1 L530.6,450.4 L573.5,450.5 L573.6,464.9 L323.0,464.0 Z" transform="translate(-160 -130)" class="preview-piece" />
             <path d="M400,315 Q395,355 375,385" class="preview-arrow" marker-end="url(#preview-arrowhead)" />
           </svg>
-          <span class="mode-button-title">Counties</span>
-          <span class="mode-button-desc">Drag the county's shape onto the map</span>
-        </button>
-        <button type="button" class="mode-button" data-mode="name-the-county" aria-pressed="false">
+        </div>
+        <div class="mode-preview-set" data-mode="name-the-county">
           <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
             <path d="M892.2,350.7 L921.2,360.4 L931.0,374.0 L921.0,386.4 L926.2,397.0 L915.2,428.3 L915.2,731.4 L60.0,731.7 L42.8,712.4 L33.7,677.8 L37.5,627.7 L17.9,593.2 L37.3,515.4 L57.4,473.8 L67.3,415.3 L92.5,125.6 L86.0,78.5 L93.6,62.7 L83.9,30.6 L102.5,43.6 L144.6,24.8 L160.0,45.4 L190.4,39.0 L215.6,55.8 L226.4,76.1 L232.3,126.4 L288.2,145.2 L345.7,118.2 L402.1,118.5 L422.3,134.8 L485.7,111.7 L513.2,119.4 L600.6,93.3 L608.8,83.0 L665.3,80.8 L681.8,69.7 L928.4,70.4 L944.2,98.5 L972.3,110.9 L982.2,135.4 L936.5,231.4 L935.4,254.8 L910.9,280.2 L891.6,320.7 L892.2,350.7 Z" class="preview-state" />
             <path d="M737.5,283.8 L765.4,276.3 L783.8,227.7 L851.2,236.3 L851.3,222.0 L944.1,222.1 L891.6,320.7 L892.2,350.7 L860.4,350.9 L848.0,327.0 L802.7,327.1 L776.3,358.2 L740.1,358.3 L762.9,303.1 L737.5,283.8 Z M107.0,343.5 L133.1,328.9 L132.5,281.2 L195.4,291.6 L173.3,308.0 L182.8,353.6 L107.0,343.5 Z M220.0,182.6 L246.9,158.7 L344.7,158.7 L361.4,185.9 L363.9,224.1 L346.4,233.2 L357.2,250.6 L263.1,248.6 L220.0,182.6 Z M83.7,30.5 L102.5,43.6 L151.0,28.3 L161.2,106.1 L88.9,105.5 L83.7,30.5 Z M160.6,60.0 L160.9,45.4 L184.4,38.4 L215.7,55.8 L232.5,114.6 L161.2,106.1 L160.6,60.0 Z M30.2,567.4 L59.2,464.9 L100.0,465.3 L120.4,523.3 L107.6,600.9 L69.4,621.1 L66.0,585.3 L30.2,567.4 Z M429.4,357.2 L429.5,335.9 L462.9,321.7 L462.8,307.4 L515.3,307.2 L515.3,328.4 L558.7,327.9 L573.3,349.8 L602.3,349.7 L587.8,450.5 L530.6,450.4 L516.2,421.6 L443.9,407.0 L429.4,357.2 Z M18.0,592.3 L28.1,573.5 L54.5,573.4 L69.4,621.1 L119.0,601.5 L80.2,667.3 L110.0,692.1 L106.9,731.6 L60.0,731.7 L43.4,714.8 L37.5,627.7 L18.0,592.3 Z M323.0,464.0 L326.2,424.1 L350.7,383.8 L341.9,335.6 L429.5,335.9 L443.9,407.0 L516.2,421.6 L530.6,450.4 L573.5,450.5 L573.6,464.9 L323.0,464.0 Z M59.7,462.1 L66.3,423.1 L120.5,409.8 L148.3,432.0 L187.9,437.0 L191.4,476.6 L235.0,475.9 L235.0,493.6 L307.5,493.2 L326.3,522.7 L314.2,554.8 L289.6,554.8 L228.7,602.7 L139.7,614.0 L107.6,600.9 L120.4,523.3 L100.0,465.3 L59.7,462.1 Z M483.5,113.1 L513.2,119.4 L561.4,100.7 L560.5,192.5 L589.9,207.1 L589.8,221.6 L502.4,223.8 L498.4,168.9 L518.7,146.8 L483.5,113.1 Z M600.3,235.9 L770.2,242.0 L765.4,276.3 L737.5,283.8 L762.9,303.1 L740.1,358.3 L771.7,358.0 L772.2,393.9 L602.1,407.3 L600.3,235.9 Z M568.0,606.7 L573.5,450.5 L587.8,450.5 L588.0,407.3 L772.2,393.9 L775.8,731.9 L637.5,732.4 L636.8,607.5 L568.0,606.7 Z M332.8,144.5 L339.1,120.4 L389.8,119.7 L384.9,192.4 L359.4,192.4 L332.8,144.5 Z M176.7,730.6 L176.9,614.0 L289.6,566.6 L288.8,730.1 L176.7,730.6 Z M341.2,323.0 L352.7,263.2 L517.1,264.6 L515.3,307.2 L462.8,307.4 L443.7,336.0 L341.9,335.6 L341.2,323.0 Z M80.2,667.3 L119.0,601.7 L174.6,611.6 L176.7,730.8 L106.4,732.2 L110.0,692.1 L80.2,667.3 Z M288.7,710.4 L289.6,554.8 L314.2,554.8 L326.3,522.7 L307.7,473.8 L402.6,464.0 L400.7,607.9 L456.2,608.3 L456.6,732.5 L288.8,730.1 L288.7,710.4 Z M400.5,579.2 L402.6,464.0 L573.6,464.9 L568.0,607.9 L636.8,607.5 L637.5,732.4 L456.6,732.5 L456.2,608.3 L400.7,607.9 L400.5,579.2 Z M67.3,415.3 L71.6,354.7 L349.7,363.9 L307.5,493.2 L235.0,493.6 L235.0,475.9 L191.4,476.6 L187.9,437.0 L148.3,432.0 L120.5,409.8 L91.6,423.3 L67.3,415.3 Z M71.5,353.1 L84.2,227.7 L118.0,227.7 L133.1,328.9 L118.5,328.8 L111.9,353.6 L71.5,353.1 Z M173.2,308.3 L195.5,292.9 L187.1,276.6 L204.2,286.9 L230.1,269.1 L347.1,287.4 L347.1,357.8 L278.1,365.9 L220.2,353.0 L215.4,367.3 L184.6,367.4 L173.2,308.3 Z M771.7,358.2 L802.7,327.1 L848.0,327.0 L860.4,350.9 L905.5,354.1 L930.8,372.2 L914.4,428.7 L915.2,731.4 L775.8,731.9 L771.7,358.2 Z M182.7,258.7 L199.3,243.7 L208.1,187.9 L235.3,192.2 L229.4,213.5 L263.1,248.6 L355.0,254.5 L347.7,287.4 L230.1,269.1 L203.4,286.9 L182.7,258.7 Z M560.6,177.1 L561.4,100.7 L628.9,83.2 L628.6,135.3 L663.0,149.7 L660.9,235.7 L586.1,236.0 L589.9,207.1 L560.5,192.5 L560.6,177.1 Z M212.7,124.1 L232.5,114.5 L242.9,132.9 L288.2,145.2 L332.5,127.7 L344.7,158.7 L234.7,163.4 L212.7,124.1 Z M117.9,231.2 L196.1,222.7 L186.5,281.4 L120.4,281.2 L117.9,231.2 Z M438.6,187.8 L461.8,157.5 L452.3,129.0 L483.5,113.1 L508.9,131.5 L518.4,151.0 L502.3,158.1 L495.2,188.6 L506.2,218.4 L474.4,221.2 L438.6,187.8 Z M83.3,224.4 L87.7,107.2 L161.2,106.1 L146.5,117.8 L168.6,134.6 L146.5,161.1 L149.1,199.3 L110.9,199.3 L118.0,227.7 L83.3,224.4 Z M628.6,98.0 L628.9,83.2 L681.8,69.7 L802.0,69.5 L785.5,157.2 L716.3,177.9 L737.6,235.8 L660.9,235.7 L663.0,149.7 L628.6,135.3 L628.6,98.0 Z M716.3,177.9 L785.5,157.2 L794.0,99.9 L829.4,92.6 L839.4,174.6 L861.6,207.5 L886.7,207.5 L886.7,221.8 L747.4,241.3 L716.3,177.9 Z M802.0,69.5 L928.4,70.4 L972.3,110.8 L982.2,135.4 L944.1,222.1 L861.6,207.5 L831.8,149.9 L829.4,92.6 L802.0,92.7 L802.0,69.5 Z M346.4,233.2 L363.9,224.1 L359.4,192.4 L384.9,192.4 L389.8,119.7 L420.4,134.8 L448.9,126.5 L463.0,150.0 L439.4,198.9 L501.3,221.3 L517.1,264.6 L356.0,264.0 L346.4,233.2 Z M146.5,161.1 L168.6,137.0 L146.5,117.8 L200.6,106.2 L234.7,149.1 L234.7,180.2 L146.5,161.1 Z M502.4,223.8 L586.2,223.9 L600.3,235.9 L602.3,349.7 L573.3,349.8 L558.7,327.9 L515.3,328.4 L502.4,223.8 Z M110.8,207.5 L149.1,199.3 L148.9,163.4 L200.4,168.1 L222.1,192.1 L204.7,191.3 L196.1,222.7 L110.9,222.4 L110.8,207.5 Z" class="preview-grid" />
             <path d="M323.0,464.0 L327.4,462.2 L326.2,424.1 L338.8,415.1 L350.7,383.8 L341.9,335.6 L429.5,335.9 L430.0,377.7 L443.8,378.4 L443.9,407.0 L472.2,407.6 L472.3,421.8 L516.2,421.6 L516.3,436.0 L530.5,436.1 L530.6,450.4 L573.5,450.5 L573.6,464.9 L323.0,464.0 Z" class="preview-selected" />
           </svg>
-          <span class="mode-button-title">Name the county</span>
-          <span class="mode-button-desc">Click the named county on the map</span>
-        </button>
+        </div>
       </div>
-      <div class="mode-instructions" id="mode-instructions"></div>
-      <div class="mode-lines" id="game-lines"></div>
+      <div class="mode-switch-row" role="group" aria-label="Game mode">
+        <button type="button" class="mode-switch" data-mode="city-county" aria-pressed="true">City County Mode</button>
+        <button type="button" class="mode-switch" data-mode="cities" aria-pressed="false">Cities</button>
+        <button type="button" class="mode-switch" data-mode="name-the-county" aria-pressed="false">Name the county</button>
+      </div>
       <div class="btn-row">
-        <button type="button" class="btn-primary btn-big" id="btn-start">Start game</button>
+        <button type="button" class="btn-primary btn-big play-today" id="btn-play-today">Play today's game</button>
       </div>
     </div>
 
@@ -615,10 +627,23 @@ HTML = r"""<!doctype html>
       </div>
       <p class="muted small" style="margin-top:12px" id="seed-hint">Same seed = same 10 cities, in the same order, for anyone, any time.
         Share the seed (or the game link) to play the same game as another player.</p>
+      <div class="btn-row">
+        <button type="button" class="btn-primary btn-big" id="btn-start">Start game</button>
+      </div>
     </div>
 
     <div class="card">
-      <h2>Map landmarks</h2>
+      <button type="button" class="section-toggle" id="btn-how-to-play" aria-expanded="false" aria-controls="how-to-play">▸ How to play</button>
+      <div id="how-to-play" hidden>
+        <div class="mode-instructions" id="mode-instructions"></div>
+        <div class="mode-lines" id="game-lines"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <button type="button" class="section-toggle" id="btn-advanced" aria-expanded="false" aria-controls="advanced-options">▸ Advanced options</button>
+      <div id="advanced-options" hidden>
+        <h2>Map landmarks</h2>
       <div class="toggle-row" role="group" aria-label="Map layers">
         <button type="button" class="toggle" data-layer="interstate" aria-pressed="true"><span class="swatch"></span>Interstates</button>
         <button type="button" class="toggle" data-layer="highway" aria-pressed="true"><span class="swatch"></span>Highways</button>
@@ -626,6 +651,7 @@ HTML = r"""<!doctype html>
         <button type="button" class="toggle" data-layer="lake" aria-pressed="true"><span class="swatch fill"></span>Lakes</button>
       </div>
       <p class="muted small" style="margin-top:12px">Landmarks are for orientation only — they don&rsquo;t affect scoring. Your choices stay in effect during play.</p>
+      </div>
     </div>
   </section>
 
@@ -739,7 +765,7 @@ HTML = r"""<!doctype html>
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.25.
+    Version 0.26.
   </footer>
 </div>
 
@@ -1006,11 +1032,14 @@ __PURE_JS__
     seedInput.focus();
   });
 
-  /* ============ Game mode (City County / Cities / Counties) ============
-     The picker on the start screen; the lede, seed hint, game line and
-     how-it-works steps all change with the mode, like the Blazor start
-     screen. A shared link carries the mode as a path segment:
-     /oregon/city-county/<seed> (or counties, or name-the-county). */
+  /* ============ Game mode (City County / Cities / Name the county) ============
+     The picker on the start screen: one big preview image plus three small
+     mode-switch buttons (the Counties drag mode is hidden from the picker,
+     but its copy and game logic stay for direct /oregon/counties/ links).
+     The lede, seed hint, game line and how-it-works steps all change with
+     the mode, like the Blazor start screen. A shared link carries the mode
+     as a path segment: /oregon/city-county/<seed> (or counties, or
+     name-the-county). */
   var MODE_COPY = {
     "city-county": {
       lede: "A mix of both: 7 city rounds and 3 county rounds, shuffled together. City rounds: drop a pin where you think the city is. County rounds: click the county on the map. 100 points per question — full points for a pin within 5 miles, 100 for naming the right county, 50 for a county that touches it. 10 questions per game.",
@@ -1056,13 +1085,20 @@ __PURE_JS__
   /* The selected mode, kept in a variable: the mode buttons are plain
      buttons, not radios, so there is no :checked state to read. Clicking a
      button selects the mode (it does not start the game — Start still does
-     that); the selected button is marked aria-pressed. */
-  var currentMode = "cities";
+     that); the selected button is marked aria-pressed, and the big preview
+     image above the buttons switches to that mode's artwork. The default
+     mode is City County Mode. */
+  var currentMode = "city-county";
   function selectedMode() { return currentMode; }
   function setMode(mode) {
     currentMode = mode;
-    document.querySelectorAll(".mode-button").forEach(function (btn) {
+    document.querySelectorAll(".mode-switch").forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-mode") === mode));
+    });
+    document.querySelectorAll(".mode-preview-set").forEach(function (set) {
+      var active = set.getAttribute("data-mode") === mode;
+      set.classList.toggle("is-active", active);
+      set.setAttribute("aria-hidden", String(!active));
     });
     updateModeUI();
   }
@@ -1125,18 +1161,18 @@ __PURE_JS__
     });
   }
   buildModeVariants();
-  document.querySelectorAll(".mode-button").forEach(function (btn) {
+  document.querySelectorAll(".mode-switch").forEach(function (btn) {
     btn.addEventListener("click", function () { setMode(btn.getAttribute("data-mode")); });
   });
   /* The county modes are only offered when the pack has counties; this file
      always does (36), but the guard mirrors the Blazor disabled handling. */
   if (!counties || !counties.features || counties.features.length === 0) {
-    document.querySelectorAll('.mode-button[data-mode="city-county"], .mode-button[data-mode="counties"], .mode-button[data-mode="name-the-county"]').forEach(function (btn) {
+    document.querySelectorAll('.mode-switch[data-mode="city-county"], .mode-switch[data-mode="name-the-county"]').forEach(function (btn) {
       btn.disabled = true;
     });
   }
   /* The mode from the game URL (/oregon/<mode>/...) preselects the mode
-     on the start screen; anything else leaves the default (Cities). */
+     on the start screen; anything else leaves the default (City County Mode). */
   if (urlGame.mode) {
     setMode(urlGame.mode);
   }
@@ -1843,6 +1879,32 @@ __PURE_JS__
   seedInput.addEventListener("keydown", function (ev) {
     if (ev.key === "Enter") startGame(seedInput.value);
   });
+
+  /* "Play today's game": start immediately with the daily seed and the
+     selected mode — one tap, no seed box needed. The seed box is updated
+     to the daily seed too, so it shows what was played. */
+  document.getElementById("btn-play-today").addEventListener("click", function () {
+    seedInput.value = dailySeed();
+    startGame(seedInput.value);
+  });
+
+  /* Collapsible start-screen sections ("How to play", "Advanced options"):
+     minimized by default; tapping the header button expands the section
+     (and flips its chevron). Expanding changes the page height, which is
+     expected for a collapsed section. The button label is the chevron
+     plus the section name, so slice(2) drops the old chevron. */
+  function bindSectionToggle(btnId, panelId) {
+    var btn = document.getElementById(btnId);
+    var panel = document.getElementById(panelId);
+    btn.addEventListener("click", function () {
+      var open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", String(open));
+      btn.textContent = (open ? "\u25be " : "\u25b8 ") + btn.textContent.slice(2);
+    });
+  }
+  bindSectionToggle("btn-how-to-play", "how-to-play");
+  bindSectionToggle("btn-advanced", "advanced-options");
 
   /* ============ Results ============ */
   function showResults() {
