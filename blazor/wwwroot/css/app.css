@@ -184,12 +184,29 @@ input[type="text"] {
     max-width: 26rem;
 }
 input[type="text"]:focus { outline: 3px solid var(--green); outline-offset: 1px; border-color: var(--green); }
-/* The seed box is short (20 chars max) and sits below "Play today's game",
-   out of the normal player's path — keep it narrow so it reads as a
-   secondary control. */
-input[type="text"].seed-input { max-width: 15rem; }
-/* The seed box and its two buttons sit on one line, daily seed first; the
-   buttons line up with the input (not the "Seed" label above it). */
+/* The Game # box is short (20 chars max) and sits below the Play button,
+   out of the normal player's path — just wide enough for the daily Game #
+   (~12 characters), with a calendar button to restore today's Game # and a
+   dice button for a random one beside it. */
+input[type="text"].seed-input { width: 13ch; max-width: 13ch; }
+/* Icon-only buttons beside the Game # box (calendar for today's Game #,
+   dice for a random one). No text label — the icon is the button, with an
+   aria-label for screen readers. Same height as the input, so the row
+   lines up with it. */
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    flex-shrink: 0;
+}
+.icon-btn svg { display: block; }
+/* The Game # box and its two icon buttons sit on one line; the buttons
+   line up with the input (not the "Game #" label above it). */
 .seed-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: end; }
 .seed-row label { margin: 0; }
 label { display: block; margin: 0.5rem 0; font-weight: 600; }
@@ -402,27 +419,29 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     margin-bottom: 1rem;
     animation: fadeUp 0.35s ease both;
 }
-/* One row at the top of the map card holds the round's controls:
-   Confirm/Pass while placing, then the distance and the Next button
-   after the reveal. Landmark toggles live on the start screen only,
-   so nothing below the map needs a scroll to reach. */
-/* The controls row is a single line in both states: the hint sits to the
-   right of the buttons while placing, and the reveal line takes the same
-   spot after confirming. If the row wrapped, its height would change
-   between states and the map below would bounce up and down. */
+/* Two lines at the top of the map card: the buttons on the first line,
+   and one unified message line below them. The message line holds the
+   round's status — the guessing hint while placing, then the reveal
+   distance/points or county message after confirming. It is a single
+   line with a fixed height, so switching messages never moves the
+   buttons above it or the map below it. Landmark toggles live on the
+   start screen only, so nothing below the map needs a scroll to reach. */
 .game-controls {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 0.5rem;
     padding-bottom: 0.75rem;
     margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--line);
 }
-.game-controls button { flex-shrink: 0; }
+.controls-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+.controls-row button { flex-shrink: 0; }
 .controls-hint {
-    flex: 1;
-    min-width: 0;
+    margin: 0.5rem 0 0;
+    min-height: 1.6rem;
+    line-height: 1.6rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -430,8 +449,9 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     font-size: 0.9rem;
 }
 .reveal-line {
-    flex: 1;
-    min-width: 0;
+    margin: 0.5rem 0 0;
+    min-height: 1.6rem;
+    line-height: 1.6rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

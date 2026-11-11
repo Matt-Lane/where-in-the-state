@@ -84,27 +84,32 @@ else if (_phase == Phase.Start)
             </div>
         </div>
 
-        @* Play today's game: starts immediately with the daily seed and the
-           selected mode, so a new player can just jump in. *@
-        <button class="primary play-today" @onclick="PlayTodaysGame">
-            Play today's game
+        @* The main Play button: it starts a game with whatever Game # is
+           in the box below. The label is dynamic — "Play Today's Game"
+           when the box holds today's Game #, just "Play" for any other
+           Game # (or an empty box, when it is disabled). *@
+        <button class="primary play-today" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
+            @(IsDailySeed ? "Play Today's Game" : "Play")
         </button>
 
-        @* Seed box: stays visible below Play, for joining a shared game.
-           Start game (under the seed box) starts with the seed in the box. *@
+        @* Game # box: stays visible below Play, for joining a shared game.
+           It is pre-filled with today's Game # on load (or the Game # from
+           a shared link). The box is sized for the daily Game # (~12
+           characters); the calendar button restores today's Game # and the
+           dice button fills in a random one. Both are icon-only. *@
         <div class="seed-row">
             <label>
-                Seed
-                <input type="text" class="seed-input" @bind="_seed" @bind:event="oninput" maxlength="20" />
+                Game #
+                <input type="text" class="seed-input" @bind="_seed" @bind:event="oninput" maxlength="20" size="13" />
             </label>
-            <button @onclick="UseDailySeed">Use today's daily seed</button>
-            <button @onclick="UseRandomSeed">Random seed</button>
+            <button type="button" class="icon-btn" @onclick="UseDailySeed" aria-label="Use today's game number">
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2" /><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2" /><line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="2" /><line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="2" /></svg>
+            </button>
+            <button type="button" class="icon-btn" @onclick="UseRandomSeed" aria-label="Random game number">
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="8" cy="8" r="1.8" fill="currentColor" /><circle cx="16" cy="8" r="1.8" fill="currentColor" /><circle cx="12" cy="12" r="1.8" fill="currentColor" /><circle cx="8" cy="16" r="1.8" fill="currentColor" /><circle cx="16" cy="16" r="1.8" fill="currentColor" /></svg>
+            </button>
         </div>
-        <p class="hint">Same seed = same @SeedPoolLabel, same order. Share it to play the same game as another player.</p>
-
-        <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
-            Start game
-        </button>
+        <p class="hint">Same Game # = same @SeedPoolLabel, same order. Share it to play the same game as another player.</p>
 
         @* How to play: the instructions for the selected mode, collapsed
            behind a button (minimized by default). The four variants are
@@ -126,7 +131,7 @@ else if (_phase == Phase.Start)
                         naming the right county, 50 for a county that touches it. <strong>10 questions</strong> per game.
                     </p>
                     <ol class="how-it-works">
-                        <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 7 cities and 3 counties — share it to play together.</li>
+                        <li><strong><span class="step-num">1</span>Pick a Game #</strong>Same Game #, same 7 cities and 3 counties — share it to play together.</li>
                         <li><strong><span class="step-num">2</span>Drop a pin or pick the county</strong>City rounds: tap the map where you think the city is. County rounds: click the county that matches the name.</li>
                         <li><strong><span class="step-num">3</span>See how close</strong>The real spot or county is revealed, with your distance or pick and your points.</li>
                     </ol>
@@ -139,7 +144,7 @@ else if (_phase == Phase.Start)
                         mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
                     </p>
                     <ol class="how-it-works">
-                        <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 cities — share it to play together.</li>
+                        <li><strong><span class="step-num">1</span>Pick a Game #</strong>Same Game #, same 10 cities — share it to play together.</li>
                         <li><strong><span class="step-num">2</span>Drop a pin</strong>Tap the map where you think the city is, then confirm.</li>
                         <li><strong><span class="step-num">3</span>See how close</strong>The real spot is revealed, with your distance and points.</li>
                     </ol>
@@ -153,7 +158,7 @@ else if (_phase == Phase.Start)
                         <strong>10 questions</strong> per game.
                     </p>
                     <ol class="how-it-works">
-                        <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
+                        <li><strong><span class="step-num">1</span>Pick a Game #</strong>Same Game #, same 10 counties — share it to play together.</li>
                         <li><strong><span class="step-num">2</span>Drag the piece</strong>Drag the county's shape onto the map where it belongs, then confirm.</li>
                         <li><strong><span class="step-num">3</span>See the overlap</strong>The real county is revealed, with how much of it you covered and your points.</li>
                     </ol>
@@ -166,7 +171,7 @@ else if (_phase == Phase.Start)
                         county that touches it, 0 for any other. <strong>10 questions</strong> per game.
                     </p>
                     <ol class="how-it-works">
-                        <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
+                        <li><strong><span class="step-num">1</span>Pick a Game #</strong>Same Game #, same 10 counties — share it to play together.</li>
                         <li><strong><span class="step-num">2</span>Pick the county</strong>Click the county on the map that matches the name, then confirm.</li>
                         <li><strong><span class="step-num">3</span>See if you were right</strong>The real county is revealed, with what you picked and your points.</li>
                     </ol>
@@ -225,15 +230,17 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
         <div class="game-controls">
             @if (_phase == Phase.Round)
             {
-                <button class="primary" @onclick="ConfirmGuess" disabled="@(_selectedCounty is null)">
-                    Confirm guess
-                </button>
-                <button @onclick="Pass">Pass (0 points)</button>
-                <span class="controls-hint">
+                <div class="controls-row">
+                    <button class="primary" @onclick="ConfirmGuess" disabled="@(_selectedCounty is null)">
+                        Confirm guess
+                    </button>
+                    <button @onclick="Pass">Pass (0 points)</button>
+                </div>
+                <p class="controls-hint">
                     @(_selectedCounty is null
                         ? "Click a county on the map to select it."
                         : "County selected — click another county to change it, or confirm.")
-                </span>
+                </p>
             }
             else
             {
@@ -244,10 +251,12 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
                 var selectedName = isMixedCounty ? mixedResult!.SelectedCountyName : _nameResults[_roundIndex].SelectedCountyName;
                 var isCorrect = isMixedCounty ? mixedResult!.IsCorrect == true : _nameResults[_roundIndex].IsCorrect;
                 var isAdjacent = isMixedCounty ? mixedResult!.IsAdjacent : _nameResults[_roundIndex].IsAdjacent;
-                <button class="primary" @onclick="NextRound">
-                    @(_roundIndex + 1 >= totalRounds ? "See results" : isCityCounty ? "Next question" : "Next county")
-                </button>
-                <span class="reveal-line">
+                <div class="controls-row">
+                    <button class="primary" @onclick="NextRound">
+                        @(_roundIndex + 1 >= totalRounds ? "See results" : isCityCounty ? "Next question" : "Next county")
+                    </button>
+                </div>
+                <p class="reveal-line">
                     @if (selectedName is null)
                     {
                         <text>You passed — the green county is @county.Name.</text>
@@ -264,7 +273,7 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
                     {
                         <text>That's @selectedName, not @county.Name · 0 points</text>
                     }
-                </span>
+                </p>
             }
         </div>
 
@@ -294,23 +303,27 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
         <div class="game-controls">
             @if (_phase == Phase.Round)
             {
-                <button class="primary" @onclick="ConfirmGuess" disabled="@(!_countyDragged)">
-                    Confirm guess
-                </button>
-                <button @onclick="Pass">Pass (0 points)</button>
-                <span class="controls-hint">
+                <div class="controls-row">
+                    <button class="primary" @onclick="ConfirmGuess" disabled="@(!_countyDragged)">
+                        Confirm guess
+                    </button>
+                    <button @onclick="Pass">Pass (0 points)</button>
+                </div>
+                <p class="controls-hint">
                     @(_countyDragged
                         ? "Piece placed — drag it again to move it, or confirm."
                         : "Drag the county piece onto the map.")
-                </span>
+                </p>
             }
             else
             {
                 var result = _countyResults[_roundIndex];
-                <button class="primary" @onclick="NextRound">
-                    @(_roundIndex + 1 >= totalRounds ? "See results" : "Next county")
-                </button>
-                <span class="reveal-line">
+                <div class="controls-row">
+                    <button class="primary" @onclick="NextRound">
+                        @(_roundIndex + 1 >= totalRounds ? "See results" : "Next county")
+                    </button>
+                </div>
+                <p class="reveal-line">
                     @if (result.OverlapFraction is null)
                     {
                         <text>You passed — the green shape is @county.Name.</text>
@@ -319,7 +332,7 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
                     {
                         <text>You covered @((result.OverlapFraction.Value * 100).ToString("F0"))% of @county.Name · @result.Points points</text>
                     }
-                </span>
+                </p>
             }
         </div>
 
@@ -348,25 +361,29 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
         <div class="game-controls">
             @if (_phase == Phase.Round)
             {
-                <button class="primary" @onclick="ConfirmGuess" disabled="@(_guessLat is null)">
-                    Confirm guess
-                </button>
-                <button @onclick="Pass">Pass (0 points)</button>
-                <span class="controls-hint">
+                <div class="controls-row">
+                    <button class="primary" @onclick="ConfirmGuess" disabled="@(_guessLat is null)">
+                        Confirm guess
+                    </button>
+                    <button @onclick="Pass">Pass (0 points)</button>
+                </div>
+                <p class="controls-hint">
                     @(_guessLat is null
                         ? "Click or tap the map to place your pin."
                         : "Pin placed — click again to move it, or confirm.")
-                </span>
+                </p>
             }
             else
             {
                 var mixedResult = isCityCounty ? _mixedResults[_roundIndex] : null;
                 var distance = isCityCounty ? mixedResult!.DistanceMiles : _results[_roundIndex].DistanceMiles;
                 var points = isCityCounty ? mixedResult!.Points : _results[_roundIndex].Points;
-                <button class="primary" @onclick="NextRound">
-                    @(_roundIndex + 1 >= totalRounds ? "See results" : isCityCounty ? "Next question" : "Next city")
-                </button>
-                <span class="reveal-line">
+                <div class="controls-row">
+                    <button class="primary" @onclick="NextRound">
+                        @(_roundIndex + 1 >= totalRounds ? "See results" : isCityCounty ? "Next question" : "Next city")
+                    </button>
+                </div>
+                <p class="reveal-line">
                     @if (distance is null)
                     {
                         <text>You passed — the green pin is @city.Name.</text>
@@ -375,7 +392,7 @@ else if (_phase == Phase.Round || _phase == Phase.Reveal)
                     {
                         <text>@distance.Value.ToString("F1") mi off · @points points</text>
                     }
-                </span>
+                </p>
             }
         </div>
 
@@ -408,7 +425,7 @@ else if (_phase == Phase.Results)
         </div>
         <div class="summary-row">
             <div class="summary-box">
-                <p>I scored @_totalScore/@MaxScore on Where in the @(_pack?.Name ?? "Oregon")?!@ModeSummaryLabel, seed @_seed</p>
+                <p>I scored @_totalScore/@MaxScore on Where in the @(_pack?.Name ?? "Oregon")?!@ModeSummaryLabel, Game # @_seed</p>
                 <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
             </div>
             <button @onclick="CopySummary">Copy</button>
@@ -540,7 +557,7 @@ else if (_phase == Phase.Results)
     }
 
     <div class="button-row">
-        <button class="primary" @onclick="PlayAgainNewSeed">Play again (new random seed)</button>
+        <button class="primary" @onclick="PlayAgainNewSeed">Play again (new random game)</button>
         <button @onclick="BackToGameSelection">Back to game selection</button>
     </div>
 }
@@ -818,7 +835,7 @@ else if (_phase == Phase.Results)
     private string SummaryText =>
         $"I scored {_totalScore}/{MaxScore} on Where in the {_pack?.Name ?? "Oregon"}?!" +
         ModeSummaryLabel +
-        $", seed {_seed}\nPlay the same game: {GameLink}";
+        $", Game # {_seed}\nPlay the same game: {GameLink}";
 
     // Once a game starts, the header shows the in-game title, derived
     // from the pack name so a future state gets its own title with no
@@ -956,14 +973,12 @@ else if (_phase == Phase.Results)
 
     private void UseDailySeed() => _seed = GameService.DailySeed(_pack?.Abbreviation ?? "OR");
 
-    private void PlayTodaysGame()
-    {
-        // "Play today's game": start immediately with the daily seed and
-        // the selected mode — one tap, no seed box needed. Setting _seed
-        // also shows the daily seed in the seed box.
-        _seed = GameService.DailySeed(_pack?.Abbreviation ?? "OR");
-        StartGame();
-    }
+    // The main Play button reads "Play Today's Game" when the box holds
+    // today's daily seed, and just "Play" for any other seed (or an empty
+    // box). _seed is forced to upper case by its setter and DailySeed is
+    // already upper case, so a plain == is a canonical comparison. The
+    // input binds on every keystroke, so the label updates reactively.
+    private bool IsDailySeed => _seed == GameService.DailySeed(_pack?.Abbreviation ?? "OR");
 
     private void StartGame()
     {

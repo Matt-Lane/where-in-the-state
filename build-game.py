@@ -297,10 +297,21 @@ HTML = r"""<!doctype html>
     border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
   }
   input[type="text"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .seed-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
-  /* The seed box is short (20 chars max) and sits below "Play today's game",
-     out of the normal player's path — keep it narrow so it reads as a secondary control. */
-  .seed-row input { flex: 0 1 240px; max-width: 240px; }
+  .seed-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  /* The Game # box is short (20 chars max) and sits below the Play button,
+     out of the normal player's path — just wide enough for the daily Game #
+     (~12 characters), with a calendar button to restore today's Game # and a
+     dice button for a random one beside it. */
+  .seed-row input { flex: 0 0 auto; width: 13ch; max-width: 13ch; }
+  /* Icon-only buttons beside the Game # box (calendar for today's Game #,
+     dice for a random one). No text label — the icon is the button, with an
+     aria-label for screen readers. Same height as the input, so the row
+     lines up with it. */
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; flex-shrink: 0;
+  }
+  .icon-btn svg { display: block; }
   .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 
   button, .btn {
@@ -447,19 +458,18 @@ HTML = r"""<!doctype html>
   .progress-max { position: absolute; top: 50%; width: 3px; height: 16px; transform: translate(-50%, -50%); background: #c0563a; border-radius: 999px; transition: left 0.3s ease; }
   #round-heading { font-size: 22px; margin: 0 0 6px; }
   .map-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
-  /* One row at the top of the map card holds the round's controls:
-     Confirm/Pass while placing, then the distance and the Next button
-     after the reveal. Landmark toggles live on the start screen only,
-     so nothing below the map needs a scroll to reach. */
+  /* Two lines at the top of the map card: the buttons on the first line,
+     and one unified message line below them. The message line holds the
+     round's status — the guessing hint while placing, then the reveal
+     distance/points or county message after confirming. It is a single
+     line with a fixed height, so switching messages never moves the
+     buttons above it or the map below it. Landmark toggles live on the
+     start screen only, so nothing below the map needs a scroll to reach. */
   .game-controls { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
-  /* The controls row is a single line in both states: the hint sits to the
-     right of the buttons while placing, and the reveal line takes the same
-     spot after confirming. If the row wrapped, its height would change
-     between states and the map below would bounce up and down. */
   .game-controls .btn-row { margin-top: 0; flex-wrap: nowrap; }
   .game-controls .btn-row button { flex-shrink: 0; }
-  .controls-hint { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 13.5px; align-self: center; }
-  .reveal-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; align-self: center; }
+  .controls-hint { margin: 8px 0 0; min-height: 1.6rem; line-height: 1.6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 13.5px; }
+  .reveal-line { margin: 8px 0 0; min-height: 1.6rem; line-height: 1.6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
   .map-frame { position: relative; width: min(100%, calc(min(56vh, 620px) * 1.3203)); margin: 0 auto; background: #f8f5ea; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   /* Sized by viewport height so the whole round fits on one screen;
      the width follows from the viewBox aspect ratio (1000 / 757.4).
@@ -663,23 +673,24 @@ HTML = r"""<!doctype html>
         <button type="button" class="mode-switch" data-mode="name-the-county" aria-pressed="false">Name the county</button>
       </div>
       <div class="btn-row">
-        <button type="button" class="btn-primary btn-big play-today" id="btn-play-today">Play today's game</button>
+        <button type="button" class="btn-primary btn-big play-today" id="btn-play-today">Play Today's Game</button>
       </div>
     </div>
 
     <div class="card">
-      <h2>Seed — same seed, same game</h2>
-      <label class="field-label" for="seed-input">Game seed</label>
+      <h2>Game # — same Game #, same game</h2>
+      <label class="field-label" for="seed-input">Game #</label>
       <div class="seed-row">
-        <input type="text" id="seed-input" autocomplete="off" spellcheck="false" maxlength="20" />
-        <button type="button" id="btn-daily-seed">Use today&rsquo;s daily seed</button>
-        <button type="button" id="btn-random-seed">Random seed</button>
+        <input type="text" id="seed-input" autocomplete="off" spellcheck="false" maxlength="20" size="13" />
+        <button type="button" class="icon-btn" id="btn-daily-seed" aria-label="Use today's game number">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2" /><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2" /><line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="2" /><line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="2" /></svg>
+        </button>
+        <button type="button" class="icon-btn" id="btn-random-seed" aria-label="Random game number">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="8" cy="8" r="1.8" fill="currentColor" /><circle cx="16" cy="8" r="1.8" fill="currentColor" /><circle cx="12" cy="12" r="1.8" fill="currentColor" /><circle cx="8" cy="16" r="1.8" fill="currentColor" /><circle cx="16" cy="16" r="1.8" fill="currentColor" /></svg>
+        </button>
       </div>
-      <p class="muted small" style="margin-top:12px" id="seed-hint">Same seed = same 10 cities, in the same order, for anyone, any time.
-        Share the seed (or the game link) to play the same game as another player.</p>
-      <div class="btn-row">
-        <button type="button" class="btn-primary btn-big" id="btn-start">Start game</button>
-      </div>
+      <p class="muted small" style="margin-top:12px" id="seed-hint">Same Game # = same 10 cities, in the same order, for anyone, any time.
+        Share the Game # (or the game link) to play the same game as another player.</p>
     </div>
 
     <div class="card">
@@ -715,7 +726,7 @@ HTML = r"""<!doctype html>
         </div>
         <div class="progress-max" id="progress-max" style="left: 10%" title="Maximum possible after question 1: 100" aria-hidden="true"></div>
       </div>
-      <p class="score-line">Score: <span id="running-total">0</span> / <span id="running-max">1000</span> &nbsp;&middot;&nbsp; Seed: <span id="game-seed-label"></span></p>
+      <p class="score-line">Score: <span id="running-total">0</span> / <span id="running-max">1000</span> &nbsp;&middot;&nbsp; Game #: <span id="game-seed-label"></span></p>
     </div>
 
     <div class="map-card">
@@ -723,12 +734,12 @@ HTML = r"""<!doctype html>
         <div class="btn-row" id="guess-controls">
           <button type="button" class="btn-primary" id="btn-confirm" disabled>Confirm guess</button>
           <button type="button" id="btn-pass">Pass (0 points)</button>
-          <span class="controls-hint" id="hint-text">Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.</span>
         </div>
         <div class="btn-row" id="reveal-controls" hidden>
           <button type="button" class="btn-primary" id="btn-next">Next city</button>
-          <span class="reveal-line" id="reveal-line"></span>
         </div>
+        <p class="controls-hint" id="hint-text">Tap the map to drop a pin. Tap again (or drag) to move it, then confirm.</p>
+        <p class="reveal-line" id="reveal-line" hidden></p>
       </div>
       <div class="map-frame">
         <svg id="map" viewBox="0 0 1000 757.4" role="img" aria-label="Blank map of Oregon with interstates, highways, rivers and lakes. Tap to place a pin.">
@@ -781,7 +792,7 @@ HTML = r"""<!doctype html>
 
     <div class="card">
       <h2>Share this game</h2>
-      <p class="muted small" id="share-note">Anyone opening this link with the same seed gets the same 10 cities in the same order.</p>
+      <p class="muted small" id="share-note">Anyone opening this link with the same Game # gets the same 10 cities in the same order.</p>
       <div class="summary-row">
         <div class="summary-box" id="summary-text"></div>
         <button type="button" id="btn-copy-summary">Copy</button>
@@ -790,7 +801,7 @@ HTML = r"""<!doctype html>
            moves anything on the screen. -->
       <p class="copied" id="copy-note" style="visibility:hidden">Copied!</p>
       <div class="btn-row">
-        <button type="button" class="btn-primary" id="btn-again">Play again (new seed)</button>
+        <button type="button" class="btn-primary" id="btn-again">Play again (new game)</button>
       </div>
     </div>
 
@@ -808,15 +819,15 @@ HTML = r"""<!doctype html>
     (100 for a perfect fit), sampled on a 4-unit grid in map units. Name the county mode: 100 points
     for naming the right county, 50 for a county that touches it, 0 for any other county or a pass —
     1,000 points maximum.<br />
-    Seeded shuffle: this web version hashes the seed with SHA-256 (WebCrypto) and uses the first 4 bytes as a
+    Game # shuffle: this web version hashes the Game # with SHA-256 (WebCrypto) and uses the first 4 bytes as a
     signed 32-bit integer to drive a mulberry32 PRNG through a Fisher&ndash;Yates shuffle of the 241-city pool
     (or the 36-county pool in either county mode).
-    The Blazor C# version (spec &sect;5) uses the same SHA-256 seed integer with <code>System.Random(seedInt)</code>
-    instead of mulberry32, so the 10 cities picked for a given seed may differ between the JavaScript and C#
-    versions — but the seed format, scoring, and projection are the same.<br />
+    The Blazor C# version (spec &sect;5) uses the same SHA-256 hash with <code>System.Random(seedInt)</code>
+    instead of mulberry32, so the 10 cities picked for a given Game # may differ between the JavaScript and C#
+    versions — but the format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.27.
+    Version 0.28.
   </footer>
 </div>
 
@@ -1064,6 +1075,16 @@ __PURE_JS__
   var urlGame = parseGameUrl();
   var urlSeed = urlGame.seed;
   seedInput.value = (urlSeed && urlSeed.trim()) ? urlSeed.trim().toUpperCase() : dailySeed();
+  /* The main Play button's label is dynamic: it reads "Play Today's Game"
+     when the box holds today's daily seed, and just "Play" for any other
+     seed (or an empty box). It is refreshed on every change to the box —
+     typing, the calendar button, or the dice button — so the label always
+     matches what is in the box. */
+  var playTodayBtn = document.getElementById("btn-play-today");
+  function updatePlayLabel() {
+    playTodayBtn.textContent = (seedInput.value === dailySeed()) ? "Play Today's Game" : "Play";
+  }
+  updatePlayLabel();
   /* Force seeds to upper case as the player types, so the box always
      shows the canonical form. The cursor is kept where it was. */
   seedInput.addEventListener("input", function () {
@@ -1073,13 +1094,16 @@ __PURE_JS__
       seedInput.value = upper;
       seedInput.setSelectionRange(start, end);
     }
+    updatePlayLabel();
   });
   document.getElementById("btn-random-seed").addEventListener("click", function () {
     seedInput.value = randomSeed();
+    updatePlayLabel();
     seedInput.focus();
   });
   document.getElementById("btn-daily-seed").addEventListener("click", function () {
     seedInput.value = dailySeed();
+    updatePlayLabel();
     seedInput.focus();
   });
 
@@ -1094,40 +1118,40 @@ __PURE_JS__
   var MODE_COPY = {
     "city-county": {
       lede: "A mix of both: 7 city rounds and 3 county rounds, shuffled together. City rounds: drop a pin where you think the city is. County rounds: click the county on the map. 100 points per question — full points for a pin within 5 miles, 100 for naming the right county, 50 for a county that touches it. 10 questions per game.",
-      seedHint: "Same seed = same 7 cities and 3 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
+      seedHint: "Same Game # = same 7 cities and 3 counties, in the same order, for anyone, any time. Share the Game # (or the game link) to play the same game as another player.",
       gameLine: "Seven city questions and three county questions, 100 points per question, 1,000 points maximum.",
       steps: [
-        ["Pick a seed", "Same seed, same 7 cities and 3 counties — share it to play together."],
+        ["Pick a Game #", "Same Game #, same 7 cities and 3 counties — share it to play together."],
         ["Drop a pin or pick the county", "City rounds: tap the map where you think the city is. County rounds: click the county that matches the name."],
         ["See how close", "The real spot or county is revealed, with your distance or pick and your points."]
       ]
     },
     cities: {
       lede: "Ten Oregon cities, one blank map. Tap where you think each city is — the closer your pin, the more points. Full points within 5 miles, then −1 point per mile beyond that.",
-      seedHint: "Same seed = same 10 cities, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
+      seedHint: "Same Game # = same 10 cities, in the same order, for anyone, any time. Share the Game # (or the game link) to play the same game as another player.",
       gameLine: "One pin per city, 100 points per question, 1,000 points maximum.",
       steps: [
-        ["Pick a seed", "Same seed, same 10 cities — share it to play together."],
+        ["Pick a Game #", "Same Game #, same 10 cities — share it to play together."],
         ["Drop a pin", "Tap the map where you think the city is, then confirm."],
         ["See how close", "The real spot is revealed, with your distance and points."]
       ]
     },
     counties: {
       lede: "A blank map of Oregon — outline and landmarks, but no county lines. Each round names one county; drag its shape onto the map where you think it belongs. 100 points for a perfect fit, scaled by how much of the real county you cover. 10 questions per game.",
-      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
+      seedHint: "Same Game # = same 10 counties, in the same order, for anyone, any time. Share the Game # (or the game link) to play the same game as another player.",
       gameLine: "One county per question, 100 points per question, 1,000 points maximum.",
       steps: [
-        ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
+        ["Pick a Game #", "Same Game #, same 10 counties — share it to play together."],
         ["Drag the piece", "Drag the county's shape onto the map where it belongs, then confirm."],
         ["See the overlap", "The real county is revealed, with how much of it you covered and your points."]
       ]
     },
     "name-the-county": {
       lede: "A map of Oregon with every county outlined, but no county names. Each round names one county; click the county you think it is. 100 points for naming the right county, 50 for a county that touches it, 0 for any other. 10 questions per game.",
-      seedHint: "Same seed = same 10 counties, in the same order, for anyone, any time. Share the seed (or the game link) to play the same game as another player.",
+      seedHint: "Same Game # = same 10 counties, in the same order, for anyone, any time. Share the Game # (or the game link) to play the same game as another player.",
       gameLine: "One county per question, 100 points per correct answer, 50 for a neighboring county, 1,000 points maximum.",
       steps: [
-        ["Pick a seed", "Same seed, same 10 counties — share it to play together."],
+        ["Pick a Game #", "Same Game #, same 10 counties — share it to play together."],
         ["Pick the county", "Click the county on the map that matches the name, then confirm."],
         ["See if you were right", "The real county is revealed, with what you picked and your points."]
       ]
@@ -1828,6 +1852,10 @@ __PURE_JS__
     pinConfirm.hidden = true;
     document.getElementById("reveal-controls").hidden = true;
     document.getElementById("guess-controls").hidden = false;
+    /* The unified message line below the buttons shows the guessing hint
+       while placing; the reveal line stays hidden until the reveal. */
+    document.getElementById("reveal-line").hidden = true;
+    document.getElementById("hint-text").hidden = false;
     if (game.mode === "counties") {
       /* Stage the county piece: its own shape at 1:1 scale, bounding-box
          top-left at (10, 10) in the top-left corner of the map. */
@@ -1924,6 +1952,10 @@ __PURE_JS__
     btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : (game.mode === "city-county" ? "Next question" : "Next city");
     document.getElementById("guess-controls").hidden = true;
     document.getElementById("reveal-controls").hidden = false;
+    /* The message line below the buttons swaps from the guessing hint to
+       the reveal distance and points. */
+    document.getElementById("hint-text").hidden = true;
+    document.getElementById("reveal-line").hidden = false;
     /* Refresh the header (and the score bar) now that the round is scored. */
     updateRoundHeader();
   }
@@ -1978,6 +2010,10 @@ __PURE_JS__
     }
     btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : "Next county";
     document.getElementById("reveal-controls").hidden = false;
+    /* The message line below the buttons swaps from the guessing hint to
+       the reveal overlap and points. */
+    document.getElementById("hint-text").hidden = true;
+    document.getElementById("reveal-line").hidden = false;
     /* Refresh the header (and the score bar) now that the round is scored. */
     updateRoundHeader();
   }
@@ -2035,6 +2071,10 @@ __PURE_JS__
     }
     btnNext.textContent = game.roundIndex + 1 >= QUESTION_COUNT ? "See results" : (game.mode === "city-county" ? "Next question" : "Next county");
     document.getElementById("reveal-controls").hidden = false;
+    /* The message line below the buttons swaps from the guessing hint to
+       the reveal message ("Correct — that's …" / "Pretty close! …"). */
+    document.getElementById("hint-text").hidden = true;
+    document.getElementById("reveal-line").hidden = false;
     /* Refresh the header (and the score bar) now that the round is scored. */
     updateRoundHeader();
   }
@@ -2104,18 +2144,15 @@ __PURE_JS__
     captureEvent("game_started", startedProps);
   }
 
-  document.getElementById("btn-start").addEventListener("click", function () {
-    startGame(seedInput.value);
-  });
   seedInput.addEventListener("keydown", function (ev) {
     if (ev.key === "Enter") startGame(seedInput.value);
   });
 
-  /* "Play today's game": start immediately with the daily seed and the
-     selected mode — one tap, no seed box needed. The seed box is updated
-     to the daily seed too, so it shows what was played. */
-  document.getElementById("btn-play-today").addEventListener("click", function () {
-    seedInput.value = dailySeed();
+  /* The main Play button is the only way to start a game: it starts with
+     whatever Game # is in the box (today's or another one — the label
+     says which). Starting with an empty box is preserved: startGame
+     falls back to a random seed, as before. */
+  playTodayBtn.addEventListener("click", function () {
     startGame(seedInput.value);
   });
 
@@ -2159,10 +2196,10 @@ __PURE_JS__
     document.getElementById("col-item").textContent = isMixed ? "Target" : isCountyMode ? "County" : "City";
     document.getElementById("col-metric").textContent = isMixed ? "Answer" : isCounties ? "Coverage" : isName ? "Your pick" : "Distance";
     document.getElementById("share-note").textContent = isMixed
-      ? "Anyone opening this link with the same seed gets the same 7 cities and 3 counties in the same order."
+      ? "Anyone opening this link with the same Game # gets the same 7 cities and 3 counties in the same order."
       : isCountyMode
-      ? "Anyone opening this link with the same seed gets the same 10 counties in the same order."
-      : "Anyone opening this link with the same seed gets the same 10 cities in the same order.";
+      ? "Anyone opening this link with the same Game # gets the same 10 counties in the same order."
+      : "Anyone opening this link with the same Game # gets the same 10 cities in the same order.";
     var scored = game.results.filter(function (r) { return !r.passed; });
     if (isMixed) {
       /* City rounds: average distance; county rounds: how many named
@@ -2365,7 +2402,7 @@ __PURE_JS__
     });
     document.getElementById("summary-text").textContent =
       "I scored " + game.total + "/1000 on Where in the " + STATE_NAME + "?!" +
-      (isMixed ? " (City County Mode)" : isCounties ? " (Counties)" : isName ? " (Name the county)" : "") + ", seed " + game.seed + "\nPlay the same game: " + gameLink();
+      (isMixed ? " (City County Mode)" : isCounties ? " (Counties)" : isName ? " (Name the county)" : "") + ", Game # " + game.seed + "\nPlay the same game: " + gameLink();
   }
 
   function copyText(text, noteEl) {
@@ -2391,6 +2428,7 @@ __PURE_JS__
   });
   document.getElementById("btn-again").addEventListener("click", function () {
     seedInput.value = randomSeed();
+    updatePlayLabel();
     showScreen("start");
     seedInput.focus();
   });
