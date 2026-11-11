@@ -3,12 +3,15 @@
 @inject IJSRuntime JS
 
 <div class="map-wrap">
-<svg viewBox="0 0 1000 757.4"
+<svg viewBox="@_viewport.ViewBox"
      class="map-svg"
      role="img"
-     aria-label="Map of the state with county boundaries. Click the county you think is named."
+     aria-label="Map of the state with county boundaries. Click the county you think is named. Pinch to zoom, drag to pan when zoomed."
      @ref="_svgRef"
-     @onpointerdown="OnMapPointerDown">
+     @onpointerdown="OnPointerDown"
+     @onpointermove="OnPointerMove"
+     @onpointerup="OnPointerUp"
+     @onpointercancel="OnPointerCancel">
     @* State outline *@
     @foreach (var feature in Outline)
     {
@@ -87,15 +90,28 @@
     }
 </svg>
 
+@* Reset view: only shown once zoomed in, so the player can always get
+   back to the full map. Small and in the corner so it never pushes the
+   game off one screen. *@
+@if (_viewport.IsZoomed)
+{
+    <button type="button"
+            class="map-reset-view"
+            aria-label="Reset map view to the full state"
+            @onclick="ResetView">Reset view</button>
+}
+
 @* A small Confirm bubble next to the selected county, like the city pin's
    bubble and the puzzle piece's bubble, so the player can confirm right
-   where they clicked. *@
-@if (Interactive && !Revealed && SelectedCounty is not null)
+   where they clicked. Positioned in percentages of the map wrapper via
+   the current viewBox, so it tracks the county at any zoom or pan.
+   Hidden while the county's centre is outside the visible window. *@
+@if (Interactive && !Revealed && SelectedCounty is not null && IsSelectionInView())
 {
     var (cx, cy) = CountyCentroidSvg(SelectedCounty);
-    var leftPct = cx / 10.0;
-    var topPct = Math.Clamp(cy / 757.4 * 100.0, 4, 96);
-    var flipped = cx > 750;
+    var (leftPct, topPctRaw) = _viewport.ToPercent(cx, cy);
+    var topPct = Math.Clamp(topPctRaw, 4, 96);
+    var flipped = (cx - _viewport.X) > _viewport.Width * 0.75;
     <button type="button"
             class="pin-confirm@(flipped ? " flipped" : "")"
             style="left: @leftPct.ToString("F2")%; top: @topPct.ToString("F2")%;"
@@ -125,6 +141,12 @@
     [Parameter] public bool Revealed { get; set; }
     [Parameter] public bool Interactive { get; set; } = true;
 
+    /// <summary>
+    /// A new round (from the parent's round index), so every round begins
+    /// at the full view — a zoomed view is never carried across rounds.
+    /// </summary>
+    [Parameter] public int RoundKey { get; set; }
+
     /// <summary>Raised when the player clicks a county on the map, or null
     /// when the click lands outside all counties (which clears the selection).</summary>
     [Parameter] public EventCallback<MapFeature?> OnCountySelected { get; set; }
@@ -134,6 +156,37 @@
 
     private ElementReference _svgRef;
 
+    // The visible window onto the map (pinch-to-zoom / pan). The SVG's
+    // viewBox is bound to it.
+    private readonly MapViewport _viewport = new();
+
+    // Active pointers by pointerId, for pinch (two pointers) and pan
+    // (one pointer, when zoomed). The SVG's bounding rect, measured when
+    // a gesture starts and cached for it, so moves need no JS interop.
+    private readonly Dictionary<long, (double ClientX, double ClientY)> _pointers = new();
+    private double[]? _svgRect;
+
+    // Tap vs drag: the pointer-down position, whether it has moved past
+    // the tap threshold, and whether this gesture ever pinched (a pinch
+    // never selects a county). A tap is a pointerup with minimal movement.
+    private (double ClientX, double ClientY) _downPos;
+    private bool _downMoved;
+    private bool _pinchGesture;
+
+    // Pinch state, captured when the second pointer goes down.
+    private double _pinchStartDist;
+    private double _pinchStartWidth;
+    private double _pinchAnchorSvgX;
+    private double _pinchAnchorSvgY;
+    private double _pinchAnchorClientX;
+    private double _pinchAnchorClientY;
+
+    // Pan state: the last pointer position, for per-move deltas.
+    private (double ClientX, double ClientY) _panLast;
+
+    private int _lastRoundKey = -1;
+    private bool _lastRevealed;
+
     // Every county's rings in SVG coordinates, cached when the county list
     // changes. Counties tile the state without overlapping, so a click lands
     // in at most one of them.
@@ -141,12 +194,42 @@
 
     protected override void OnParametersSet()
     {
+        // A new round, or the reveal, returns to the full map: the
+        // reveal counties read in full-state context, and no zoom is ever
+        // carried into the next round.
+        if (RoundKey != _lastRoundKey)
+        {
+            _lastRoundKey = RoundKey;
+            _viewport.Reset();
+        }
+        if (Revealed && !_lastRevealed)
+        {
+            _viewport.Reset();
+        }
+        _lastRevealed = Revealed;
+
         if (Counties.Count != _countySvgRings.Count)
         {
             _countySvgRings = Counties
                 .Select(c => (County: c, Rings: ProjectRings(c.Parts)))
                 .ToList();
         }
+    }
+
+    private void ResetView()
+    {
+        _viewport.Reset();
+    }
+
+    private bool IsSelectionInView()
+    {
+        if (SelectedCounty is null)
+        {
+            return false;
+        }
+
+        var (cx, cy) = CountyCentroidSvg(SelectedCounty);
+        return _viewport.Contains(cx, cy);
     }
 
     private List<IReadOnlyList<(double X, double Y)>> SvgRingsFor(MapFeature county)
@@ -173,39 +256,167 @@
         return result;
     }
 
-    private async Task OnMapPointerDown(PointerEventArgs e)
+    private async Task OnPointerDown(PointerEventArgs e)
     {
         if (!Interactive || Revealed)
         {
             return;
         }
 
-        // Convert the click to SVG units via the SVG's bounding rect
-        // (ClientX/Y are viewport-relative, so the rect is what converts
-        // them — OffsetX would be relative to the element under the
-        // pointer, which is a county polygon while clicking, not the map).
-        double[]? rect;
+        // Measure the SVG's bounding rect when the first pointer goes
+        // down (ClientX/Y are viewport-relative, so the rect is what
+        // converts them to viewBox units). If the measurement fails,
+        // ignore the gesture rather than selecting the wrong county.
+        if (_pointers.Count == 0)
+        {
+            try
+            {
+                var rect = await JS.InvokeAsync<double[]>("whereInTheState.svgRect", _svgRef);
+                if (rect is not { Length: 4 } || rect[2] <= 0 || rect[3] <= 0)
+                {
+                    return;
+                }
+                _svgRect = rect;
+            }
+            catch
+            {
+                return;
+            }
+        }
+
+        // Capture the pointer so moves keep arriving even if the finger
+        // slides off the map mid-gesture.
         try
         {
-            rect = await JS.InvokeAsync<double[]>("whereInTheState.svgRect", _svgRef);
+            await JS.InvokeVoidAsync("whereInTheState.capturePointer", _svgRef, e.PointerId);
         }
         catch
         {
+            // Pointer capture is best-effort; gestures still work without it.
+        }
+
+        _pointers[e.PointerId] = (e.ClientX, e.ClientY);
+
+        if (_pointers.Count == 2)
+        {
+            // Second finger down: this gesture is a pinch. Anchor it at
+            // the midpoint between the two pointers, in the current view.
+            var pts = _pointers.Values.ToArray();
+            double midClientX = (pts[0].ClientX + pts[1].ClientX) / 2;
+            double midClientY = (pts[0].ClientY + pts[1].ClientY) / 2;
+            _pinchStartDist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
+            _pinchStartWidth = _viewport.Width;
+            (_pinchAnchorSvgX, _pinchAnchorSvgY) = _viewport.ClientToSvg(
+                midClientX, midClientY, _svgRect![0], _svgRect[1], _svgRect[2], _svgRect[3]);
+            _pinchAnchorClientX = midClientX;
+            _pinchAnchorClientY = midClientY;
+            _pinchGesture = true;
             return;
         }
 
-        if (rect is not { Length: 4 } || rect[2] <= 0 || rect[3] <= 0)
+        _downPos = (e.ClientX, e.ClientY);
+        _downMoved = false;
+        _panLast = (e.ClientX, e.ClientY);
+    }
+
+    private void OnPointerMove(PointerEventArgs e)
+    {
+        if (!_pointers.TryGetValue(e.PointerId, out _) || _svgRect is null)
         {
             return;
         }
 
-        double svgX = (e.ClientX - rect[0]) * MapProjection.ViewBoxWidth / rect[2];
-        double svgY = (e.ClientY - rect[1]) * MapProjection.ViewBoxHeight / rect[3];
+        _pointers[e.PointerId] = (e.ClientX, e.ClientY);
 
-        // Find the county containing the click. A click outside the state
-        // (ocean, a neighbouring state) is in no county and selects nothing:
-        // clear any existing selection, so a stray click outside the state
-        // doesn't leave the previous county selected.
+        if (_pointers.Count == 2 && _pinchGesture)
+        {
+            // Pinch: scale the viewBox by the change in finger distance,
+            // keeping the pinch midpoint fixed on the map.
+            var pts = _pointers.Values.ToArray();
+            double dist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
+            if (dist > 0 && _pinchStartDist > 0)
+            {
+                _viewport.ZoomAt(_pinchAnchorSvgX, _pinchAnchorSvgY,
+                    _pinchAnchorClientX, _pinchAnchorClientY,
+                    _svgRect[0], _svgRect[1], _svgRect[2], _svgRect[3],
+                    _pinchStartWidth * _pinchStartDist / dist);
+                StateHasChanged();
+            }
+            return;
+        }
+
+        // One finger: mark movement past the tap threshold, and pan when
+        // zoomed in. At full view a drag does nothing — the county is
+        // selected by a tap (pointerup), not by dragging.
+        if (Math.Sqrt((e.ClientX - _downPos.ClientX) * (e.ClientX - _downPos.ClientX) + (e.ClientY - _downPos.ClientY) * (e.ClientY - _downPos.ClientY))
+            > MapViewport.TapMoveThresholdPx)
+        {
+            _downMoved = true;
+        }
+
+        if (_pointers.Count == 1 && _viewport.IsZoomed)
+        {
+            _viewport.Pan(e.ClientX - _panLast.ClientX, e.ClientY - _panLast.ClientY,
+                _svgRect[2], _svgRect[3]);
+            StateHasChanged();
+        }
+
+        _panLast = (e.ClientX, e.ClientY);
+    }
+
+    private async Task OnPointerUp(PointerEventArgs e)
+    {
+        if (!_pointers.Remove(e.PointerId))
+        {
+            return;
+        }
+
+        if (_pointers.Count == 1)
+        {
+            // One finger lifted mid-pinch: the gesture stays a pinch (no
+            // tap on release), but the remaining finger becomes a fresh
+            // single pointer, so it can pan from here.
+            var remaining = _pointers.Values.First();
+            _downPos = (remaining.ClientX, remaining.ClientY);
+            _downMoved = false;
+            _panLast = (remaining.ClientX, remaining.ClientY);
+            return;
+        }
+
+        // Gesture over. A tap — one pointer, no pinch, minimal movement —
+        // selects the county under it, converted with the CURRENT viewBox
+        // (zoomed and panned).
+        var rect = _svgRect;
+        bool isTap = !_pinchGesture && !_downMoved && rect is not null;
+        _pinchGesture = false;
+        _svgRect = null;
+
+        if (!isTap || !Interactive || Revealed)
+        {
+            return;
+        }
+
+        var (svgX, svgY) = _viewport.ClientToSvg(e.ClientX, e.ClientY,
+            rect![0], rect[1], rect[2], rect[3]);
+        await SelectCountyAt(svgX, svgY);
+    }
+
+    private void OnPointerCancel(PointerEventArgs e)
+    {
+        _pointers.Remove(e.PointerId);
+        if (_pointers.Count == 0)
+        {
+            _pinchGesture = false;
+            _svgRect = null;
+        }
+    }
+
+    private async Task SelectCountyAt(double svgX, double svgY)
+    {
+        // Find the county containing the tap. A tap outside the state
+        // (ocean, a neighbouring state) is in no county and selects
+        // nothing: clear any existing selection, so a stray tap outside
+        // the state doesn't leave the previous county selected.
         foreach (var (county, rings) in _countySvgRings)
         {
             if (OverlapService.IsInsideAnyRing(svgX, svgY, rings))

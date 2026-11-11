@@ -61,6 +61,12 @@
                 var r = el.getBoundingClientRect();
                 return [r.left, r.top, r.width, r.height];
             },
+            // Keep pointer events flowing to the map during a gesture
+            // (pinch/pan/drag) even if the finger slides off the map.
+            // Best-effort: not all browsers/elements support capture.
+            capturePointer: function (el, pointerId) {
+                try { el.setPointerCapture(pointerId); } catch (e) {}
+            },
             // Analytics (PostHog) — see GAME-SPEC §13. captureEvent is the
             // only way the game talks to PostHog. It is fully guarded: if
             // an ad blocker stops the library loading, or the network is

@@ -238,6 +238,16 @@
     width: 10px; height: 10px; background: var(--accent-btn); transform: translateY(-50%) rotate(45deg);
   }
   .pin-confirm.flipped::before { left: auto; right: -5px; }
+  /* Reset view: only shown once zoomed in, small and in the map's
+     top-right corner, so the player can always get back to the full
+     state without pushing the game off one screen. */
+  #btn-reset-view {
+    position: absolute; top: 8px; right: 8px; z-index: 3;
+    min-height: 32px; padding: 4px 12px; font-size: 13.5px;
+    background: #fffdf5; border: 1px solid var(--line); border-radius: 6px;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.15); cursor: pointer; color: var(--ink);
+  }
+  #btn-reset-view:hover { background: #fff; }
   .state-shape { fill: var(--state-fill); stroke: var(--state-stroke); stroke-width: 2; stroke-linejoin: round; }
   .layer-interstate path { fill: none; stroke: var(--interstate); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .layer-highway path { fill: none; stroke: var(--highway); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
@@ -501,6 +511,7 @@
           </g>
         </svg>
         <button type="button" class="pin-confirm" id="pin-confirm" hidden aria-label="Confirm guess">Confirm</button>
+        <button type="button" id="btn-reset-view" hidden aria-label="Reset map view to the full state">Reset view</button>
       </div>
     </div>
   </section>
@@ -559,7 +570,7 @@
     versions — but the seed format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.26.
+    Version 0.27.
   </footer>
 </div>
 
@@ -592,6 +603,46 @@ function project(lon, lat) {
 function unproject(x, y) {
   return [LON_MIN + x / W * X_RANGE / COS, LAT_MAX - y / H * Y_RANGE];
 }
+
+/* ============ Map viewport: pinch-to-zoom and pan ============
+   The visible window onto the map, as a sub-rectangle of the full
+   viewBox (0 0 W H). The SVG's viewBox attribute is bound to it, so the
+   map re-renders zoomed/panned with no other drawing changes. All
+   conversions between client (CSS pixel) coordinates and SVG viewBox
+   coordinates go through here, so a tap always resolves against the
+   CURRENT view — never the full map. Zoom keeps the viewBox aspect
+   ratio and clamps to the map bounds, so the window never shows area
+   outside the state. These are pure functions of their arguments (the
+   vb object is passed in) so the tap math can be executed in a test. */
+var VB_MIN_W = 250;          /* maximum zoom-in: 4x */
+var TAP_MOVE_PX = 10;        /* movement under this many CSS px still counts as a tap */
+function vbFull() { return { x: 0, y: 0, w: W, h: H }; }
+function vbIsZoomed(vb) { return vb.w < W - 0.5; }
+function vbClamp(vb) {
+  vb.x = Math.min(Math.max(vb.x, 0), W - vb.w);
+  vb.y = Math.min(Math.max(vb.y, 0), H - vb.h);
+  return vb;
+}
+function vbClientToSvg(vb, rect, clientX, clientY) {
+  return { x: vb.x + (clientX - rect.left) * vb.w / rect.width,
+           y: vb.y + (clientY - rect.top) * vb.h / rect.height };
+}
+function vbZoomAt(vb, anchorSvg, anchorClient, rect, newW) {
+  newW = Math.min(Math.max(newW, VB_MIN_W), W);
+  var newH = newW * H / W;
+  vb.w = newW; vb.h = newH;
+  vb.x = anchorSvg.x - (anchorClient.x - rect.left) * newW / rect.width;
+  vb.y = anchorSvg.y - (anchorClient.y - rect.top) * newH / rect.height;
+  return vbClamp(vb);
+}
+function vbPan(vb, dxClient, dyClient, rect) {
+  if (!vbIsZoomed(vb)) return vb;
+  vb.x -= dxClient * vb.w / rect.width;
+  vb.y -= dyClient * vb.h / rect.height;
+  return vbClamp(vb);
+}
+function vbContains(vb, x, y) { return x >= vb.x && x <= vb.x + vb.w && y >= vb.y && y <= vb.y + vb.h; }
+function vbToPercent(vb, x, y) { return { left: (x - vb.x) / vb.w * 100, top: (y - vb.y) / vb.h * 100 }; }
 
 /* ============ Distance (Haversine, miles, R = 3959) ============ */
 function haversineMiles(lat1, lon1, lat2, lon2) {
@@ -1242,6 +1293,17 @@ function randomSeed() {
   var countySelectedPath = document.getElementById("county-selected-path");
   var countyWrongEl = document.getElementById("county-wrong");
   var countyWrongPath = document.getElementById("county-wrong-path");
+  var btnResetView = document.getElementById("btn-reset-view");
+
+  /* The live map viewport (pinch-to-zoom / pan) — see the vb* helpers
+     above. The SVG's viewBox attribute is bound to it. */
+  var vb = vbFull();
+  function setViewBoxAttr() {
+    svg.setAttribute("viewBox", vb.x.toFixed(1) + " " + vb.y.toFixed(1) + " " + vb.w.toFixed(1) + " " + vb.h.toFixed(1));
+  }
+  function updateResetBtn() { btnResetView.hidden = !vbIsZoomed(vb); }
+  function resetView() { vb = vbFull(); setViewBoxAttr(); updateResetBtn(); }
+  btnResetView.addEventListener("click", resetView);
 
   function pinPath(x, y) {
     return "M" + fmt(x) + "," + fmt(y) +
@@ -1362,11 +1424,24 @@ function randomSeed() {
   /* Viewport (client) coordinates to SVG viewBox units, from the SVG's
      bounding rect. ClientX/Y are viewport-relative, so the rect is what
      converts them — OffsetX would be relative to the event target
-     instead, which is the piece while dragging, not the map. */
+     instead, which is the piece while dragging, not the map. Converts
+     with the CURRENT viewport (zoomed and panned), never the full map. */
   function clientToSvg(clientX, clientY) {
     var rect = svg.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
-    return { x: (clientX - rect.left) * W / rect.width, y: (clientY - rect.top) * H / rect.height };
+    return vbClientToSvg(vb, rect, clientX, clientY);
+  }
+  /* Position the Confirm bubble for an SVG point, in percentages of the
+     map frame — the frame is exactly the SVG's box, so it tracks the
+     point at any zoom or pan. Hidden while the point is outside the
+     visible window (the controls-row Confirm is the fallback then). */
+  function positionBubble(x, y) {
+    if (!vbContains(vb, x, y)) { pinConfirm.hidden = true; return; }
+    var pct = vbToPercent(vb, x, y);
+    pinConfirm.style.left = pct.left.toFixed(2) + "%";
+    pinConfirm.style.top = Math.min(96, Math.max(4, pct.top)).toFixed(2) + "%";
+    pinConfirm.classList.toggle("flipped", (x - vb.x) > vb.w * 0.75);
+    pinConfirm.hidden = false;
   }
   /* The small Confirm bubble next to the piece once it has been dragged,
      like the pin's bubble in the city game: centred on the piece's
@@ -1376,10 +1451,7 @@ function randomSeed() {
     var b = ringsBbox(countyRings);
     var cx = (b.minX + b.maxX) / 2 + pieceDx;
     var cy = (b.minY + b.maxY) / 2 + pieceDy;
-    pinConfirm.style.left = (cx / 10).toFixed(2) + "%";
-    pinConfirm.style.top = Math.min(96, Math.max(4, cy / 757.4 * 100)).toFixed(2) + "%";
-    pinConfirm.classList.toggle("flipped", cx > 750);
-    pinConfirm.hidden = false;
+    positionBubble(cx, cy);
   }
   /* The small Confirm bubble next to the selected county in "Name the
      county" mode, like the pin's bubble in the city game and the piece's
@@ -1391,10 +1463,7 @@ function randomSeed() {
     var b = ringsBbox(rings);
     var cx = (b.minX + b.maxX) / 2;
     var cy = (b.minY + b.maxY) / 2;
-    pinConfirm.style.left = (cx / 10).toFixed(2) + "%";
-    pinConfirm.style.top = Math.min(96, Math.max(4, cy / 757.4 * 100)).toFixed(2) + "%";
-    pinConfirm.classList.toggle("flipped", cx > 750);
-    pinConfirm.hidden = false;
+    positionBubble(cx, cy);
   }
   /* The county name label on the true county at reveal, centred on the
      county's bounding box and clamped so long names don't run off the map. */
@@ -1421,15 +1490,172 @@ function randomSeed() {
     btnConfirm.disabled = false;
     /* Show the small Confirm bubble next to the pin (flipped to the
        pin's left near the right edge, clamped vertically so it never
-       clips out of the map frame). */
-    pinConfirm.style.left = (x / 10).toFixed(2) + "%";
-    pinConfirm.style.top = Math.min(96, Math.max(4, y / 757.4 * 100)).toFixed(2) + "%";
-    pinConfirm.classList.toggle("flipped", x > 750);
-    pinConfirm.hidden = false;
+       clips out of the map frame; hidden while the pin is outside the
+       visible window). */
+    positionBubble(x, y);
     document.getElementById("hint-text").textContent = "Pin dropped — tap again or drag to move it, then confirm your guess.";
   }
+  /* ============ Pinch-to-zoom and pan (map viewport) ============
+     The unified gesture layer, registered before the mode-specific
+     handlers so it runs first and they can defer to it. It tracks every
+     active pointer on the map by pointerId:
+     - Two pointers down: a pinch. The viewBox scales by the change in
+       finger distance, anchored at the pinch midpoint, and any pin or
+       piece drag in progress is cancelled.
+     - One pointer, zoomed in: a drag pans the map (the map follows the
+       finger). At full view a drag does nothing here — the mode handlers
+       keep their existing drag behaviour (pin drag, piece drag).
+     - A tap (one pointer, no pinch, movement under TAP_MOVE_PX) is acted
+       on at pointerup, but only when the gesture started zoomed in: at
+       full view the mode handlers already act on pointerdown, so acting
+       again would double-place. The tap converts with the CURRENT
+       viewport (eventToSvg uses getScreenCTM, which is viewBox-aware). */
+  var pointers = new Map();
+  var pinchState = null;
+  var panLast = null;
+  var gestureRect = null;
+  var downPos = null;
+  var downMoved = false;
+  var pinchHappened = false;
+  var wasZoomedAtDown = false;
+  function selectCountyAt(x, y) {
+    var picked = countyAtPoint(x, y);
+    if (!picked) {
+      /* A tap outside all counties selects nothing: clear any existing
+         selection, hide the highlight and the Confirm bubble, and disable
+         Confirm again. Without this, a stray tap outside the state would
+         leave the previous county selected. */
+      selectedCounty = null;
+      countySelectedEl.classList.add("layer-hidden");
+      pinConfirm.hidden = true;
+      btnConfirm.disabled = true;
+      document.getElementById("hint-text").textContent = "Click a county on the map to select it.";
+      return;
+    }
+    selectedCounty = picked;
+    countySelectedPath.setAttribute("d", ringsToPath(countyRingsSvg(picked)));
+    countySelectedEl.classList.remove("layer-hidden");
+    btnConfirm.disabled = false;
+    updateSelectedBubble();
+    document.getElementById("hint-text").textContent =
+      "County selected — click another county to change it, or confirm.";
+  }
+  svg.addEventListener("pointerdown", function (ev) {
+    if (!game || phase !== "guess") return;
+    if (pointers.size === 0) {
+      gestureRect = svg.getBoundingClientRect();
+      wasZoomedAtDown = vbIsZoomed(vb);
+      downPos = { x: ev.clientX, y: ev.clientY };
+      downMoved = false;
+      panLast = { x: ev.clientX, y: ev.clientY };
+    }
+    pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pointers.size === 2) {
+      /* Second finger down: this gesture is a pinch. Anchor it at the
+         midpoint between the two pointers, in the current view. */
+      var pts = Array.from(pointers.values());
+      var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+      var anchor = vbClientToSvg(vb, gestureRect, midX, midY);
+      pinchState = { startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                     startW: vb.w, anchorSvgX: anchor.x, anchorSvgY: anchor.y,
+                     anchorClientX: midX, anchorClientY: midY };
+      pinchHappened = true;
+      /* Cancel any pin or piece drag in progress — the gesture is a
+         pinch now, and the drag must not fight it. */
+      dragging = false;
+      if (pieceDragging) {
+        pieceDragging = false; dragStart = null;
+        countyPiece.classList.remove("dragging");
+      }
+      try { svg.setPointerCapture(ev.pointerId); } catch (e) {}
+      return;
+    }
+    /* One finger, zoomed in: capture so pan moves keep arriving even if
+       the finger slides off the map. At full view the mode handlers do
+       their own capture as needed. */
+    if (vbIsZoomed(vb)) { try { svg.setPointerCapture(ev.pointerId); } catch (e) {} }
+  });
+  svg.addEventListener("pointermove", function (ev) {
+    if (!pointers.has(ev.pointerId)) return;
+    pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pinchState && pointers.size >= 2) {
+      var pts = Array.from(pointers.values());
+      var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (dist > 0 && pinchState.startDist > 0) {
+        vbZoomAt(vb, { x: pinchState.anchorSvgX, y: pinchState.anchorSvgY },
+          { x: pinchState.anchorClientX, y: pinchState.anchorClientY },
+          gestureRect, pinchState.startW * pinchState.startDist / dist);
+        setViewBoxAttr(); updateResetBtn();
+      }
+      return;
+    }
+    if (downPos && Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y) > TAP_MOVE_PX) downMoved = true;
+    /* A pin or piece drag owns the move — never pan while one is in
+       progress, or the map and the dragged thing would move together.
+       Counties mode has pinch zoom only, no pan: one finger always
+       drags the piece, so a pan would fight it. */
+    if (dragging || pieceDragging || game.mode === "counties") return;
+    if (pointers.size === 1 && vbIsZoomed(vb)) {
+      /* One-finger pan when zoomed: the map follows the finger. Keep
+         the Confirm bubble with the pin / selected county, or hide it
+         while it is outside the visible window. */
+      var dx = ev.clientX - panLast.x, dy = ev.clientY - panLast.y;
+      panLast = { x: ev.clientX, y: ev.clientY };
+      vbPan(vb, dx, dy, gestureRect);
+      setViewBoxAttr();
+      if (guess) positionBubble(guess.x, guess.y);
+      else if (selectedCounty) updateSelectedBubble();
+      else if (countyDragged) updatePieceBubble();
+    }
+  });
+  function endGesture(ev) {
+    if (!pointers.has(ev.pointerId)) return;
+    pointers.delete(ev.pointerId);
+    if (pointers.size === 1) {
+      /* One finger lifted mid-pinch: the gesture stays a pinch (no tap
+         on release), but the remaining finger becomes a fresh single
+         pointer, so it can pan from here. */
+      pinchState = null;
+      var remaining = Array.from(pointers.values())[0];
+      downPos = { x: remaining.x, y: remaining.y };
+      downMoved = false;
+      panLast = { x: remaining.x, y: remaining.y };
+      return;
+    }
+    if (pointers.size > 0) return;
+    /* Gesture over. A tap that started zoomed in — one pointer, no
+       pinch, minimal movement — acts here (at full view the mode
+       handlers already acted on pointerdown). Counties mode has no tap
+       action; the piece is dragged, not tapped. */
+    var wasTap = wasZoomedAtDown && !pinchHappened && !downMoved;
+    pinchState = null; panLast = null; gestureRect = null;
+    downPos = null; downMoved = false; pinchHappened = false; wasZoomedAtDown = false;
+    if (!wasTap || !game || phase !== "guess" || game.mode === "counties") return;
+    var loc = eventToSvg(ev);
+    if (!loc) return;
+    if (game.mode === "name-the-county" || isMixedCountyRound()) selectCountyAt(loc.x, loc.y);
+    else placeGuessAt(loc.x, loc.y);
+  }
+  svg.addEventListener("pointerup", endGesture);
+  svg.addEventListener("pointercancel", endGesture);
+  svg.addEventListener("pointerleave", function (ev) {
+    /* Safety net if pointer capture failed and a finger slides off the
+       map mid-gesture: end the gesture cleanly, with no tap. */
+    if (!pointers.has(ev.pointerId)) return;
+    pointers.delete(ev.pointerId);
+    if (pointers.size === 0) {
+      pinchState = null; panLast = null; gestureRect = null;
+      downPos = null; downMoved = false; pinchHappened = false; wasZoomedAtDown = false;
+    }
+  });
+
   svg.addEventListener("pointerdown", function (ev) {
     if (!game || phase !== "guess" || game.mode === "counties" || game.mode === "name-the-county" || isMixedCountyRound()) return;
+    /* During a pinch, or zoomed in, the pointerdown does nothing here:
+       a pinch zooms (see the gesture layer above) and a zoomed tap is
+       placed on pointerup, so the pin is never dropped where a pan
+       started. At full view the pin drops immediately, as before. */
+    if (pinchState || pointers.size > 1 || vbIsZoomed(vb)) return;
     ev.preventDefault();
     var loc = eventToSvg(ev);
     if (!loc) return;
@@ -1439,6 +1665,9 @@ function randomSeed() {
   });
   svg.addEventListener("pointermove", function (ev) {
     if (!dragging || !game || phase !== "guess" || game.mode === "counties" || game.mode === "name-the-county" || isMixedCountyRound()) return;
+    /* A pinch or a pan owns the move — never move the pin while zooming
+       or panning. */
+    if (pinchState || vbIsZoomed(vb)) return;
     var loc = eventToSvg(ev);
     if (!loc) return;
     placeGuessAt(loc.x, loc.y);
@@ -1456,29 +1685,15 @@ function randomSeed() {
      Also used for the county rounds of City County Mode. */
   svg.addEventListener("pointerdown", function (ev) {
     if (!game || (game.mode !== "name-the-county" && !isMixedCountyRound()) || phase !== "guess") return;
+    /* During a pinch, or zoomed in, the pointerdown does nothing here:
+       a pinch zooms (see the gesture layer above) and a zoomed tap is
+       selected on pointerup, so a pan never selects a county by
+       accident. At full view the county is selected immediately. */
+    if (pinchState || pointers.size > 1 || vbIsZoomed(vb)) return;
     ev.preventDefault();
     var loc = eventToSvg(ev);
     if (!loc) return;
-    var picked = countyAtPoint(loc.x, loc.y);
-    if (!picked) {
-      /* A click outside all counties selects nothing: clear any existing
-         selection, hide the highlight and the Confirm bubble, and disable
-         Confirm again. Without this, a stray click outside the state would
-         leave the previous county selected. */
-      selectedCounty = null;
-      countySelectedEl.classList.add("layer-hidden");
-      pinConfirm.hidden = true;
-      btnConfirm.disabled = true;
-      document.getElementById("hint-text").textContent = "Click a county on the map to select it.";
-      return;
-    }
-    selectedCounty = picked;
-    countySelectedPath.setAttribute("d", ringsToPath(countyRingsSvg(picked)));
-    countySelectedEl.classList.remove("layer-hidden");
-    btnConfirm.disabled = false;
-    updateSelectedBubble();
-    document.getElementById("hint-text").textContent =
-      "County selected — click another county to change it, or confirm.";
+    selectCountyAt(loc.x, loc.y);
   });
 
   /* ============ County piece drag ============
@@ -1489,6 +1704,10 @@ function randomSeed() {
      parent only needs the final position at confirm time. */
   countyPiece.addEventListener("pointerdown", function (ev) {
     if (!game || game.mode !== "counties" || phase !== "guess") return;
+    /* A second finger means a pinch, not a piece drag: the gesture
+       layer (which runs after this handler, by bubbling) starts the
+       pinch, so don't start a drag here. */
+    if (pointers.size >= 1 || pinchState) return;
     ev.preventDefault();
     var loc = clientToSvg(ev.clientX, ev.clientY);
     if (!loc) return;
@@ -1560,6 +1779,9 @@ function randomSeed() {
   function startRound() {
     phase = "guess";
     guess = null;
+    /* Every round begins at the full map — a zoomed view is never
+       carried across rounds. */
+    resetView();
     clearPins();
     clearCountyOverlays();
     btnConfirm.disabled = true;
@@ -1606,6 +1828,9 @@ function randomSeed() {
        uses the same reveal: 100 for the right county, 50 for a county
        sharing a border with it, 0 otherwise. */
     if (game.mode === "name-the-county" || isMixedCountyRound()) { revealNameTheCounty(passed); return; }
+    /* The reveal reads in full-state context: the guess-to-true line and
+       pins are shown on the whole map, not a zoomed window. */
+    resetView();
     var city = currentCity();
     phase = "revealed";
     btnConfirm.disabled = true;
@@ -1673,6 +1898,9 @@ function randomSeed() {
     var county = currentCounty();
     var countyName = county.properties.name;
     phase = "revealed";
+    /* The reveal reads in full-state context: the true county is shown
+       on the whole map, not a zoomed window. */
+    resetView();
     btnConfirm.disabled = true;
     btnPass.disabled = true;
     pinConfirm.hidden = true;
@@ -1725,6 +1953,9 @@ function randomSeed() {
     var county = currentCounty();
     var countyName = county.properties.name;
     phase = "revealed";
+    /* The reveal reads in full-state context: the true county is shown
+       on the whole map, not a zoomed window. */
+    resetView();
     btnConfirm.disabled = true;
     btnPass.disabled = true;
     pinConfirm.hidden = true;

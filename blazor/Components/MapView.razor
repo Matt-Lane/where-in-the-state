@@ -3,12 +3,15 @@
 @inject IJSRuntime JS
 
 <div class="map-wrap">
-<svg viewBox="0 0 1000 757.4"
+<svg viewBox="@_viewport.ViewBox"
      class="map-svg"
      role="img"
-     aria-label="Blank map of the state. No city names are shown."
+     aria-label="Blank map of the state. No city names are shown. Pinch to zoom, drag to pan when zoomed."
      @ref="_svgRef"
-     @onpointerdown="OnMapPointerDown">
+     @onpointerdown="OnPointerDown"
+     @onpointermove="OnPointerMove"
+     @onpointerup="OnPointerUp"
+     @onpointercancel="OnPointerCancel">
     @* State outline *@
     @foreach (var feature in Outline)
     {
@@ -85,17 +88,30 @@
     }
 </svg>
 
+@* Reset view: only shown once zoomed in, so the player can always get
+   back to the full map. Small and in the corner so it never pushes the
+   game off one screen. *@
+@if (_viewport.IsZoomed)
+{
+    <button type="button"
+            class="map-reset-view"
+            aria-label="Reset map view to the full state"
+            @onclick="ResetView">Reset view</button>
+}
+
 @* A small Confirm bubble next to the pin while placing, so the player
    doesn't have to travel back to the controls row. It sits to the
    right of the pin (flipped to the left near the right edge) and is
    positioned in percentages of the map wrapper, which is exactly the
-   SVG's box, so it tracks the pin at any map size. *@
-@if (Interactive && !Revealed && GuessLatitude is not null && GuessLongitude is not null)
+   SVG's box, so it tracks the pin at any map size — and at any zoom or
+   pan, via the current viewBox. Hidden while the pin is outside the
+   visible window (the controls-row Confirm is the fallback then). *@
+@if (Interactive && !Revealed && GuessLatitude is not null && GuessLongitude is not null && IsGuessInView())
 {
     var (gx, gy) = MapProjection.LatLonToSvg(GuessLatitude.Value, GuessLongitude.Value);
-    var leftPct = gx / 10.0;
-    var topPct = Math.Clamp(gy / 757.4 * 100.0, 4, 96);
-    var flipped = gx > 750;
+    var (leftPct, topPctRaw) = _viewport.ToPercent(gx, gy);
+    var topPct = Math.Clamp(topPctRaw, 4, 96);
+    var flipped = (gx - _viewport.X) > _viewport.Width * 0.75;
     <button type="button"
             class="pin-confirm@(flipped ? " flipped" : "")"
             style="left: @leftPct.ToString("F2")%; top: @topPct.ToString("F2")%;"
@@ -128,14 +144,10 @@
     [Parameter] public bool Interactive { get; set; } = true;
 
     /// <summary>
-    /// The SVG's rendered (CSS-pixel) size, used as a fallback when the
-    /// live measurement (see OnMapPointerDown) is unavailable. Pointer
-    /// offsets are in CSS pixels, so they are scaled to viewBox units by
-    /// ViewBoxWidth / RenderedWidth. The default (1000 × 757.4) is the
-    /// viewBox size itself, i.e. the SVG displayed at its natural size.
+    /// A new round (from the parent's round index), so every round begins
+    /// at the full view — a zoomed view is never carried across rounds.
     /// </summary>
-    [Parameter] public double RenderedWidth { get; set; } = 1000.0;
-    [Parameter] public double RenderedHeight { get; set; } = 757.4;
+    [Parameter] public int RoundKey { get; set; }
 
     [Parameter] public EventCallback<(double Latitude, double Longitude)> OnMapClicked { get; set; }
 
@@ -144,47 +156,226 @@
 
     private ElementReference _svgRef;
 
-    private async Task OnMapPointerDown(PointerEventArgs e)
+    // The visible window onto the map (pinch-to-zoom / pan). The SVG's
+    // viewBox is bound to it.
+    private readonly MapViewport _viewport = new();
+
+    // Active pointers by pointerId, for pinch (two pointers) and pan
+    // (one pointer, when zoomed). The SVG's bounding rect, measured when
+    // a gesture starts and cached for it, so moves need no JS interop.
+    private readonly Dictionary<long, (double ClientX, double ClientY)> _pointers = new();
+    private double[]? _svgRect;
+
+    // Tap vs drag: the pointer-down position, whether it has moved past
+    // the tap threshold, and whether this gesture ever pinched (a pinch
+    // never places a pin). A tap is a pointerup with minimal movement.
+    private (double ClientX, double ClientY) _downPos;
+    private bool _downMoved;
+    private bool _pinchGesture;
+
+    // Pinch state, captured when the second pointer goes down: the
+    // distance and viewBox width at the start, and the pinch midpoint —
+    // in both SVG units (the anchor, which stays put) and client pixels.
+    private double _pinchStartDist;
+    private double _pinchStartWidth;
+    private double _pinchAnchorSvgX;
+    private double _pinchAnchorSvgY;
+    private double _pinchAnchorClientX;
+    private double _pinchAnchorClientY;
+
+    // Pan state: the last pointer position, for per-move deltas.
+    private (double ClientX, double ClientY) _panLast;
+
+    private int _lastRoundKey = -1;
+    private bool _lastRevealed;
+
+    protected override void OnParametersSet()
+    {
+        // A new round, or the reveal, returns to the full map: the
+        // reveal pins read in full-state context, and no zoom is ever
+        // carried into the next round.
+        if (RoundKey != _lastRoundKey)
+        {
+            _lastRoundKey = RoundKey;
+            _viewport.Reset();
+        }
+        if (Revealed && !_lastRevealed)
+        {
+            _viewport.Reset();
+        }
+        _lastRevealed = Revealed;
+    }
+
+    private void ResetView()
+    {
+        _viewport.Reset();
+    }
+
+    private bool IsGuessInView()
+    {
+        if (GuessLatitude is null || GuessLongitude is null)
+        {
+            return false;
+        }
+
+        var (gx, gy) = MapProjection.LatLonToSvg(GuessLatitude.Value, GuessLongitude.Value);
+        return _viewport.Contains(gx, gy);
+    }
+
+    private async Task OnPointerDown(PointerEventArgs e)
     {
         if (!Interactive || Revealed)
         {
             return;
         }
 
-        // Measure the SVG's actual rendered size in the browser: the
-        // page CSS sizes the map by viewport height, so its displayed
-        // width varies with the window and the RenderedWidth fallback
-        // above can't be trusted. A zero rendered size would divide by
-        // zero below and produce infinite coordinates; ignore the click
-        // instead. If the measurement fails, fall back to the parameters.
-        double renderedWidth = RenderedWidth;
-        double renderedHeight = RenderedHeight;
+        // Measure the SVG's bounding rect when the first pointer goes
+        // down (ClientX/Y are viewport-relative, so the rect is what
+        // converts them to viewBox units). If the measurement fails,
+        // ignore the gesture rather than placing a pin at a wrong place.
+        if (_pointers.Count == 0)
+        {
+            try
+            {
+                var rect = await JS.InvokeAsync<double[]>("whereInTheState.svgRect", _svgRef);
+                if (rect is not { Length: 4 } || rect[2] <= 0 || rect[3] <= 0)
+                {
+                    return;
+                }
+                _svgRect = rect;
+            }
+            catch
+            {
+                return;
+            }
+        }
+
+        // Capture the pointer so moves keep arriving even if the finger
+        // slides off the map mid-gesture.
         try
         {
-            var size = await JS.InvokeAsync<double[]>("whereInTheState.svgSize", _svgRef);
-            if (size is { Length: 2 })
-            {
-                renderedWidth = size[0];
-                renderedHeight = size[1];
-            }
+            await JS.InvokeVoidAsync("whereInTheState.capturePointer", _svgRef, e.PointerId);
         }
         catch
         {
-            // Fall through to the RenderedWidth/RenderedHeight fallback.
+            // Pointer capture is best-effort; gestures still work without it.
         }
 
-        if (renderedWidth <= 0 || renderedHeight <= 0)
+        _pointers[e.PointerId] = (e.ClientX, e.ClientY);
+
+        if (_pointers.Count == 2)
+        {
+            // Second finger down: this gesture is a pinch. Anchor it at
+            // the midpoint between the two pointers, in the current view.
+            var pts = _pointers.Values.ToArray();
+            double midClientX = (pts[0].ClientX + pts[1].ClientX) / 2;
+            double midClientY = (pts[0].ClientY + pts[1].ClientY) / 2;
+            _pinchStartDist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
+            _pinchStartWidth = _viewport.Width;
+            (_pinchAnchorSvgX, _pinchAnchorSvgY) = _viewport.ClientToSvg(
+                midClientX, midClientY, _svgRect![0], _svgRect[1], _svgRect[2], _svgRect[3]);
+            _pinchAnchorClientX = midClientX;
+            _pinchAnchorClientY = midClientY;
+            _pinchGesture = true;
+            return;
+        }
+
+        _downPos = (e.ClientX, e.ClientY);
+        _downMoved = false;
+        _panLast = (e.ClientX, e.ClientY);
+    }
+
+    private void OnPointerMove(PointerEventArgs e)
+    {
+        if (!_pointers.TryGetValue(e.PointerId, out _) || _svgRect is null)
         {
             return;
         }
 
-        // CSS pixels -> viewBox units -> lat/lon, using the SAME
-        // projection that drew the map (MapProjection.SvgToLatLon is the
-        // exact inverse of MapProjection.LatLonToSvg).
-        double svgX = e.OffsetX * MapProjection.ViewBoxWidth / renderedWidth;
-        double svgY = e.OffsetY * MapProjection.ViewBoxHeight / renderedHeight;
+        _pointers[e.PointerId] = (e.ClientX, e.ClientY);
+
+        if (_pointers.Count == 2 && _pinchGesture)
+        {
+            // Pinch: scale the viewBox by the change in finger distance,
+            // keeping the pinch midpoint fixed on the map.
+            var pts = _pointers.Values.ToArray();
+            double dist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
+            if (dist > 0 && _pinchStartDist > 0)
+            {
+                _viewport.ZoomAt(_pinchAnchorSvgX, _pinchAnchorSvgY,
+                    _pinchAnchorClientX, _pinchAnchorClientY,
+                    _svgRect[0], _svgRect[1], _svgRect[2], _svgRect[3],
+                    _pinchStartWidth * _pinchStartDist / dist);
+                StateHasChanged();
+            }
+            return;
+        }
+
+        // One finger: mark movement past the tap threshold, and pan when
+        // zoomed in. At full view a drag does nothing — the pin is placed
+        // by a tap (pointerup), not by dragging.
+        if (Math.Sqrt((e.ClientX - _downPos.ClientX) * (e.ClientX - _downPos.ClientX) + (e.ClientY - _downPos.ClientY) * (e.ClientY - _downPos.ClientY))
+            > MapViewport.TapMoveThresholdPx)
+        {
+            _downMoved = true;
+        }
+
+        if (_pointers.Count == 1 && _viewport.IsZoomed)
+        {
+            _viewport.Pan(e.ClientX - _panLast.ClientX, e.ClientY - _panLast.ClientY,
+                _svgRect[2], _svgRect[3]);
+            StateHasChanged();
+        }
+
+        _panLast = (e.ClientX, e.ClientY);
+    }
+
+    private async Task OnPointerUp(PointerEventArgs e)
+    {
+        if (!_pointers.Remove(e.PointerId))
+        {
+            return;
+        }
+
+        if (_pointers.Count == 1)
+        {
+            // One finger lifted mid-pinch: the gesture stays a pinch (no
+            // tap on release), but the remaining finger becomes a fresh
+            // single pointer, so it can pan from here.
+            var remaining = _pointers.Values.First();
+            _downPos = (remaining.ClientX, remaining.ClientY);
+            _downMoved = false;
+            _panLast = (remaining.ClientX, remaining.ClientY);
+            return;
+        }
+
+        // Gesture over. A tap — one pointer, no pinch, minimal movement —
+        // places the pin, converted with the CURRENT viewBox (zoomed and
+        // panned), via the same projection that drew the map.
+        var rect = _svgRect;
+        bool isTap = !_pinchGesture && !_downMoved && rect is not null;
+        _pinchGesture = false;
+        _svgRect = null;
+
+        if (!isTap || !Interactive || Revealed)
+        {
+            return;
+        }
+
+        var (svgX, svgY) = _viewport.ClientToSvg(e.ClientX, e.ClientY,
+            rect![0], rect[1], rect[2], rect[3]);
         var (latitude, longitude) = MapProjection.SvgToLatLon(svgX, svgY);
         await OnMapClicked.InvokeAsync((latitude, longitude));
+    }
+
+    private void OnPointerCancel(PointerEventArgs e)
+    {
+        _pointers.Remove(e.PointerId);
+        if (_pointers.Count == 0)
+        {
+            _pinchGesture = false;
+            _svgRect = null;
+        }
     }
 
     private bool IsLayerVisible(string layer) => layer switch
