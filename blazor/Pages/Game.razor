@@ -45,12 +45,35 @@ else if (_phase == Phase.Start)
                route still work) — only City County Mode, Cities and Name
                the county are offered here. *@
             <div class="mode-preview-big" aria-hidden="true">
+                @* City County Mode preview: one image split diagonally
+                   from the top left to the bottom right. The lower-left
+                   triangle is the county half (county boundaries with
+                   Douglas County filled green); the upper-right triangle
+                   is the city half (a La Grande reveal: guess pin, dotted
+                   line, actual marker). Each half is clipped to its
+                   triangle; a white line marks the cut. *@
                 <svg class="mode-preview@(_mode == GameMode.CityCounty ? " is-active" : "")" viewBox="0 0 1000 757.4" aria-hidden="true">
+                    <defs>
+                        <clipPath id="preview-split-county">
+                            <polygon points="0,0 0,757.4 1000,757.4" />
+                        </clipPath>
+                        <clipPath id="preview-split-city">
+                            <polygon points="0,0 1000,0 1000,757.4" />
+                        </clipPath>
+                    </defs>
                     <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
-                    <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
-                    <path d="@ModePreviewArt.DeschutesPath" class="preview-selected" />
-                    <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="16" class="preview-guess" />
-                    <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="6" class="preview-guess-dot" />
+                    <g clip-path="url(#preview-split-county)">
+                        <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
+                        <path d="@ModePreviewArt.DouglasPath" class="preview-county-pick" />
+                    </g>
+                    <g clip-path="url(#preview-split-city)">
+                        <line x1="@ModePreviewArt.SplitGuessX" y1="@ModePreviewArt.SplitGuessY" x2="@ModePreviewArt.LaGrandeX" y2="@ModePreviewArt.LaGrandeY" class="preview-line" />
+                        <circle cx="@ModePreviewArt.SplitGuessX" cy="@ModePreviewArt.SplitGuessY" r="16" class="preview-guess" />
+                        <circle cx="@ModePreviewArt.SplitGuessX" cy="@ModePreviewArt.SplitGuessY" r="6" class="preview-guess-dot" />
+                        <circle cx="@ModePreviewArt.LaGrandeX" cy="@ModePreviewArt.LaGrandeY" r="14" class="preview-target" />
+                        <circle cx="@ModePreviewArt.LaGrandeX" cy="@ModePreviewArt.LaGrandeY" r="5" class="preview-target-dot" />
+                    </g>
+                    <line x1="0" y1="0" x2="1000" y2="757.4" class="preview-split-line" />
                 </svg>
                 <svg class="mode-preview@(_mode == GameMode.Cities ? " is-active" : "")" viewBox="0 0 1000 757.4" aria-hidden="true">
                     <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
@@ -78,9 +101,9 @@ else if (_phase == Phase.Start)
                 </svg>
             </div>
             <div class="mode-switch-row" role="group" aria-labelledby="mode-label">
-                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.CityCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.CityCounty">City County Mode</button>
-                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.Cities ? "true" : "false")" @onclick="() => _mode = GameMode.Cities">Cities</button>
-                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.NameTheCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.NameTheCounty">Name the county</button>
+                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.CityCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.CityCounty">City/County</button>
+                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.Cities ? "true" : "false")" @onclick="() => _mode = GameMode.Cities">City</button>
+                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.NameTheCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.NameTheCounty">County</button>
             </div>
         </div>
 
@@ -94,13 +117,13 @@ else if (_phase == Phase.Start)
 
         @* Game # box: stays visible below Play, for joining a shared game.
            It is pre-filled with today's Game # on load (or the Game # from
-           a shared link). The box is sized for the daily Game # (~12
+           a shared link). The box is sized for the daily Game # (~10
            characters); the calendar button restores today's Game # and the
            dice button fills in a random one. Both are icon-only. *@
         <div class="seed-row">
             <label>
                 Game #
-                <input type="text" class="seed-input" @bind="_seed" @bind:event="oninput" maxlength="20" size="13" />
+                <input type="text" class="seed-input" @bind="_seed" @bind:event="oninput" maxlength="20" size="11" />
             </label>
             <button type="button" class="icon-btn" @onclick="UseDailySeed" aria-label="Use today's game number">
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2" /><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2" /><line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="2" /><line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="2" /></svg>
@@ -569,7 +592,7 @@ else if (_phase == Phase.Results)
     private enum GameMode { CityCounty, Cities, Counties, NameTheCounty }
 
     // Route parameters for the /{state}/{mode}/{seed} URL form, e.g.
-    // /oregon/cities/OR-2026-11-06. The mode segment is one of the mode
+    // /oregon/cities/2026-11-06. The mode segment is one of the mode
     // slugs (cities, counties, name-the-county, city-county); /{state}/{mode}
     // (no seed) preselects the mode on the start screen.
     [Parameter] public string? StateId { get; set; }
@@ -585,7 +608,7 @@ else if (_phase == Phase.Results)
     // in the header only when the URL named the state.
     private bool _stateFromUrl;
     private string _seedBacking = "";
-    // Seeds are forced to upper case, so "or-2026-11-06" and "OR-2026-11-06"
+    // Seeds are forced to upper case, so "friday-game" and "FRIDAY-GAME"
     // are the same game. Every write (typing, URL, Random/Daily) goes
     // through this setter, so the seed is canonical everywhere it is used.
     private string _seed
@@ -803,9 +826,9 @@ else if (_phase == Phase.Results)
 
     private string ModeSummaryLabel => _mode switch
     {
-        GameMode.CityCounty => " (City County Mode)",
+        GameMode.CityCounty => " (City/County)",
         GameMode.Counties => " (Counties)",
-        GameMode.NameTheCounty => " (Name the county)",
+        GameMode.NameTheCounty => " (County)",
         _ => ""
     };
 
@@ -874,7 +897,7 @@ else if (_phase == Phase.Results)
     protected override async Task OnInitializedAsync()
     {
         // Resolve the state, mode and seed from the URL path:
-        // /{state}/{mode}/{seed}, e.g. /oregon/cities/OR-2026-11-06.
+        // /{state}/{mode}/{seed}, e.g. /oregon/cities/2026-11-06.
         // /{state}/{mode} (no seed) preselects the mode on the start
         // screen; /{state} or / shows the start screen with the default
         // mode (City County Mode). No state/seed in the URL means Oregon with
@@ -941,7 +964,7 @@ else if (_phase == Phase.Results)
 
         _seed = !string.IsNullOrWhiteSpace(SeedParam)
             ? SeedParam
-            : GameService.DailySeed(_pack.Abbreviation);
+            : GameService.DailySeed();
 
         // Landmark defaults come from the pack manifest.
         foreach (var layer in _pack.Layers)
@@ -969,16 +992,16 @@ else if (_phase == Phase.Results)
         Navigation.NavigateTo(Navigation.ToAbsoluteUri("oregon/").ToString(), forceLoad: true);
     }
 
-    private void UseRandomSeed() => _seed = GameService.RandomSeed(_pack?.Abbreviation ?? "OR");
+    private void UseRandomSeed() => _seed = GameService.RandomSeed();
 
-    private void UseDailySeed() => _seed = GameService.DailySeed(_pack?.Abbreviation ?? "OR");
+    private void UseDailySeed() => _seed = GameService.DailySeed();
 
     // The main Play button reads "Play Today's Game" when the box holds
     // today's daily seed, and just "Play" for any other seed (or an empty
     // box). _seed is forced to upper case by its setter and DailySeed is
     // already upper case, so a plain == is a canonical comparison. The
     // input binds on every keystroke, so the label updates reactively.
-    private bool IsDailySeed => _seed == GameService.DailySeed(_pack?.Abbreviation ?? "OR");
+    private bool IsDailySeed => _seed == GameService.DailySeed();
 
     private void StartGame()
     {
@@ -1371,7 +1394,7 @@ else if (_phase == Phase.Results)
 
     private void PlayAgainNewSeed()
     {
-        _seed = GameService.RandomSeed(_pack?.Abbreviation ?? "OR");
+        _seed = GameService.RandomSeed();
         StartGame();
     }
 

@@ -188,7 +188,7 @@ input[type="text"]:focus { outline: 3px solid var(--green); outline-offset: 1px;
    out of the normal player's path — just wide enough for the daily Game #
    (~12 characters), with a calendar button to restore today's Game # and a
    dice button for a random one beside it. */
-input[type="text"].seed-input { width: 13ch; max-width: 13ch; }
+input[type="text"].seed-input { width: 11ch; max-width: 11ch; }
 /* Icon-only buttons beside the Game # box (calendar for today's Game #,
    dice for a random one). No text label — the icon is the button, with an
    aria-label for screen readers. Same height as the input, so the row
@@ -276,6 +276,7 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .mode-preview-big > :not(.is-active) { visibility: hidden; }
 .mode-switch-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
 .mode-switch {
+    box-sizing: border-box;
     flex: 1 1 0;
     min-height: 44px;
     display: flex;
@@ -292,7 +293,7 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     color: var(--ink);
 }
 .mode-switch:hover:not(:disabled) { transform: none; border-color: var(--green); box-shadow: var(--shadow); }
-.mode-switch[aria-pressed="true"] { border-color: var(--green); background: var(--green-soft); box-shadow: var(--shadow); }
+.mode-switch[aria-pressed="true"] { border: 3px solid var(--green-dark); background: #c8e6cf; font-weight: 800; box-shadow: var(--shadow); }
 .mode-switch:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* "Play today's game": the prominent first-screen action — full width, so
@@ -338,6 +339,8 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .preview-arrow { fill: none; stroke: var(--ink); stroke-width: 3; }
 .preview-arrowhead { fill: var(--ink); }
 .preview-selected { fill: #3b82c4; fill-opacity: 0.45; stroke: #1d4ed8; stroke-width: 2.5; }
+.preview-county-pick { fill: #3b82c4; fill-opacity: 0.45; stroke: #1d4ed8; stroke-width: 2; }
+.preview-split-line { stroke: #fff; stroke-width: 3; }
 
 /* ---------- Mode instructions (lede + steps, behind "How to play") ---------- */
 /* All four mode variants are rendered in one grid cell; only the selected
