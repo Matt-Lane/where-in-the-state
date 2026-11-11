@@ -425,9 +425,10 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 /* Two lines at the top of the map card: the buttons on the first line,
    and one unified message line below them. The message line holds the
    round's status — the guessing hint while placing, then the reveal
-   distance/points or county message after confirming. It is a single
-   line with a fixed height, so switching messages never moves the
-   buttons above it or the map below it. Landmark toggles live on the
+   distance/points or county message after confirming. It reserves two
+   lines of height at all times (long county names wrap to the second
+   line; anything longer is clamped), so switching messages never moves
+   the buttons above it or the map below it. Landmark toggles live on the
    start screen only, so nothing below the map needs a scroll to reach. */
 .game-controls {
     padding-bottom: 0.75rem;
@@ -443,9 +444,11 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 .controls-row button { flex-shrink: 0; }
 .controls-hint {
     margin: 0.5rem 0 0;
-    min-height: 1.6rem;
+    min-height: 3.2rem;
     line-height: 1.6rem;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
     color: var(--muted);
@@ -453,9 +456,11 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
 }
 .reveal-line {
     margin: 0.5rem 0 0;
-    min-height: 1.6rem;
+    min-height: 3.2rem;
     line-height: 1.6rem;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
     font-weight: 700;

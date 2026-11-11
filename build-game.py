@@ -463,15 +463,16 @@ HTML = r"""<!doctype html>
   /* Two lines at the top of the map card: the buttons on the first line,
      and one unified message line below them. The message line holds the
      round's status — the guessing hint while placing, then the reveal
-     distance/points or county message after confirming. It is a single
-     line with a fixed height, so switching messages never moves the
-     buttons above it or the map below it. Landmark toggles live on the
+     distance/points or county message after confirming. It reserves two
+     lines of height at all times (long county names wrap to the second
+     line; anything longer is clamped), so switching messages never moves
+     the buttons above it or the map below it. Landmark toggles live on the
      start screen only, so nothing below the map needs a scroll to reach. */
   .game-controls { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
   .game-controls .btn-row { margin-top: 0; flex-wrap: nowrap; }
   .game-controls .btn-row button { flex-shrink: 0; }
-  .controls-hint { margin: 8px 0 0; min-height: 1.6rem; line-height: 1.6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 13.5px; }
-  .reveal-line { margin: 8px 0 0; min-height: 1.6rem; line-height: 1.6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .controls-hint { margin: 8px 0 0; min-height: 3.2rem; line-height: 1.6rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 13.5px; }
+  .reveal-line { margin: 8px 0 0; min-height: 3.2rem; line-height: 1.6rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
   .map-frame { position: relative; width: min(100%, calc(min(56vh, 620px) * 1.3203)); margin: 0 auto; background: #f8f5ea; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   /* Sized by viewport height so the whole round fits on one screen;
      the width follows from the viewBox aspect ratio (1000 / 757.4).
@@ -845,7 +846,7 @@ HTML = r"""<!doctype html>
     versions — but the format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.29.
+    Version 0.30.
   </footer>
 </div>
 
