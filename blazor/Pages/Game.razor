@@ -34,130 +34,64 @@ else if (_phase == Phase.Start)
        steps) live in the card under the mode picker, not here. *@
 
     <div class="card">
-        @* Game mode: three large buttons, each with a small map preview of
-           how that mode plays. Clicking a button selects the mode (it does
-           not start the game — "Start game" still does that). The selected
-           button is marked with aria-pressed and a green border. *@
         <div class="mode-picker">
             <p class="field-label" id="mode-label">Game mode</p>
-            <div class="mode-grid" role="group" aria-labelledby="mode-label">
-                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.CityCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.CityCounty">
-                    <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
-                        <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
-                        <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
-                        <path d="@ModePreviewArt.DeschutesPath" class="preview-selected" />
-                        <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="16" class="preview-guess" />
-                        <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="6" class="preview-guess-dot" />
-                    </svg>
-                    <span class="mode-button-title">City County Mode</span>
-                    <span class="mode-button-desc">Pins and counties, mixed</span>
-                </button>
-                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Cities ? "true" : "false")" @onclick="() => _mode = GameMode.Cities">
-                    <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
-                        <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
-                        <line x1="@ModePreviewArt.GuessX" y1="@ModePreviewArt.GuessY" x2="@ModePreviewArt.BendX" y2="@ModePreviewArt.BendY" class="preview-line" />
-                        <circle cx="@ModePreviewArt.GuessX" cy="@ModePreviewArt.GuessY" r="16" class="preview-guess" />
-                        <circle cx="@ModePreviewArt.GuessX" cy="@ModePreviewArt.GuessY" r="6" class="preview-guess-dot" />
-                        <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="14" class="preview-target" />
-                        <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="5" class="preview-target-dot" />
-                    </svg>
-                    <span class="mode-button-title">Cities</span>
-                    <span class="mode-button-desc">Drop a pin for a named city</span>
-                </button>
-                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.Counties ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.Counties">
-                    <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
-                        <defs>
-                            <marker id="preview-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                                <path d="M0,0 L10,5 L0,10 z" class="preview-arrowhead" />
-                            </marker>
-                        </defs>
-                        <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
-                        <path d="@ModePreviewArt.DeschutesPath" class="preview-ghost" />
-                        <path d="@ModePreviewArt.DeschutesPath" transform="@ModePreviewArt.PieceTransform" class="preview-piece" />
-                        <path d="M400,315 Q395,355 375,385" class="preview-arrow" marker-end="url(#preview-arrowhead)" />
-                    </svg>
-                    <span class="mode-button-title">Counties</span>
-                    <span class="mode-button-desc">Drag the county's shape onto the map</span>
-                </button>
-                <button type="button" class="mode-button" aria-pressed="@(_mode == GameMode.NameTheCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.NameTheCounty">
-                    <svg class="mode-preview" viewBox="0 0 1000 757.4" aria-hidden="true">
-                        <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
-                        <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
-                        <path d="@ModePreviewArt.DeschutesPath" class="preview-selected" />
-                    </svg>
-                    <span class="mode-button-title">Name the county</span>
-                    <span class="mode-button-desc">Click the named county on the map</span>
-                </button>
+            @* One big preview image of the selected mode, with three small
+               buttons underneath to change it. All four previews are stacked
+               in one grid cell and only the selected mode's is visible, so
+               the big image is always the same size and switching modes
+               never moves the Play button below it. The Counties drag mode
+               is hidden from the picker (its code and /oregon/counties/
+               route still work) — only City County Mode, Cities and Name
+               the county are offered here. *@
+            <div class="mode-preview-big" aria-hidden="true">
+                <svg class="mode-preview@(_mode == GameMode.CityCounty ? " is-active" : "")" viewBox="0 0 1000 757.4" aria-hidden="true">
+                    <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
+                    <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
+                    <path d="@ModePreviewArt.DeschutesPath" class="preview-selected" />
+                    <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="16" class="preview-guess" />
+                    <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="6" class="preview-guess-dot" />
+                </svg>
+                <svg class="mode-preview@(_mode == GameMode.Cities ? " is-active" : "")" viewBox="0 0 1000 757.4" aria-hidden="true">
+                    <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
+                    <line x1="@ModePreviewArt.GuessX" y1="@ModePreviewArt.GuessY" x2="@ModePreviewArt.BendX" y2="@ModePreviewArt.BendY" class="preview-line" />
+                    <circle cx="@ModePreviewArt.GuessX" cy="@ModePreviewArt.GuessY" r="16" class="preview-guess" />
+                    <circle cx="@ModePreviewArt.GuessX" cy="@ModePreviewArt.GuessY" r="6" class="preview-guess-dot" />
+                    <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="14" class="preview-target" />
+                    <circle cx="@ModePreviewArt.BendX" cy="@ModePreviewArt.BendY" r="5" class="preview-target-dot" />
+                </svg>
+                <svg class="mode-preview@(_mode == GameMode.Counties ? " is-active" : "")" viewBox="0 0 1000 757.4" aria-hidden="true">
+                    <defs>
+                        <marker id="preview-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                            <path d="M0,0 L10,5 L0,10 z" class="preview-arrowhead" />
+                        </marker>
+                    </defs>
+                    <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
+                    <path d="@ModePreviewArt.DeschutesPath" class="preview-ghost" />
+                    <path d="@ModePreviewArt.DeschutesPath" transform="@ModePreviewArt.PieceTransform" class="preview-piece" />
+                    <path d="M400,315 Q395,355 375,385" class="preview-arrow" marker-end="url(#preview-arrowhead)" />
+                </svg>
+                <svg class="mode-preview@(_mode == GameMode.NameTheCounty ? " is-active" : "")" viewBox="0 0 1000 757.4" aria-hidden="true">
+                    <path d="@ModePreviewArt.OutlinePath" class="preview-state" />
+                    <path d="@ModePreviewArt.CountyGridPath" class="preview-grid" />
+                    <path d="@ModePreviewArt.DeschutesPath" class="preview-selected" />
+                </svg>
+            </div>
+            <div class="mode-switch-row" role="group" aria-labelledby="mode-label">
+                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.CityCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.CityCounty">City County Mode</button>
+                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.Cities ? "true" : "false")" @onclick="() => _mode = GameMode.Cities">Cities</button>
+                <button type="button" class="mode-switch" aria-pressed="@(_mode == GameMode.NameTheCounty ? "true" : "false")" disabled="@(_pack.Counties.Count == 0)" @onclick="() => _mode = GameMode.NameTheCounty">Name the county</button>
             </div>
         </div>
 
-        @* Instructions for the selected mode, directly under the picker —
-           so you read the instructions for the mode you chose, not one you
-           haven't chosen yet. All three variants are rendered in one grid
-           cell and only the selected one is visible, so this block is always
-           as tall as the tallest variant: switching modes never moves the
-           Seed / landmarks / Start controls below it. *@
-        <div class="mode-instructions">
-            <div class="mode-instructions-set@(_mode == GameMode.CityCounty ? " is-active" : "")" aria-hidden="@(_mode == GameMode.CityCounty ? "false" : "true")">
-                <p class="lede">
-                    A mix of both: <strong>7 city rounds and 3 county rounds</strong>,
-                    shuffled together. City rounds: drop a pin where you think the
-                    city is. County rounds: click the county on the map. 100 points
-                    per question — full points for a pin within 5 miles, 100 for
-                    naming the right county, 50 for a county that touches it. <strong>10 questions</strong> per game.
-                </p>
-                <ol class="how-it-works">
-                    <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 7 cities and 3 counties — share it to play together.</li>
-                    <li><strong><span class="step-num">2</span>Drop a pin or pick the county</strong>City rounds: tap the map where you think the city is. County rounds: click the county that matches the name.</li>
-                    <li><strong><span class="step-num">3</span>See how close</strong>The real spot or county is revealed, with your distance or pick and your points.</li>
-                </ol>
-            </div>
-            <div class="mode-instructions-set@(_mode == GameMode.Cities ? " is-active" : "")" aria-hidden="@(_mode == GameMode.Cities ? "false" : "true")">
-                <p class="lede">
-                    A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
-                    but no city names. Each round names one city; click or tap the map where
-                    you think it is. 100 points for a guess within 5 miles, then −1 point per
-                    mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
-                </p>
-                <ol class="how-it-works">
-                    <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 cities — share it to play together.</li>
-                    <li><strong><span class="step-num">2</span>Drop a pin</strong>Tap the map where you think the city is, then confirm.</li>
-                    <li><strong><span class="step-num">3</span>See how close</strong>The real spot is revealed, with your distance and points.</li>
-                </ol>
-            </div>
-            <div class="mode-instructions-set@(_mode == GameMode.Counties ? " is-active" : "")" aria-hidden="@(_mode == GameMode.Counties ? "false" : "true")">
-                <p class="lede">
-                    A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
-                    but no county lines. Each round names one county; drag its shape onto
-                    the map where you think it belongs. 100 points for a perfect fit,
-                    scaled by how much of the real county you cover.
-                    <strong>10 questions</strong> per game.
-                </p>
-                <ol class="how-it-works">
-                    <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
-                    <li><strong><span class="step-num">2</span>Drag the piece</strong>Drag the county's shape onto the map where it belongs, then confirm.</li>
-                    <li><strong><span class="step-num">3</span>See the overlap</strong>The real county is revealed, with how much of it you covered and your points.</li>
-                </ol>
-            </div>
-            <div class="mode-instructions-set@(_mode == GameMode.NameTheCounty ? " is-active" : "")" aria-hidden="@(_mode == GameMode.NameTheCounty ? "false" : "true")">
-                <p class="lede">
-                    A map of <strong>@_pack.Name</strong> with every county outlined,
-                    but no county names. Each round names one county; click the county
-                    you think it is. 100 points for naming the right county, 50 for a
-                    county that touches it, 0 for any other. <strong>10 questions</strong> per game.
-                </p>
-                <ol class="how-it-works">
-                    <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
-                    <li><strong><span class="step-num">2</span>Pick the county</strong>Click the county on the map that matches the name, then confirm.</li>
-                    <li><strong><span class="step-num">3</span>See if you were right</strong>The real county is revealed, with what you picked and your points.</li>
-                </ol>
-            </div>
-        </div>
-
-        <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
-            Start game
+        @* Play today's game: starts immediately with the daily seed and the
+           selected mode, so a new player can just jump in. *@
+        <button class="primary play-today" @onclick="PlayTodaysGame">
+            Play today's game
         </button>
 
+        @* Seed box: stays visible below Play, for joining a shared game.
+           Start game (under the seed box) starts with the seed in the box. *@
         <div class="seed-row">
             <label>
                 Seed
@@ -168,15 +102,97 @@ else if (_phase == Phase.Start)
         </div>
         <p class="hint">Same seed = same @SeedPoolLabel, same order. Share it to play the same game as another player.</p>
 
-        <fieldset>
-            <legend>Landmarks (display only — they don't affect scoring)</legend>
-            <div class="toggle-row" role="group" aria-label="Map layers">
-                <button type="button" class="toggle" data-layer="interstate" aria-pressed="@(_showInterstates ? "true" : "false")" @onclick="() => _showInterstates = !_showInterstates"><span class="swatch"></span>Interstates</button>
-                <button type="button" class="toggle" data-layer="highway" aria-pressed="@(_showHighways ? "true" : "false")" @onclick="() => _showHighways = !_showHighways"><span class="swatch"></span>Highways</button>
-                <button type="button" class="toggle" data-layer="river" aria-pressed="@(_showRivers ? "true" : "false")" @onclick="() => _showRivers = !_showRivers"><span class="swatch"></span>Rivers</button>
-                <button type="button" class="toggle" data-layer="lake" aria-pressed="@(_showLakes ? "true" : "false")" @onclick="() => _showLakes = !_showLakes"><span class="swatch fill"></span>Lakes</button>
+        <button class="primary" @onclick="StartGame" disabled="@string.IsNullOrWhiteSpace(_seed)">
+            Start game
+        </button>
+
+        @* How to play: the instructions for the selected mode, collapsed
+           behind a button (minimized by default). The four variants are
+           still stacked in one grid cell, so switching modes while it is
+           open never moves anything below it. *@
+        <div class="start-section">
+            <button type="button" class="section-toggle" aria-expanded="@(_showHowToPlay ? "true" : "false")" aria-controls="how-to-play" @onclick="() => _showHowToPlay = !_showHowToPlay">
+                @(_showHowToPlay ? "▾" : "▸") How to play
+            </button>
+            @if (_showHowToPlay)
+            {
+            <div class="mode-instructions">
+                <div class="mode-instructions-set@(_mode == GameMode.CityCounty ? " is-active" : "")" aria-hidden="@(_mode == GameMode.CityCounty ? "false" : "true")">
+                    <p class="lede">
+                        A mix of both: <strong>7 city rounds and 3 county rounds</strong>,
+                        shuffled together. City rounds: drop a pin where you think the
+                        city is. County rounds: click the county on the map. 100 points
+                        per question — full points for a pin within 5 miles, 100 for
+                        naming the right county, 50 for a county that touches it. <strong>10 questions</strong> per game.
+                    </p>
+                    <ol class="how-it-works">
+                        <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 7 cities and 3 counties — share it to play together.</li>
+                        <li><strong><span class="step-num">2</span>Drop a pin or pick the county</strong>City rounds: tap the map where you think the city is. County rounds: click the county that matches the name.</li>
+                        <li><strong><span class="step-num">3</span>See how close</strong>The real spot or county is revealed, with your distance or pick and your points.</li>
+                    </ol>
+                </div>
+                <div class="mode-instructions-set@(_mode == GameMode.Cities ? " is-active" : "")" aria-hidden="@(_mode == GameMode.Cities ? "false" : "true")">
+                    <p class="lede">
+                        A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
+                        but no city names. Each round names one city; click or tap the map where
+                        you think it is. 100 points for a guess within 5 miles, then −1 point per
+                        mile beyond 5, floored at 0. <strong>10 questions</strong> per game.
+                    </p>
+                    <ol class="how-it-works">
+                        <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 cities — share it to play together.</li>
+                        <li><strong><span class="step-num">2</span>Drop a pin</strong>Tap the map where you think the city is, then confirm.</li>
+                        <li><strong><span class="step-num">3</span>See how close</strong>The real spot is revealed, with your distance and points.</li>
+                    </ol>
+                </div>
+                <div class="mode-instructions-set@(_mode == GameMode.Counties ? " is-active" : "")" aria-hidden="@(_mode == GameMode.Counties ? "false" : "true")">
+                    <p class="lede">
+                        A blank map of <strong>@_pack.Name</strong> — outline and landmarks,
+                        but no county lines. Each round names one county; drag its shape onto
+                        the map where you think it belongs. 100 points for a perfect fit,
+                        scaled by how much of the real county you cover.
+                        <strong>10 questions</strong> per game.
+                    </p>
+                    <ol class="how-it-works">
+                        <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
+                        <li><strong><span class="step-num">2</span>Drag the piece</strong>Drag the county's shape onto the map where it belongs, then confirm.</li>
+                        <li><strong><span class="step-num">3</span>See the overlap</strong>The real county is revealed, with how much of it you covered and your points.</li>
+                    </ol>
+                </div>
+                <div class="mode-instructions-set@(_mode == GameMode.NameTheCounty ? " is-active" : "")" aria-hidden="@(_mode == GameMode.NameTheCounty ? "false" : "true")">
+                    <p class="lede">
+                        A map of <strong>@_pack.Name</strong> with every county outlined,
+                        but no county names. Each round names one county; click the county
+                        you think it is. 100 points for naming the right county, 50 for a
+                        county that touches it, 0 for any other. <strong>10 questions</strong> per game.
+                    </p>
+                    <ol class="how-it-works">
+                        <li><strong><span class="step-num">1</span>Pick a seed</strong>Same seed, same 10 counties — share it to play together.</li>
+                        <li><strong><span class="step-num">2</span>Pick the county</strong>Click the county on the map that matches the name, then confirm.</li>
+                        <li><strong><span class="step-num">3</span>See if you were right</strong>The real county is revealed, with what you picked and your points.</li>
+                    </ol>
+                </div>
             </div>
-        </fieldset>
+            }
+        </div>
+
+        @* Advanced options: the landmark toggles, collapsed by default. *@
+        <div class="start-section">
+            <button type="button" class="section-toggle" aria-expanded="@(_showAdvanced ? "true" : "false")" aria-controls="advanced-options" @onclick="() => _showAdvanced = !_showAdvanced">
+                @(_showAdvanced ? "▾" : "▸") Advanced options
+            </button>
+            @if (_showAdvanced)
+            {
+            <fieldset>
+                <legend>Landmarks (display only — they don't affect scoring)</legend>
+                <div class="toggle-row" role="group" aria-label="Map layers">
+                    <button type="button" class="toggle" data-layer="interstate" aria-pressed="@(_showInterstates ? "true" : "false")" @onclick="() => _showInterstates = !_showInterstates"><span class="swatch"></span>Interstates</button>
+                    <button type="button" class="toggle" data-layer="highway" aria-pressed="@(_showHighways ? "true" : "false")" @onclick="() => _showHighways = !_showHighways"><span class="swatch"></span>Highways</button>
+                    <button type="button" class="toggle" data-layer="river" aria-pressed="@(_showRivers ? "true" : "false")" @onclick="() => _showRivers = !_showRivers"><span class="swatch"></span>Rivers</button>
+                    <button type="button" class="toggle" data-layer="lake" aria-pressed="@(_showLakes ? "true" : "false")" @onclick="() => _showLakes = !_showLakes"><span class="swatch fill"></span>Lakes</button>
+                </div>
+            </fieldset>
+            }
+        </div>
     </div>
 }
 else if (_phase == Phase.Round || _phase == Phase.Reveal)
@@ -558,7 +574,14 @@ else if (_phase == Phase.Results)
         set => _seedBacking = (value ?? "").ToUpperInvariant();
     }
     private Phase _phase = Phase.Start;
-    private GameMode _mode = GameMode.Cities;
+    // The default mode is City County Mode (the first mode button and the
+    // one shown in the big preview on first load). A bare /{state}/ URL
+    // therefore starts in City County Mode; a mode in the URL overrides it.
+    private GameMode _mode = GameMode.CityCounty;
+    // "How to play" and "Advanced options" on the start screen are both
+    // collapsed (minimized) by default; tapping their buttons expands them.
+    private bool _showHowToPlay;
+    private bool _showAdvanced;
 
     private bool _showInterstates = true;
     private bool _showHighways = true;
@@ -834,7 +857,7 @@ else if (_phase == Phase.Results)
         // /{state}/{mode}/{seed}, e.g. /oregon/cities/OR-2026-11-06.
         // /{state}/{mode} (no seed) preselects the mode on the start
         // screen; /{state} or / shows the start screen with the default
-        // mode (Cities). No state/seed in the URL means Oregon with
+        // mode (City County Mode). No state/seed in the URL means Oregon with
         // today's daily seed. There is no query-string form any more.
         if (!string.IsNullOrWhiteSpace(StateId))
         {
@@ -929,6 +952,15 @@ else if (_phase == Phase.Results)
     private void UseRandomSeed() => _seed = GameService.RandomSeed(_pack?.Abbreviation ?? "OR");
 
     private void UseDailySeed() => _seed = GameService.DailySeed(_pack?.Abbreviation ?? "OR");
+
+    private void PlayTodaysGame()
+    {
+        // "Play today's game": start immediately with the daily seed and
+        // the selected mode — one tap, no seed box needed. Setting _seed
+        // also shows the daily seed in the seed box.
+        _seed = GameService.DailySeed(_pack?.Abbreviation ?? "OR");
+        StartGame();
+    }
 
     private void StartGame()
     {
