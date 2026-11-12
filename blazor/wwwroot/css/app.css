@@ -40,7 +40,9 @@ html, body {
 .site-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    /* The wordmark (pin logo + title) is the header's only child, so
+       centring the flex content centres the title in the header. */
+    justify-content: center;
     gap: 1rem;
     padding: 1.1rem 0 0.9rem;
     border-bottom: 2px solid var(--ink);
