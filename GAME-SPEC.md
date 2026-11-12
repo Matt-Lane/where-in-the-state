@@ -2,7 +2,7 @@
 
 **First edition:** Oregon. The game name is generic for any state; Oregon is the first state pack. There is no "Oregon Edition" label in the UI; once a game starts, the header title is `Where in the {StateName}?!` — derived from the state pack's `Name` field (so a future state gets its own title automatically) — and it stays that way through the results screen; the browser tab follows the same rule. Before a game starts the title is "Where in the State" — except when the URL named the state (e.g. `/oregon/`), in which case the start screen header already says `Where in the {StateName}?!`. The root URL `/` is the splash/welcome page (see §4.1), not the start screen.
 
-**Version:** 0.32, shown in the footer of both the Blazor app and the standalone JavaScript version. Format is `major.minor`; the minor number is incremented on every merge to main.
+**Version:** 0.33, shown in the footer of both the Blazor app and the standalone JavaScript version. Format is `major.minor`; the minor number is incremented on every merge to main.
 
 **Date:** 2026-11-06
 **Status:** Draft for Matt to review — map approach decided 2026-11-06: SVG + GeoJSON natively in Blazor (see §9, Option A). Click-test prototype built and audited 2026-11-06 (see Appendix).
