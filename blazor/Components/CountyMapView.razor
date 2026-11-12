@@ -1,19 +1,16 @@
 @using OregonGeographyGame.Models
 @using OregonGeographyGame.Services
 @inject IJSRuntime JS
-@implements IDisposable
+@implements IAsyncDisposable
 
 <div class="map-wrap">
 <svg viewBox="@_viewport.ViewBox"
      class="map-svg"
      role="img"
      aria-label="Blank map of the state. No county lines are shown. Pinch to zoom."
-     @ref="_svgRef"
-     @onpointerdown="OnSvgPointerDown"
-     @onpointermove="OnPointerMove"
-     @onpointerup="OnPointerUp"
-     @onpointerleave="OnPointerLeave"
-     @onpointercancel="OnPointerCancel">
+     data-interactive="@(Interactive ? "true" : "false")"
+     data-revealed="@(Revealed ? "true" : "false")"
+     @ref="_svgRef">
     @* State outline *@
     @foreach (var feature in Outline)
     {
@@ -68,8 +65,8 @@
     @if (County is not null && (Interactive || Revealed))
     {
         <g transform="translate(@_dx.ToString("F1") @_dy.ToString("F1"))"
-           class="@(Revealed ? "" : _dragging ? "county-piece dragging" : "county-piece")"
-           @onpointerdown="OnPiecePointerDown">
+           class="@(Revealed ? "" : "county-piece")"
+           data-county-piece>
             @foreach (var ring in _svgRings)
             {
                 <polygon points="@SvgPointsAttribute(ring)"
@@ -93,11 +90,13 @@
 @* A small Confirm bubble next to the piece once it has been dragged and
    dropped, so the player can confirm right where they placed it. It stays
    hidden while the piece is being dragged — it would chase the piece around
-   the map — and only appears once the player stops moving it. Positioned in
+   the map — and only appears once the player stops moving it. (JS hides it
+   during the drag with the .gesturing class on .map-wrap; .NET only learns
+   a drag happened when the gesture ends.) Positioned in
    percentages of the map wrapper (exactly the SVG's box), via the current
    viewBox, so it tracks the piece at any zoom. Hidden while the piece's
    centre is outside the visible window. *@
-@if (Interactive && !Revealed && County is not null && _hasDragged && !_dragging && IsPieceInView())
+@if (Interactive && !Revealed && County is not null && _hasDragged && IsPieceInView())
 {
     var (cx, cy) = PieceCentroidSvg();
     var (leftPct, topPctRaw) = _viewport.ToPercent(cx, cy);
@@ -145,28 +144,20 @@
 
     // The visible window onto the map (pinch-to-zoom). The SVG's viewBox
     // is bound to it. This mode has pinch zoom only, no pan: one finger
-    // always drags the piece, so a pan would fight the piece drag.
+    // always drags the piece, so a pan would fight the piece drag. The
+    // live gesture is owned entirely by JS (mapGesture in index.html):
+    // it writes the viewBox attribute directly during a pinch and moves
+    // the piece by setting its transform directly, reporting the final
+    // viewBox and piece position once, when the gesture ends (see
+    // GestureEnded). .NET only ever holds the synced state — no .NET
+    // state changes mid-gesture, so no re-render can snap the piece or
+    // the viewBox back while the fingers move.
     private readonly MapViewport _viewport = new();
 
-    // Active pointers by pointerId, for pinch (two pointers). The SVG's
-    // bounding rect, measured when a gesture starts and cached for it.
-    private readonly Dictionary<long, (double ClientX, double ClientY)> _pointers = new();
-
-    // Pinch state: the finger distance at the previous move, for the
-    // incremental ratio (see OnPointerMove). The anchor is recomputed
-    // from the current midpoint on every move, so the zoom tracks the
-    // fingers and is immune to a stale baseline.
-    private bool _pinchGesture;
-    private double _pinchPrevDist;
-
-    // The animation-frame loop for viewport smoothing (see MapViewport):
-    // pointer moves only update the TARGET window; a requestAnimationFrame
-    // callback eases the displayed window toward it and re-renders. This
-    // keeps viewBox updates on the display refresh and filters finger
-    // jitter. The loop is driven from JS (requestViewportFrame in
-    // index.html) calling ViewportFrame on this component.
-    private DotNetObjectReference<CountyMapView>? _viewportFrameRef;
-    private bool _viewportFramePending;
+    // The .NET reference JS calls back into (GestureEnded), and whether
+    // the SVG has rendered (JS attach/reset calls are skipped before it).
+    private DotNetObjectReference<CountyMapView>? _mapGestureRef;
+    private bool _hasRendered;
 
     private int _lastRoundKey = -1;
     private bool _lastRevealed;
@@ -179,18 +170,11 @@
     private double _dy;
     private string? _currentCountyName;
 
-    private bool _dragging;
+    // Whether the piece has been dragged this round (enables the Confirm
+    // bubble) and whether the parent has been told (OnPieceDragged fires
+    // once, when the first drag ends — see GestureEnded).
     private bool _hasDragged;
     private bool _dragNotified;
-    private double _startPointerX;
-    private double _startPointerY;
-    private double _startDx;
-    private double _startDy;
-
-    // The SVG's bounding rect in CSS pixels, measured when a drag starts
-    // (ClientX/Y are viewport-relative, so the rect converts them to SVG
-    // units). Cached for the drag so pointermove needs no JS interop.
-    private double[]? _svgRect;
 
     /// <summary>The piece's current translation in SVG units (for scoring).</summary>
     public double PieceDx => _dx;
@@ -206,11 +190,11 @@
         if (RoundKey != _lastRoundKey)
         {
             _lastRoundKey = RoundKey;
-            _viewport.Reset();
+            ResetViewport();
         }
         if (Revealed && !_lastRevealed)
         {
-            _viewport.Reset();
+            ResetViewport();
         }
         _lastRevealed = Revealed;
 
@@ -223,60 +207,91 @@
             _currentCountyName = name;
             _svgRings = ProjectRings(County!.Parts);
             (_dx, _dy) = StagingTranslation();
-            _dragging = false;
             _hasDragged = false;
             _dragNotified = false;
-            _svgRect = null;
             _viewport.Reset();
         }
     }
 
     private void ResetView()
     {
+        ResetViewport();
+    }
+
+    /// <summary>
+    /// Reset the window to the full map, in .NET and in JS: the JS
+    /// controller's easing loop is cancelled and its viewport returns
+    /// to full, so a reset can never be overwritten by a frame still
+    /// in flight. The Razor viewBox binding writes the full view on
+    /// the next render, so the two agree.
+    /// </summary>
+    private void ResetViewport()
+    {
         _viewport.Reset();
+        if (_hasRendered)
+        {
+            _ = JS.InvokeVoidAsync("whereInTheState.mapGestureReset", _svgRef);
+        }
     }
 
     protected override void OnInitialized()
     {
-        _viewportFrameRef = DotNetObjectReference.Create(this);
+        _mapGestureRef = DotNetObjectReference.Create(this);
     }
 
-    public void Dispose()
+    protected override void OnAfterRender(bool firstRender)
     {
-        _viewportFrameRef?.Dispose();
-    }
-
-    private void ScheduleViewportFrame()
-    {
-        // One frame at a time: if a frame is already queued, the loop
-        // picks up the latest target when it runs. Fire-and-forget: the
-        // JS side never throws (requestViewportFrame is guarded).
-        if (_viewportFramePending || _viewportFrameRef is null)
+        if (firstRender)
         {
-            return;
+            _hasRendered = true;
+            _ = JS.InvokeVoidAsync("whereInTheState.mapGestureAttach", _svgRef, _mapGestureRef, "counties");
         }
-        _viewportFramePending = true;
-        _ = JS.InvokeVoidAsync("whereInTheState.requestViewportFrame", _viewportFrameRef);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hasRendered)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("whereInTheState.mapGestureDetach", _svgRef);
+            }
+            catch
+            {
+                // Best-effort: the element is going away anyway.
+            }
+        }
+        _mapGestureRef?.Dispose();
     }
 
     /// <summary>
-    /// One animation frame of viewport smoothing, called from
-    /// requestAnimationFrame via JS interop. Eases the displayed window
-    /// toward the target and re-renders; schedules another frame while
-    /// the window is still moving.
+    /// Called by the JS gesture controller exactly once, when a gesture
+    /// ends, with the final viewBox — and a piece drop, if the gesture
+    /// moved the piece (by drop, or cancelled by a pinch). This is the
+    /// only moment .NET learns about a gesture, so there is no re-render
+    /// or interop while the fingers are moving. A drag is first reported
+    /// here (not at drag start), so the Confirm button and hint update
+    /// when the piece stops — and no mid-drag re-render can snap the
+    /// piece back to its pre-drag position.
     /// </summary>
     [JSInvokable]
-    public void ViewportFrame()
+    public async Task GestureEnded(double x, double y, double width, double height,
+        double? tapSvgX, double? tapSvgY, double? pieceDx, double? pieceDy)
     {
-        _viewportFramePending = false;
-        if (_viewport.StepTowardsTarget())
+        _viewport.SyncTo(x, y, width);
+        if (pieceDx.HasValue && pieceDy.HasValue)
         {
-            StateHasChanged();
+            _dx = pieceDx.Value;
+            _dy = pieceDy.Value;
+            if (!_dragNotified)
+            {
+                _dragNotified = true;
+                _hasDragged = true;
+                await OnPieceDragged.InvokeAsync();
+            }
+            await OnPieceDropped.InvokeAsync((_dx, _dy));
         }
-        if (_viewport.IsEasing)
-        {
-            ScheduleViewportFrame();
-        }
+        StateHasChanged();
     }
 
     private bool IsPieceInView()
@@ -336,237 +351,6 @@
         }
 
         return ((minX + maxX) / 2 + _dx, (minY + maxY) / 2 + _dy);
-    }
-
-    private async Task OnPiecePointerDown(PointerEventArgs e)
-    {
-        if (!Interactive || Revealed || County is null)
-        {
-            return;
-        }
-
-        // A second finger means a pinch, not a piece drag: the SVG's
-        // pointerdown handler (which fires after this one, by bubbling)
-        // starts the pinch, so don't start a drag here.
-        if (_pointers.Count >= 1 || _pinchGesture)
-        {
-            return;
-        }
-
-        // Measure the SVG's bounding rect so ClientX/Y (viewport-relative)
-        // convert to viewBox units regardless of which element is under the
-        // pointer. Reuse the cached rect when the SVG handler already
-        // measured it for this gesture. If the measurement fails, don't
-        // start the drag.
-        if (_svgRect is null)
-        {
-            try
-            {
-                var rect = await JS.InvokeAsync<double[]>("whereInTheState.svgRect", _svgRef);
-                if (rect is not { Length: 4 } || rect[2] <= 0 || rect[3] <= 0)
-                {
-                    return;
-                }
-                _svgRect = rect;
-            }
-            catch
-            {
-                return;
-            }
-        }
-
-        var (svgX, svgY) = ClientToSvg(e.ClientX, e.ClientY);
-        _dragging = true;
-        _startPointerX = svgX;
-        _startPointerY = svgY;
-        _startDx = _dx;
-        _startDy = _dy;
-
-        if (!_dragNotified)
-        {
-            _dragNotified = true;
-            _hasDragged = true;
-            await OnPieceDragged.InvokeAsync();
-        }
-    }
-
-    /// <summary>
-    /// Pointer tracking for pinch-to-zoom. Fires for every pointerdown on
-    /// the map (pointerdowns on the piece bubble up here after the piece's
-    /// own handler). Two pointers down starts a pinch; a pinch cancels an
-    /// in-progress piece drag, reporting the piece's position so the
-    /// parent's stored position stays in sync.
-    /// </summary>
-    private async Task OnSvgPointerDown(PointerEventArgs e)
-    {
-        if (!Interactive || Revealed)
-        {
-            return;
-        }
-
-        if (_pointers.Count == 0 && _svgRect is null)
-        {
-            try
-            {
-                var rect = await JS.InvokeAsync<double[]>("whereInTheState.svgRect", _svgRef);
-                if (rect is not { Length: 4 } || rect[2] <= 0 || rect[3] <= 0)
-                {
-                    return;
-                }
-                _svgRect = rect;
-            }
-            catch
-            {
-                return;
-            }
-        }
-
-        try
-        {
-            await JS.InvokeVoidAsync("whereInTheState.capturePointer", _svgRef, e.PointerId);
-        }
-        catch
-        {
-            // Pointer capture is best-effort; the pinch still works without it.
-        }
-
-        _pointers[e.PointerId] = (e.ClientX, e.ClientY);
-
-        if (_pointers.Count != 2 || _svgRect is null)
-        {
-            return;
-        }
-
-        var pts = _pointers.Values.ToArray();
-        _pinchPrevDist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
-        _pinchGesture = true;
-
-        if (_dragging)
-        {
-            // The piece stops where it is; report the position so the
-            // parent's stored position matches the piece on screen.
-            _dragging = false;
-            await OnPieceDropped.InvokeAsync((_dx, _dy));
-        }
-    }
-
-    private void OnPointerMove(PointerEventArgs e)
-    {
-        if (!_pointers.TryGetValue(e.PointerId, out _) || _svgRect is null)
-        {
-            return;
-        }
-
-        _pointers[e.PointerId] = (e.ClientX, e.ClientY);
-
-        if (_pointers.Count == 2 && _pinchGesture)
-        {
-            // Pinch: apply the INCREMENTAL change in finger distance to
-            // the target viewBox, anchored at the CURRENT midpoint. Each
-            // step is relative to the previous move's distance, so the
-            // zoom is continuous and immune to a stale baseline, and the
-            // anchor follows the fingers when they move asymmetrically.
-            // The displayed window eases toward the target on the next
-            // animation frame (see ViewportFrame) — it is not set here.
-            var pts = _pointers.Values.ToArray();
-            double dist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
-            if (dist > 0 && _pinchPrevDist > 0)
-            {
-                double midClientX = (pts[0].ClientX + pts[1].ClientX) / 2;
-                double midClientY = (pts[0].ClientY + pts[1].ClientY) / 2;
-                var (anchorSvgX, anchorSvgY) = _viewport.ClientToSvg(
-                    midClientX, midClientY, _svgRect![0], _svgRect[1], _svgRect[2], _svgRect[3]);
-                _viewport.ZoomAt(anchorSvgX, anchorSvgY,
-                    midClientX, midClientY,
-                    _svgRect[0], _svgRect[1], _svgRect[2], _svgRect[3],
-                    _viewport.TargetWidth * _pinchPrevDist / dist);
-                ScheduleViewportFrame();
-            }
-            _pinchPrevDist = dist;
-            return;
-        }
-
-        if (!_dragging)
-        {
-            return;
-        }
-
-        // The piece follows the pointer rigidly: its translation changes by
-        // the pointer's movement since the drag started. No callback per
-        // move — the parent only needs the final position, on drop — so the
-        // drag re-renders just this component and stays smooth.
-        var (svgX, svgY) = ClientToSvg(e.ClientX, e.ClientY);
-        _dx = _startDx + (svgX - _startPointerX);
-        _dy = _startDy + (svgY - _startPointerY);
-        StateHasChanged();
-    }
-
-    private async Task OnPointerUp(PointerEventArgs e)
-    {
-        _pointers.Remove(e.PointerId);
-        if (_pointers.Count == 0)
-        {
-            _pinchGesture = false;
-            _svgRect = null;
-            // Gesture over: snap the displayed window to the target, so
-            // the view is exact (the piece drag converts with it).
-            _viewport.SnapToTarget();
-            StateHasChanged();
-        }
-
-        if (!_dragging)
-        {
-            return;
-        }
-
-        _dragging = false;
-        await OnPieceDropped.InvokeAsync((_dx, _dy));
-    }
-
-    private async Task OnPointerLeave(PointerEventArgs e)
-    {
-        // If the pointer leaves the map mid-drag, end the drag where the
-        // piece is rather than leaving it stuck in a dragging state.
-        _pointers.Remove(e.PointerId);
-        if (_pointers.Count == 0)
-        {
-            _pinchGesture = false;
-            _svgRect = null;
-            // Gesture over: snap the displayed window to the target.
-            _viewport.SnapToTarget();
-            StateHasChanged();
-        }
-
-        if (!_dragging)
-        {
-            return;
-        }
-
-        _dragging = false;
-        await OnPieceDropped.InvokeAsync((_dx, _dy));
-    }
-
-    private void OnPointerCancel(PointerEventArgs e)
-    {
-        _pointers.Remove(e.PointerId);
-        if (_pointers.Count == 0)
-        {
-            _pinchGesture = false;
-            _svgRect = null;
-            // Gesture over: snap the displayed window to the target.
-            _viewport.SnapToTarget();
-            StateHasChanged();
-        }
-
-        _dragging = false;
-    }
-
-    private (double X, double Y) ClientToSvg(double clientX, double clientY)
-    {
-        // Converts with the CURRENT viewBox (zoomed and panned), so the
-        // piece follows the pointer exactly at any zoom.
-        var rect = _svgRect!;
-        return _viewport.ClientToSvg(clientX, clientY, rect[0], rect[1], rect[2], rect[3]);
     }
 
     private bool IsLayerVisible(string layer) => layer switch

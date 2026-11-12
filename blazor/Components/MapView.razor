@@ -1,18 +1,16 @@
 @using OregonGeographyGame.Models
 @using OregonGeographyGame.Services
 @inject IJSRuntime JS
-@implements IDisposable
+@implements IAsyncDisposable
 
 <div class="map-wrap">
 <svg viewBox="@_viewport.ViewBox"
      class="map-svg"
      role="img"
      aria-label="Blank map of the state. No city names are shown. Pinch to zoom, drag to pan when zoomed."
-     @ref="_svgRef"
-     @onpointerdown="OnPointerDown"
-     @onpointermove="OnPointerMove"
-     @onpointerup="OnPointerUp"
-     @onpointercancel="OnPointerCancel">
+     data-interactive="@(Interactive ? "true" : "false")"
+     data-revealed="@(Revealed ? "true" : "false")"
+     @ref="_svgRef">
     @* State outline *@
     @foreach (var feature in Outline)
     {
@@ -158,39 +156,18 @@
     private ElementReference _svgRef;
 
     // The visible window onto the map (pinch-to-zoom / pan). The SVG's
-    // viewBox is bound to it.
+    // viewBox is bound to it. The live gesture is owned entirely by JS
+    // (mapGesture in index.html): it writes the viewBox attribute
+    // directly during a pinch/pan and reports the final viewBox once,
+    // when the gesture ends (see GestureEnded). This class only ever
+    // holds the synced window — no .NET state changes mid-gesture, so
+    // no re-render can snap the viewBox back while the fingers move.
     private readonly MapViewport _viewport = new();
 
-    // Active pointers by pointerId, for pinch (two pointers) and pan
-    // (one pointer, when zoomed). The SVG's bounding rect, measured when
-    // a gesture starts and cached for it, so moves need no JS interop.
-    private readonly Dictionary<long, (double ClientX, double ClientY)> _pointers = new();
-    private double[]? _svgRect;
-
-    // Tap vs drag: the pointer-down position, whether it has moved past
-    // the tap threshold, and whether this gesture ever pinched (a pinch
-    // never places a pin). A tap is a pointerup with minimal movement.
-    private (double ClientX, double ClientY) _downPos;
-    private bool _downMoved;
-    private bool _pinchGesture;
-
-    // Pinch state: the finger distance at the previous move, for the
-    // incremental ratio (see OnPointerMove). The anchor is recomputed
-    // from the current midpoint on every move, so the zoom tracks the
-    // fingers and is immune to a stale baseline.
-    private double _pinchPrevDist;
-
-    // The animation-frame loop for viewport smoothing (see MapViewport):
-    // pointer moves only update the TARGET window; a requestAnimationFrame
-    // callback eases the displayed window toward it and re-renders. This
-    // keeps viewBox updates on the display refresh and filters finger
-    // jitter. The loop is driven from JS (requestViewportFrame in
-    // index.html) calling ViewportFrame on this component.
-    private DotNetObjectReference<MapView>? _viewportFrameRef;
-    private bool _viewportFramePending;
-
-    // Pan state: the last pointer position, for per-move deltas.
-    private (double ClientX, double ClientY) _panLast;
+    // The .NET reference JS calls back into (GestureEnded), and whether
+    // the SVG has rendered (JS attach/reset calls are skipped before it).
+    private DotNetObjectReference<MapView>? _mapGestureRef;
+    private bool _hasRendered;
 
     private int _lastRoundKey = -1;
     private bool _lastRevealed;
@@ -203,61 +180,85 @@
         if (RoundKey != _lastRoundKey)
         {
             _lastRoundKey = RoundKey;
-            _viewport.Reset();
+            ResetViewport();
         }
         if (Revealed && !_lastRevealed)
         {
-            _viewport.Reset();
+            ResetViewport();
         }
         _lastRevealed = Revealed;
     }
 
     private void ResetView()
     {
+        ResetViewport();
+    }
+
+    /// <summary>
+    /// Reset the window to the full map, in .NET and in JS: the JS
+    /// controller's easing loop is cancelled and its viewport returns
+    /// to full, so a reset can never be overwritten by a frame still
+    /// in flight. The Razor viewBox binding writes the full view on
+    /// the next render, so the two agree.
+    /// </summary>
+    private void ResetViewport()
+    {
         _viewport.Reset();
+        if (_hasRendered)
+        {
+            _ = JS.InvokeVoidAsync("whereInTheState.mapGestureReset", _svgRef);
+        }
     }
 
     protected override void OnInitialized()
     {
-        _viewportFrameRef = DotNetObjectReference.Create(this);
+        _mapGestureRef = DotNetObjectReference.Create(this);
     }
 
-    public void Dispose()
+    protected override void OnAfterRender(bool firstRender)
     {
-        _viewportFrameRef?.Dispose();
-    }
-
-    private void ScheduleViewportFrame()
-    {
-        // One frame at a time: if a frame is already queued, the loop
-        // picks up the latest target when it runs. Fire-and-forget: the
-        // JS side never throws (requestViewportFrame is guarded).
-        if (_viewportFramePending || _viewportFrameRef is null)
+        if (firstRender)
         {
-            return;
+            _hasRendered = true;
+            _ = JS.InvokeVoidAsync("whereInTheState.mapGestureAttach", _svgRef, _mapGestureRef, "cities");
         }
-        _viewportFramePending = true;
-        _ = JS.InvokeVoidAsync("whereInTheState.requestViewportFrame", _viewportFrameRef);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hasRendered)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("whereInTheState.mapGestureDetach", _svgRef);
+            }
+            catch
+            {
+                // Best-effort: the element is going away anyway.
+            }
+        }
+        _mapGestureRef?.Dispose();
     }
 
     /// <summary>
-    /// One animation frame of viewport smoothing, called from
-    /// requestAnimationFrame via JS interop. Eases the displayed window
-    /// toward the target and re-renders; schedules another frame while
-    /// the window is still moving.
+    /// Called by the JS gesture controller exactly once, when a gesture
+    /// ends, with the final viewBox — and a tap, if the gesture was one
+    /// (as SVG coordinates, converted by JS with the final view). This
+    /// is the only moment .NET learns about a gesture, so there is no
+    /// re-render or interop while the fingers are moving. The tap is
+    /// converted with the same projection that drew the map.
     /// </summary>
     [JSInvokable]
-    public void ViewportFrame()
+    public async Task GestureEnded(double x, double y, double width, double height,
+        double? tapSvgX, double? tapSvgY, double? pieceDx, double? pieceDy)
     {
-        _viewportFramePending = false;
-        if (_viewport.StepTowardsTarget())
+        _viewport.SyncTo(x, y, width);
+        if (tapSvgX.HasValue && tapSvgY.HasValue)
         {
-            StateHasChanged();
+            var (latitude, longitude) = MapProjection.SvgToLatLon(tapSvgX.Value, tapSvgY.Value);
+            await OnMapClicked.InvokeAsync((latitude, longitude));
         }
-        if (_viewport.IsEasing)
-        {
-            ScheduleViewportFrame();
-        }
+        StateHasChanged();
     }
 
     private bool IsGuessInView()
@@ -269,177 +270,6 @@
 
         var (gx, gy) = MapProjection.LatLonToSvg(GuessLatitude.Value, GuessLongitude.Value);
         return _viewport.Contains(gx, gy);
-    }
-
-    private async Task OnPointerDown(PointerEventArgs e)
-    {
-        if (!Interactive || Revealed)
-        {
-            return;
-        }
-
-        // Measure the SVG's bounding rect when the first pointer goes
-        // down (ClientX/Y are viewport-relative, so the rect is what
-        // converts them to viewBox units). If the measurement fails,
-        // ignore the gesture rather than placing a pin at a wrong place.
-        if (_pointers.Count == 0)
-        {
-            try
-            {
-                var rect = await JS.InvokeAsync<double[]>("whereInTheState.svgRect", _svgRef);
-                if (rect is not { Length: 4 } || rect[2] <= 0 || rect[3] <= 0)
-                {
-                    return;
-                }
-                _svgRect = rect;
-            }
-            catch
-            {
-                return;
-            }
-        }
-
-        // Capture the pointer so moves keep arriving even if the finger
-        // slides off the map mid-gesture.
-        try
-        {
-            await JS.InvokeVoidAsync("whereInTheState.capturePointer", _svgRef, e.PointerId);
-        }
-        catch
-        {
-            // Pointer capture is best-effort; gestures still work without it.
-        }
-
-        _pointers[e.PointerId] = (e.ClientX, e.ClientY);
-
-        if (_pointers.Count == 2)
-        {
-            // Second finger down: this gesture is a pinch. Only the
-            // finger distance is captured — the zoom is applied
-            // incrementally from it (see OnPointerMove), and the anchor
-            // is recomputed from the current midpoint on every move.
-            var pts = _pointers.Values.ToArray();
-            _pinchPrevDist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
-            _pinchGesture = true;
-            return;
-        }
-
-        _downPos = (e.ClientX, e.ClientY);
-        _downMoved = false;
-        _panLast = (e.ClientX, e.ClientY);
-    }
-
-    private void OnPointerMove(PointerEventArgs e)
-    {
-        if (!_pointers.TryGetValue(e.PointerId, out _) || _svgRect is null)
-        {
-            return;
-        }
-
-        _pointers[e.PointerId] = (e.ClientX, e.ClientY);
-
-        if (_pointers.Count == 2 && _pinchGesture)
-        {
-            // Pinch: apply the INCREMENTAL change in finger distance to
-            // the target viewBox, anchored at the CURRENT midpoint. Each
-            // step is relative to the previous move's distance, so the
-            // zoom is continuous and immune to a stale baseline, and the
-            // anchor follows the fingers when they move asymmetrically.
-            // The displayed window eases toward the target on the next
-            // animation frame (see ViewportFrame) — it is not set here.
-            var pts = _pointers.Values.ToArray();
-            double dist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
-            if (dist > 0 && _pinchPrevDist > 0)
-            {
-                double midClientX = (pts[0].ClientX + pts[1].ClientX) / 2;
-                double midClientY = (pts[0].ClientY + pts[1].ClientY) / 2;
-                var (anchorSvgX, anchorSvgY) = _viewport.ClientToSvg(
-                    midClientX, midClientY, _svgRect![0], _svgRect[1], _svgRect[2], _svgRect[3]);
-                _viewport.ZoomAt(anchorSvgX, anchorSvgY,
-                    midClientX, midClientY,
-                    _svgRect[0], _svgRect[1], _svgRect[2], _svgRect[3],
-                    _viewport.TargetWidth * _pinchPrevDist / dist);
-                ScheduleViewportFrame();
-            }
-            _pinchPrevDist = dist;
-            return;
-        }
-
-        // One finger: mark movement past the tap threshold, and pan when
-        // zoomed in. At full view a drag does nothing — the pin is placed
-        // by a tap (pointerup), not by dragging.
-        if (Math.Sqrt((e.ClientX - _downPos.ClientX) * (e.ClientX - _downPos.ClientX) + (e.ClientY - _downPos.ClientY) * (e.ClientY - _downPos.ClientY))
-            > MapViewport.TapMoveThresholdPx)
-        {
-            _downMoved = true;
-        }
-
-        if (_pointers.Count == 1 && _viewport.IsZoomed)
-        {
-            // Pan moves the TARGET window; the displayed window eases
-            // toward it on the next animation frame (see ViewportFrame).
-            _viewport.Pan(e.ClientX - _panLast.ClientX, e.ClientY - _panLast.ClientY,
-                _svgRect[2], _svgRect[3]);
-            ScheduleViewportFrame();
-        }
-
-        _panLast = (e.ClientX, e.ClientY);
-    }
-
-    private async Task OnPointerUp(PointerEventArgs e)
-    {
-        if (!_pointers.Remove(e.PointerId))
-        {
-            return;
-        }
-
-        if (_pointers.Count == 1)
-        {
-            // One finger lifted mid-pinch: the gesture stays a pinch (no
-            // tap on release), but the remaining finger becomes a fresh
-            // single pointer, so it can pan from here.
-            var remaining = _pointers.Values.First();
-            _downPos = (remaining.ClientX, remaining.ClientY);
-            _downMoved = false;
-            _panLast = (remaining.ClientX, remaining.ClientY);
-            return;
-        }
-
-        // Gesture over. Snap the displayed window to the target first,
-        // so the tap (if any) resolves against the exact final view.
-        _viewport.SnapToTarget();
-        StateHasChanged();
-
-        // A tap — one pointer, no pinch, minimal movement — places the
-        // pin, converted with the CURRENT viewBox (zoomed and panned),
-        // via the same projection that drew the map.
-        var rect = _svgRect;
-        bool isTap = !_pinchGesture && !_downMoved && rect is not null;
-        _pinchGesture = false;
-        _svgRect = null;
-
-        if (!isTap || !Interactive || Revealed)
-        {
-            return;
-        }
-
-        var (svgX, svgY) = _viewport.ClientToSvg(e.ClientX, e.ClientY,
-            rect![0], rect[1], rect[2], rect[3]);
-        var (latitude, longitude) = MapProjection.SvgToLatLon(svgX, svgY);
-        await OnMapClicked.InvokeAsync((latitude, longitude));
-    }
-
-    private void OnPointerCancel(PointerEventArgs e)
-    {
-        _pointers.Remove(e.PointerId);
-        if (_pointers.Count == 0)
-        {
-            _pinchGesture = false;
-            _svgRect = null;
-            // Gesture over: snap the displayed window to the target.
-            _viewport.SnapToTarget();
-            StateHasChanged();
-        }
     }
 
     private bool IsLayerVisible(string layer) => layer switch
