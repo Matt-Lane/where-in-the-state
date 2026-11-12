@@ -546,6 +546,11 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     transform: translateY(-50%) rotate(45deg);
 }
 .pin-confirm.flipped::before { left: auto; right: -5px; }
+/* While a gesture is in progress, the Confirm bubble is hidden: the map
+   moves under it and its Blazor-computed position is stale until the
+   gesture ends and .NET re-renders with the synced view. JS adds
+   .gesturing to .map-wrap at gesture start and removes it at gesture end. */
+.map-wrap.gesturing .pin-confirm { display: none; }
 .map-outline { fill: #e7edda; stroke: #4a6b52; stroke-width: 2; }
 .map-interstate { stroke: var(--rust); stroke-width: 3; }
 .map-highway { stroke: var(--gold); stroke-width: 1.5; }

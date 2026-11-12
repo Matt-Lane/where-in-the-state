@@ -47,41 +47,380 @@
         <a class="dismiss">🗙</a>
     </div>
     <script>
-        // Tiny helpers for the map components: measure an element's actual
-        // rendered size/position in CSS pixels, so map clicks and drags can
-        // be converted to viewBox coordinates at whatever size the page CSS
-        // chose. svgSize returns [width, height]; svgRect returns
-        // [left, top, width, height] (viewport-relative, for ClientX/Y).
+        // Live map gestures (Blazor) — see mapGesture below.
         window.whereInTheState = {
-            svgSize: function (el) {
-                var r = el.getBoundingClientRect();
-                return [r.width, r.height];
-            },
-            svgRect: function (el) {
-                var r = el.getBoundingClientRect();
-                return [r.left, r.top, r.width, r.height];
-            },
-            // Keep pointer events flowing to the map during a gesture
-            // (pinch/pan/drag) even if the finger slides off the map.
-            // Best-effort: not all browsers/elements support capture.
-            capturePointer: function (el, pointerId) {
-                try { el.setPointerCapture(pointerId); } catch (e) {}
-            },
-            // Schedule one animation frame of viewport smoothing: the map
-            // components ease the displayed viewBox toward the pinch/pan
-            // target on the display refresh (see MapViewport), instead of
-            // re-rendering on every pointermove. The .NET side calls
-            // ViewportFrame on the given reference once per frame and
-            // re-schedules while the view is still moving. Fully guarded:
-            // a disposed reference just stops the loop.
-            requestViewportFrame: function (dotNetRef) {
-                requestAnimationFrame(function () {
-                    try {
-                        var p = dotNetRef.invokeMethodAsync("ViewportFrame");
-                        if (p && p.catch) { p.catch(function () {}); }
-                    } catch (e) {}
-                });
-            },
+            // The three Blazor map components hand their SVG to mapGesture,
+            // which owns the live pinch/pan handling entirely in JS: the
+            // pointer events, the viewport state, the animation-frame
+            // easing loop, and direct viewBox writes. Blazor never
+            // re-renders during a gesture, so a pinch no longer pays a
+            // full SVG re-render (hundreds of landmark/county elements)
+            // plus two JS-interop round-trips per frame — the cost that
+            // kept it choppy after PR #39's easing. Blazor is told
+            // exactly once, when the gesture ends (GestureEnded), with
+            // the final viewBox (and a tap, if there was one), so its
+            // MapViewport stays in sync for taps, the Reset button, and
+            // the Confirm bubble. The math mirrors the standalone
+            // version's vb* helpers (same 0.35 ease, same 250 minimum
+            // width, same clamp, same incremental pinch ratio), so the
+            // two versions zoom identically.
+            mapGesture: (function () {
+                var FULL_W = 1000, FULL_H = 757.4, MIN_W = 250, EASE = 0.35, EPSILON = 0.05, TAP_MOVE_PX = 10;
+
+                function vbFull() { return { x: 0, y: 0, w: FULL_W, h: FULL_H }; }
+                function vbClamp(vb) {
+                    vb.x = Math.min(Math.max(vb.x, 0), FULL_W - vb.w);
+                    vb.y = Math.min(Math.max(vb.y, 0), FULL_H - vb.h);
+                    return vb;
+                }
+                function vbClientToSvg(vb, rect, cx, cy) {
+                    return { x: vb.x + (cx - rect.left) * vb.w / rect.width,
+                             y: vb.y + (cy - rect.top) * vb.h / rect.height };
+                }
+                function vbZoomAt(vb, anchorSvg, anchorClient, rect, newW) {
+                    newW = Math.min(Math.max(newW, MIN_W), FULL_W);
+                    var newH = newW * FULL_H / FULL_W;
+                    vb.w = newW; vb.h = newH;
+                    vb.x = anchorSvg.x - (anchorClient.x - rect.left) * newW / rect.width;
+                    vb.y = anchorSvg.y - (anchorClient.y - rect.top) * newH / rect.height;
+                    return vbClamp(vb);
+                }
+                function vbPan(vb, dx, dy, rect) {
+                    if (vb.w >= FULL_W - 0.5) return vb;
+                    vb.x -= dx * vb.w / rect.width;
+                    vb.y -= dy * vb.h / rect.height;
+                    return vbClamp(vb);
+                }
+                function vbIsZoomed(vb) { return vb.w < FULL_W - 0.5; }
+                function vbIsSettled(vb, vbT) {
+                    return Math.abs(vb.x - vbT.x) <= EPSILON && Math.abs(vb.y - vbT.y) <= EPSILON &&
+                           Math.abs(vb.w - vbT.w) <= EPSILON && Math.abs(vb.h - vbT.h) <= EPSILON;
+                }
+                function vbStepTowards(vb, vbT) {
+                    if (vbIsSettled(vb, vbT)) return false;
+                    vb.x += (vbT.x - vb.x) * EASE;
+                    vb.y += (vbT.y - vb.y) * EASE;
+                    vb.w += (vbT.w - vb.w) * EASE;
+                    vb.h += (vbT.h - vb.h) * EASE;
+                    if (vbIsSettled(vb, vbT)) {
+                        vb.x = vbT.x; vb.y = vbT.y; vb.w = vbT.w; vb.h = vbT.h;
+                    } else {
+                        vb.w = Math.min(Math.max(vb.w, MIN_W), FULL_W);
+                        vb.h = vb.w * FULL_H / FULL_W;
+                        vbClamp(vb);
+                    }
+                    return true;
+                }
+                function vbSnapTo(vb, vbT) { vb.x = vbT.x; vb.y = vbT.y; vb.w = vbT.w; vb.h = vbT.h; return vb; }
+                function writeViewBox(svgEl, vb) {
+                    svgEl.setAttribute("viewBox",
+                        vb.x.toFixed(1) + " " + vb.y.toFixed(1) + " " + vb.w.toFixed(1) + " " + vb.h.toFixed(1));
+                }
+                function parseViewBox(svgEl) {
+                    var parts = (svgEl.getAttribute("viewBox") || "").trim().split(/\s+/);
+                    if (parts.length !== 4) return vbFull();
+                    var v = { x: +parts[0], y: +parts[1], w: +parts[2], h: +parts[3] };
+                    if (!isFinite(v.x) || !isFinite(v.y) || !isFinite(v.w) || !isFinite(v.h) || v.w <= 0 || v.h <= 0) return vbFull();
+                    return v;
+                }
+
+                function attach(svgEl, dotNetRef, mode) {
+                    if (!svgEl || svgEl._mapGesture) return;
+                    var c = {
+                        svg: svgEl, dotNet: dotNetRef, mode: mode,
+                        vb: vbFull(), vbTarget: vbFull(),
+                        framePending: false, gen: 0,
+                        pointers: new Map(), pinchPrevDist: null, panLast: null, rect: null,
+                        downPos: null, downMoved: false, pinchHappened: false,
+                        pieceDragging: false, pieceStart: null, pendingPieceDrop: null,
+                        wrap: svgEl.parentElement
+                    };
+                    svgEl._mapGesture = c;
+
+                    function scheduleFrame() {
+                        if (c.framePending) return;
+                        c.framePending = true;
+                        var gen = c.gen;
+                        requestAnimationFrame(function () {
+                            c.framePending = false;
+                            if (gen !== c.gen) return; // reset/detached since scheduling
+                            if (vbStepTowards(c.vb, c.vbTarget)) writeViewBox(c.svg, c.vb);
+                            if (!vbIsSettled(c.vb, c.vbTarget)) scheduleFrame();
+                        });
+                    }
+                    function setGesturing(on) {
+                        if (c.wrap && c.wrap.classList) {
+                            if (on) c.wrap.classList.add("gesturing");
+                            else c.wrap.classList.remove("gesturing");
+                        }
+                    }
+                    function pieceEl() { return c.svg.querySelector("[data-county-piece]"); }
+                    function pieceTransform() {
+                        var el = pieceEl();
+                        if (!el) return null;
+                        var m = /translate\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/.exec(el.getAttribute("transform") || "");
+                        return m ? { dx: +m[1], dy: +m[2] } : null;
+                    }
+                    function setPieceTransform(dx, dy) {
+                        var el = pieceEl();
+                        if (el) el.setAttribute("transform", "translate(" + dx.toFixed(1) + " " + dy.toFixed(1) + ")");
+                    }
+                    function setPieceDragging(on) {
+                        var el = pieceEl();
+                        if (el && el.classList) {
+                            if (on) el.classList.add("dragging");
+                            else el.classList.remove("dragging");
+                        }
+                    }
+                    // One call per gesture end: the final viewBox, plus a
+                    // tap (as SVG coordinates, converted with the final
+                    // view) and/or a piece drop, if this gesture had one.
+                    // .NET is never called while the fingers are moving.
+                    function syncToDotNet(tapClient, pieceDrop) {
+                        var tapSvg = null;
+                        if (tapClient && c.rect) tapSvg = vbClientToSvg(c.vb, c.rect, tapClient.x, tapClient.y);
+                        try {
+                            var p = c.dotNet.invokeMethodAsync("GestureEnded",
+                                c.vb.x, c.vb.y, c.vb.w, c.vb.h,
+                                tapSvg ? tapSvg.x : null, tapSvg ? tapSvg.y : null,
+                                pieceDrop ? pieceDrop.dx : null, pieceDrop ? pieceDrop.dy : null);
+                            if (p && p.catch) p.catch(function () {});
+                        } catch (e) {}
+                    }
+                    function finishGesture(tapClient, pieceDrop) {
+                        // Snap the displayed view exactly to the target,
+                        // write it, then tell .NET once.
+                        vbSnapTo(c.vb, c.vbTarget);
+                        writeViewBox(c.svg, c.vb);
+                        setGesturing(false);
+                        syncToDotNet(tapClient, pieceDrop);
+                        c.pointers.clear();
+                        c.pinchPrevDist = null;
+                        c.panLast = null;
+                        c.rect = null;
+                        c.downPos = null;
+                        c.downMoved = false;
+                        c.pinchHappened = false;
+                        c.pendingPieceDrop = null;
+                    }
+                    function endPieceDrag() {
+                        // The piece stops where it is; return its final
+                        // translation so the caller can report it with the
+                        // gesture end.
+                        var t = pieceTransform();
+                        var drop = t ? { dx: t.dx, dy: t.dy } : null;
+                        c.pieceDragging = false;
+                        c.pieceStart = null;
+                        setPieceDragging(false);
+                        return drop;
+                    }
+
+                    function onPointerDown(ev) {
+                        var data = c.svg.dataset || {};
+                        if (data.interactive !== "true" || data.revealed === "true") return;
+                        if (c.pointers.size === 0) {
+                            // Fresh gesture: measure once and re-read the
+                            // DOM viewBox, so a Blazor-driven reset
+                            // (round/reveal/Reset button) is always the
+                            // starting point, even if JS never heard it.
+                            c.rect = c.svg.getBoundingClientRect();
+                            var cur = parseViewBox(c.svg);
+                            c.vb = cur;
+                            c.vbTarget = { x: cur.x, y: cur.y, w: cur.w, h: cur.h };
+                            c.downPos = { x: ev.clientX, y: ev.clientY };
+                            c.downMoved = false;
+                            c.pinchHappened = false;
+                            c.panLast = { x: ev.clientX, y: ev.clientY };
+                            setGesturing(true);
+                        }
+                        try { c.svg.setPointerCapture(ev.pointerId); } catch (e) {}
+                        c.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+                        if (c.pointers.size === 2) {
+                            // Pinch: cancel an in-progress piece drag; its
+                            // final position is reported with the gesture
+                            // end, so the parent's stored position stays
+                            // in sync.
+                            if (c.pieceDragging) c.pendingPieceDrop = endPieceDrag();
+                            var pts = Array.from(c.pointers.values());
+                            c.pinchPrevDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                            c.pinchHappened = true;
+                            c.panLast = null;
+                            return;
+                        }
+                        if (c.mode === "counties" && c.pointers.size === 1) {
+                            var piece = pieceEl();
+                            if (piece && ev.target && piece.contains(ev.target)) {
+                                var start = pieceTransform();
+                                if (start) {
+                                    var loc = vbClientToSvg(c.vb, c.rect, ev.clientX, ev.clientY);
+                                    c.pieceDragging = true;
+                                    c.pieceStart = { x: loc.x, y: loc.y, dx: start.dx, dy: start.dy };
+                                    setPieceDragging(true);
+                                }
+                            }
+                        }
+                    }
+
+                    function onPointerMove(ev) {
+                        if (!c.pointers.has(ev.pointerId)) return;
+                        c.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+                        if (c.pinchPrevDist !== null && c.pointers.size >= 2) {
+                            // Pinch: apply the INCREMENTAL change in finger
+                            // distance to the target viewBox, anchored at
+                            // the CURRENT midpoint. Each step is relative
+                            // to the previous move's distance, so the zoom
+                            // is continuous and immune to a stale baseline.
+                            var pts = Array.from(c.pointers.values());
+                            var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                            if (dist > 0 && c.pinchPrevDist > 0) {
+                                var midX = (pts[0].x + pts[1].x) / 2;
+                                var midY = (pts[0].y + pts[1].y) / 2;
+                                var anchor = vbClientToSvg(c.vb, c.rect, midX, midY);
+                                vbZoomAt(c.vbTarget, anchor, { x: midX, y: midY }, c.rect,
+                                    c.vbTarget.w * c.pinchPrevDist / dist);
+                                c.pinchPrevDist = dist;
+                                scheduleFrame();
+                            } else {
+                                c.pinchPrevDist = dist;
+                            }
+                            return;
+                        }
+                        if (c.pieceDragging && c.pieceStart) {
+                            // The piece follows the pointer rigidly: its
+                            // translation changes by the pointer's movement
+                            // since the drag started. Written straight to
+                            // the DOM — no .NET call per move.
+                            var loc = vbClientToSvg(c.vb, c.rect, ev.clientX, ev.clientY);
+                            setPieceTransform(c.pieceStart.dx + (loc.x - c.pieceStart.x),
+                                              c.pieceStart.dy + (loc.y - c.pieceStart.y));
+                            return;
+                        }
+                        if (c.downPos && Math.hypot(ev.clientX - c.downPos.x, ev.clientY - c.downPos.y) > TAP_MOVE_PX) {
+                            c.downMoved = true;
+                        }
+                        if (c.mode === "counties") return; // pinch-only: no pan, no tap.
+                        if (c.pointers.size === 1 && c.panLast && vbIsZoomed(c.vb)) {
+                            vbPan(c.vbTarget, ev.clientX - c.panLast.x, ev.clientY - c.panLast.y, c.rect);
+                            scheduleFrame();
+                        }
+                        c.panLast = { x: ev.clientX, y: ev.clientY };
+                    }
+
+                    function onPointerUp(ev) {
+                        if (!c.pointers.has(ev.pointerId)) return;
+                        c.pointers.delete(ev.pointerId);
+                        if (c.pointers.size === 1) {
+                            // One finger lifted mid-pinch: the gesture
+                            // stays a pinch (no tap on release), but the
+                            // remaining finger becomes a fresh single
+                            // pointer, so it can pan from here.
+                            c.pinchPrevDist = null;
+                            var remaining = Array.from(c.pointers.values())[0];
+                            c.downPos = { x: remaining.x, y: remaining.y };
+                            c.downMoved = false;
+                            c.panLast = { x: remaining.x, y: remaining.y };
+                            return;
+                        }
+                        if (c.pointers.size > 0) return;
+                        // Last pointer up: gesture over.
+                        var wasPieceDrag = c.pieceDragging;
+                        var pieceDrop = null;
+                        if (wasPieceDrag) pieceDrop = endPieceDrag();
+                        if (c.pendingPieceDrop) {
+                            pieceDrop = c.pendingPieceDrop;
+                            c.pendingPieceDrop = null;
+                        }
+                        var isTap = !c.pinchHappened && !c.downMoved && !wasPieceDrag &&
+                                    c.mode !== "counties" && c.downPos !== null;
+                        var tapClient = isTap ? { x: ev.clientX, y: ev.clientY } : null;
+                        finishGesture(tapClient, pieceDrop);
+                    }
+
+                    function endWithoutTap(ev) {
+                        // pointercancel / pointerleave: end the gesture
+                        // without a tap, but keep a piece drop.
+                        if (!c.pointers.has(ev.pointerId)) return false;
+                        c.pointers.delete(ev.pointerId);
+                        if (c.pointers.size > 0) {
+                            if (c.pointers.size === 1) {
+                                c.pinchPrevDist = null;
+                                var remaining = Array.from(c.pointers.values())[0];
+                                c.downPos = { x: remaining.x, y: remaining.y };
+                                c.downMoved = false;
+                                c.panLast = { x: remaining.x, y: remaining.y };
+                            }
+                            return false;
+                        }
+                        var pieceDrop = null;
+                        if (c.pieceDragging) pieceDrop = endPieceDrag();
+                        if (c.pendingPieceDrop) {
+                            pieceDrop = c.pendingPieceDrop;
+                            c.pendingPieceDrop = null;
+                        }
+                        finishGesture(null, pieceDrop);
+                        return true;
+                    }
+
+                    c.handlers = {
+                        pointerdown: onPointerDown,
+                        pointermove: onPointerMove,
+                        pointerup: onPointerUp,
+                        pointercancel: function (ev) { endWithoutTap(ev); },
+                        pointerleave: function (ev) { endWithoutTap(ev); }
+                    };
+                    svgEl.addEventListener("pointerdown", c.handlers.pointerdown);
+                    svgEl.addEventListener("pointermove", c.handlers.pointermove);
+                    svgEl.addEventListener("pointerup", c.handlers.pointerup);
+                    svgEl.addEventListener("pointercancel", c.handlers.pointercancel);
+                    svgEl.addEventListener("pointerleave", c.handlers.pointerleave);
+                }
+
+                function reset(svgEl) {
+                    var c = svgEl && svgEl._mapGesture;
+                    if (!c) return;
+                    // Cancel the easing loop and return to the full view.
+                    // Blazor calls this on round/reveal/reset; the next
+                    // gesture re-reads the DOM viewBox anyway.
+                    c.gen++;
+                    c.framePending = false;
+                    c.vb = vbFull();
+                    c.vbTarget = vbFull();
+                    c.pointers.clear();
+                    c.pinchPrevDist = null;
+                    c.panLast = null;
+                    c.rect = null;
+                    c.downPos = null;
+                    c.downMoved = false;
+                    c.pinchHappened = false;
+                    if (c.pieceDragging) {
+                        c.pieceDragging = false;
+                        c.pieceStart = null;
+                        var piece = c.svg.querySelector("[data-county-piece]");
+                        if (piece && piece.classList) piece.classList.remove("dragging");
+                    }
+                    c.pendingPieceDrop = null;
+                    if (c.wrap && c.wrap.classList) c.wrap.classList.remove("gesturing");
+                    writeViewBox(c.svg, c.vb);
+                }
+
+                function detach(svgEl) {
+                    var c = svgEl && svgEl._mapGesture;
+                    if (!c) return;
+                    c.gen++;
+                    c.framePending = false;
+                    if (c.handlers) {
+                        svgEl.removeEventListener("pointerdown", c.handlers.pointerdown);
+                        svgEl.removeEventListener("pointermove", c.handlers.pointermove);
+                        svgEl.removeEventListener("pointerup", c.handlers.pointerup);
+                        svgEl.removeEventListener("pointercancel", c.handlers.pointercancel);
+                        svgEl.removeEventListener("pointerleave", c.handlers.pointerleave);
+                    }
+                    if (c.wrap && c.wrap.classList) c.wrap.classList.remove("gesturing");
+                    delete svgEl._mapGesture;
+                }
+
+                return { attach: attach, reset: reset, detach: detach };
+            })(),
             // Analytics (PostHog) — see GAME-SPEC §13. captureEvent is the
             // only way the game talks to PostHog. It is fully guarded: if
             // an ad blocker stops the library loading, or the network is
