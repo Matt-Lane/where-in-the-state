@@ -96,6 +96,47 @@ function vbPan(vb, dxClient, dyClient, rect) {
 function vbContains(vb, x, y) { return x >= vb.x && x <= vb.x + vb.w && y >= vb.y && y <= vb.y + vb.h; }
 function vbToPercent(vb, x, y) { return { left: (x - vb.x) / vb.w * 100, top: (y - vb.y) / vb.h * 100 }; }
 
+/* Smoothing: gestures write to a TARGET viewport (vbTarget), and the
+   displayed viewport (vb) eases toward it once per animation frame.
+   The displayed viewport is what the viewBox shows and what taps
+   resolve against (eventToSvg uses getScreenCTM, which reads the DOM
+   viewBox); the target is where the fingers are asking it to go. This
+   makes the zoom track the fingers without their micro-jitter — the
+   displayed viewport is a low-pass filter on the input — and batches
+   viewBox updates to the display refresh instead of writing the
+   attribute on every pointermove. When a gesture ends, vbSnapTo makes
+   the displayed viewport exactly the target, so taps and the next
+   gesture start from an exact state. */
+var VB_EASE = 0.35;     /* fraction of the gap closed per animation frame */
+var VB_EPSILON = 0.05;  /* below this gap (SVG units) the viewports count as settled */
+function vbIsSettled(vb, vbT) {
+  return Math.abs(vb.x - vbT.x) <= VB_EPSILON && Math.abs(vb.y - vbT.y) <= VB_EPSILON &&
+         Math.abs(vb.w - vbT.w) <= VB_EPSILON && Math.abs(vb.h - vbT.h) <= VB_EPSILON;
+}
+/* Move the displayed viewport one animation frame toward its target.
+   Returns true if the displayed viewport changed. Snaps exactly to the
+   target when the gap is under the epsilon, so the easing always
+   terminates and the final state is exact. */
+function vbStepTowards(vb, vbT) {
+  if (vbIsSettled(vb, vbT)) return false;
+  vb.x += (vbT.x - vb.x) * VB_EASE;
+  vb.y += (vbT.y - vb.y) * VB_EASE;
+  vb.w += (vbT.w - vb.w) * VB_EASE;
+  vb.h += (vbT.h - vb.h) * VB_EASE;
+  if (vbIsSettled(vb, vbT)) {
+    vb.x = vbT.x; vb.y = vbT.y; vb.w = vbT.w; vb.h = vbT.h;
+  } else {
+    /* Safety net: the lerp of two in-bounds viewports stays in bounds,
+       but clamp anyway so the displayed viewport can never show
+       outside the map. */
+    vb.w = Math.min(Math.max(vb.w, VB_MIN_W), W);
+    vb.h = vb.w * H / W;
+    vbClamp(vb);
+  }
+  return true;
+}
+function vbSnapTo(vb, vbT) { vb.x = vbT.x; vb.y = vbT.y; vb.w = vbT.w; vb.h = vbT.h; return vb; }
+
 /* ============ Distance (Haversine, miles, R = 3959) ============ */
 function haversineMiles(lat1, lon1, lat2, lon2) {
   var R = 3959;
@@ -846,7 +887,7 @@ HTML = r"""<!doctype html>
     versions — but the format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.30.
+    Version 0.31.
   </footer>
 </div>
 
@@ -1378,13 +1419,40 @@ __PURE_JS__
   var btnResetView = document.getElementById("btn-reset-view");
 
   /* The live map viewport (pinch-to-zoom / pan) — see the vb* helpers
-     above. The SVG's viewBox attribute is bound to it. */
+     above. The SVG's viewBox attribute is bound to it. Gestures write
+     to vbTarget; the displayed vb eases toward it once per animation
+     frame (see viewportFrame), so viewBox updates land on the display
+     refresh and finger micro-jitter is filtered out. */
   var vb = vbFull();
+  var vbTarget = vbFull();
+  var vbFramePending = false;
+  function scheduleViewportFrame() {
+    if (vbFramePending) return;
+    vbFramePending = true;
+    requestAnimationFrame(viewportFrame);
+  }
+  function viewportFrame() {
+    vbFramePending = false;
+    if (vbStepTowards(vb, vbTarget)) {
+      setViewBoxAttr();
+      updateResetBtn();
+      repositionActiveBubble();
+    }
+    if (!vbIsSettled(vb, vbTarget)) scheduleViewportFrame();
+  }
+  /* Keep the Confirm bubble with the pin / selected county / piece, or
+     hide it while it is outside the visible window. Called from the
+     animation-frame loop, so the bubble tracks the displayed viewBox. */
+  function repositionActiveBubble() {
+    if (guess) positionBubble(guess.x, guess.y);
+    else if (selectedCounty) updateSelectedBubble();
+    else if (countyDragged) updatePieceBubble();
+  }
   function setViewBoxAttr() {
     svg.setAttribute("viewBox", vb.x.toFixed(1) + " " + vb.y.toFixed(1) + " " + vb.w.toFixed(1) + " " + vb.h.toFixed(1));
   }
-  function updateResetBtn() { btnResetView.hidden = !vbIsZoomed(vb); }
-  function resetView() { vb = vbFull(); setViewBoxAttr(); updateResetBtn(); }
+  function updateResetBtn() { btnResetView.hidden = !(vbIsZoomed(vb) || vbIsZoomed(vbTarget)); }
+  function resetView() { vb = vbFull(); vbTarget = vbFull(); setViewBoxAttr(); updateResetBtn(); }
   btnResetView.addEventListener("click", resetView);
 
   function pinPath(x, y) {
@@ -1633,14 +1701,12 @@ __PURE_JS__
     }
     pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (pointers.size === 2) {
-      /* Second finger down: this gesture is a pinch. Anchor it at the
-         midpoint between the two pointers, in the current view. */
+      /* Second finger down: this gesture is a pinch. Only the finger
+         distance is captured — the zoom is applied incrementally from
+         it (see the pointermove handler), and the anchor is recomputed
+         from the current midpoint on every move. */
       var pts = Array.from(pointers.values());
-      var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
-      var anchor = vbClientToSvg(vb, gestureRect, midX, midY);
-      pinchState = { startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
-                     startW: vb.w, anchorSvgX: anchor.x, anchorSvgY: anchor.y,
-                     anchorClientX: midX, anchorClientY: midY };
+      pinchState = { prevDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) };
       pinchHappened = true;
       /* Cancel any pin or piece drag in progress — the gesture is a
          pinch now, and the drag must not fight it. */
@@ -1661,14 +1727,23 @@ __PURE_JS__
     if (!pointers.has(ev.pointerId)) return;
     pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (pinchState && pointers.size >= 2) {
+      /* Pinch: apply the INCREMENTAL change in finger distance to the
+         target viewBox, anchored at the CURRENT midpoint. Each step is
+         relative to the previous move's distance, so the zoom is
+         continuous and immune to a stale baseline, and the anchor
+         follows the fingers when they move asymmetrically. The displayed
+         viewBox eases toward the target on the next animation frame
+         (see viewportFrame) — it is not set here. */
       var pts = Array.from(pointers.values());
       var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      if (dist > 0 && pinchState.startDist > 0) {
-        vbZoomAt(vb, { x: pinchState.anchorSvgX, y: pinchState.anchorSvgY },
-          { x: pinchState.anchorClientX, y: pinchState.anchorClientY },
-          gestureRect, pinchState.startW * pinchState.startDist / dist);
-        setViewBoxAttr(); updateResetBtn();
+      if (dist > 0 && pinchState.prevDist > 0) {
+        var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+        var anchor = vbClientToSvg(vb, gestureRect, midX, midY);
+        vbZoomAt(vbTarget, anchor, { x: midX, y: midY },
+          gestureRect, vbTarget.w * pinchState.prevDist / dist);
+        scheduleViewportFrame();
       }
+      pinchState.prevDist = dist;
       return;
     }
     if (downPos && Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y) > TAP_MOVE_PX) downMoved = true;
@@ -1678,16 +1753,14 @@ __PURE_JS__
        drags the piece, so a pan would fight it. */
     if (dragging || pieceDragging || game.mode === "counties") return;
     if (pointers.size === 1 && vbIsZoomed(vb)) {
-      /* One-finger pan when zoomed: the map follows the finger. Keep
-         the Confirm bubble with the pin / selected county, or hide it
-         while it is outside the visible window. */
+      /* One-finger pan when zoomed: the map follows the finger. The pan
+         moves the TARGET viewport; the displayed viewport eases toward
+         it on the next animation frame (see viewportFrame), which also
+         keeps the Confirm bubble with the pin / selected county. */
       var dx = ev.clientX - panLast.x, dy = ev.clientY - panLast.y;
       panLast = { x: ev.clientX, y: ev.clientY };
-      vbPan(vb, dx, dy, gestureRect);
-      setViewBoxAttr();
-      if (guess) positionBubble(guess.x, guess.y);
-      else if (selectedCounty) updateSelectedBubble();
-      else if (countyDragged) updatePieceBubble();
+      vbPan(vbTarget, dx, dy, gestureRect);
+      scheduleViewportFrame();
     }
   });
   function endGesture(ev) {
@@ -1705,10 +1778,14 @@ __PURE_JS__
       return;
     }
     if (pointers.size > 0) return;
-    /* Gesture over. A tap that started zoomed in — one pointer, no
-       pinch, minimal movement — acts here (at full view the mode
-       handlers already acted on pointerdown). Counties mode has no tap
-       action; the piece is dragged, not tapped. */
+    /* Gesture over. Snap the displayed viewport to the target first,
+       so the tap (if any) resolves against the exact final view. */
+    vbSnapTo(vb, vbTarget);
+    setViewBoxAttr(); updateResetBtn();
+    /* A tap that started zoomed in — one pointer, no pinch, minimal
+       movement — acts here (at full view the mode handlers already
+       acted on pointerdown). Counties mode has no tap action; the
+       piece is dragged, not tapped. */
     var wasTap = wasZoomedAtDown && !pinchHappened && !downMoved;
     pinchState = null; panLast = null; gestureRect = null;
     downPos = null; downMoved = false; pinchHappened = false; wasZoomedAtDown = false;
@@ -1728,6 +1805,9 @@ __PURE_JS__
     if (pointers.size === 0) {
       pinchState = null; panLast = null; gestureRect = null;
       downPos = null; downMoved = false; pinchHappened = false; wasZoomedAtDown = false;
+      /* Gesture over: snap the displayed viewport to the target. */
+      vbSnapTo(vb, vbTarget);
+      setViewBoxAttr(); updateResetBtn();
     }
   });
 

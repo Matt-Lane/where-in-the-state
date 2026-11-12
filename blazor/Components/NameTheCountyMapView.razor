@@ -1,6 +1,7 @@
 @using OregonGeographyGame.Models
 @using OregonGeographyGame.Services
 @inject IJSRuntime JS
+@implements IDisposable
 
 <div class="map-wrap">
 <svg viewBox="@_viewport.ViewBox"
@@ -173,13 +174,20 @@
     private bool _downMoved;
     private bool _pinchGesture;
 
-    // Pinch state, captured when the second pointer goes down.
-    private double _pinchStartDist;
-    private double _pinchStartWidth;
-    private double _pinchAnchorSvgX;
-    private double _pinchAnchorSvgY;
-    private double _pinchAnchorClientX;
-    private double _pinchAnchorClientY;
+    // Pinch state: the finger distance at the previous move, for the
+    // incremental ratio (see OnPointerMove). The anchor is recomputed
+    // from the current midpoint on every move, so the zoom tracks the
+    // fingers and is immune to a stale baseline.
+    private double _pinchPrevDist;
+
+    // The animation-frame loop for viewport smoothing (see MapViewport):
+    // pointer moves only update the TARGET window; a requestAnimationFrame
+    // callback eases the displayed window toward it and re-renders. This
+    // keeps viewBox updates on the display refresh and filters finger
+    // jitter. The loop is driven from JS (requestViewportFrame in
+    // index.html) calling ViewportFrame on this component.
+    private DotNetObjectReference<NameTheCountyMapView>? _viewportFrameRef;
+    private bool _viewportFramePending;
 
     // Pan state: the last pointer position, for per-move deltas.
     private (double ClientX, double ClientY) _panLast;
@@ -219,6 +227,49 @@
     private void ResetView()
     {
         _viewport.Reset();
+    }
+
+    protected override void OnInitialized()
+    {
+        _viewportFrameRef = DotNetObjectReference.Create(this);
+    }
+
+    public void Dispose()
+    {
+        _viewportFrameRef?.Dispose();
+    }
+
+    private void ScheduleViewportFrame()
+    {
+        // One frame at a time: if a frame is already queued, the loop
+        // picks up the latest target when it runs. Fire-and-forget: the
+        // JS side never throws (requestViewportFrame is guarded).
+        if (_viewportFramePending || _viewportFrameRef is null)
+        {
+            return;
+        }
+        _viewportFramePending = true;
+        _ = JS.InvokeVoidAsync("whereInTheState.requestViewportFrame", _viewportFrameRef);
+    }
+
+    /// <summary>
+    /// One animation frame of viewport smoothing, called from
+    /// requestAnimationFrame via JS interop. Eases the displayed window
+    /// toward the target and re-renders; schedules another frame while
+    /// the window is still moving.
+    /// </summary>
+    [JSInvokable]
+    public void ViewportFrame()
+    {
+        _viewportFramePending = false;
+        if (_viewport.StepTowardsTarget())
+        {
+            StateHasChanged();
+        }
+        if (_viewport.IsEasing)
+        {
+            ScheduleViewportFrame();
+        }
     }
 
     private bool IsSelectionInView()
@@ -299,17 +350,12 @@
 
         if (_pointers.Count == 2)
         {
-            // Second finger down: this gesture is a pinch. Anchor it at
-            // the midpoint between the two pointers, in the current view.
+            // Second finger down: this gesture is a pinch. Only the
+            // finger distance is captured — the zoom is applied
+            // incrementally from it (see OnPointerMove), and the anchor
+            // is recomputed from the current midpoint on every move.
             var pts = _pointers.Values.ToArray();
-            double midClientX = (pts[0].ClientX + pts[1].ClientX) / 2;
-            double midClientY = (pts[0].ClientY + pts[1].ClientY) / 2;
-            _pinchStartDist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
-            _pinchStartWidth = _viewport.Width;
-            (_pinchAnchorSvgX, _pinchAnchorSvgY) = _viewport.ClientToSvg(
-                midClientX, midClientY, _svgRect![0], _svgRect[1], _svgRect[2], _svgRect[3]);
-            _pinchAnchorClientX = midClientX;
-            _pinchAnchorClientY = midClientY;
+            _pinchPrevDist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
             _pinchGesture = true;
             return;
         }
@@ -330,18 +376,28 @@
 
         if (_pointers.Count == 2 && _pinchGesture)
         {
-            // Pinch: scale the viewBox by the change in finger distance,
-            // keeping the pinch midpoint fixed on the map.
+            // Pinch: apply the INCREMENTAL change in finger distance to
+            // the target viewBox, anchored at the CURRENT midpoint. Each
+            // step is relative to the previous move's distance, so the
+            // zoom is continuous and immune to a stale baseline, and the
+            // anchor follows the fingers when they move asymmetrically.
+            // The displayed window eases toward the target on the next
+            // animation frame (see ViewportFrame) — it is not set here.
             var pts = _pointers.Values.ToArray();
             double dist = Math.Sqrt((pts[0].ClientX - pts[1].ClientX) * (pts[0].ClientX - pts[1].ClientX) + (pts[0].ClientY - pts[1].ClientY) * (pts[0].ClientY - pts[1].ClientY));
-            if (dist > 0 && _pinchStartDist > 0)
+            if (dist > 0 && _pinchPrevDist > 0)
             {
-                _viewport.ZoomAt(_pinchAnchorSvgX, _pinchAnchorSvgY,
-                    _pinchAnchorClientX, _pinchAnchorClientY,
+                double midClientX = (pts[0].ClientX + pts[1].ClientX) / 2;
+                double midClientY = (pts[0].ClientY + pts[1].ClientY) / 2;
+                var (anchorSvgX, anchorSvgY) = _viewport.ClientToSvg(
+                    midClientX, midClientY, _svgRect![0], _svgRect[1], _svgRect[2], _svgRect[3]);
+                _viewport.ZoomAt(anchorSvgX, anchorSvgY,
+                    midClientX, midClientY,
                     _svgRect[0], _svgRect[1], _svgRect[2], _svgRect[3],
-                    _pinchStartWidth * _pinchStartDist / dist);
-                StateHasChanged();
+                    _viewport.TargetWidth * _pinchPrevDist / dist);
+                ScheduleViewportFrame();
             }
+            _pinchPrevDist = dist;
             return;
         }
 
@@ -356,9 +412,11 @@
 
         if (_pointers.Count == 1 && _viewport.IsZoomed)
         {
+            // Pan moves the TARGET window; the displayed window eases
+            // toward it on the next animation frame (see ViewportFrame).
             _viewport.Pan(e.ClientX - _panLast.ClientX, e.ClientY - _panLast.ClientY,
                 _svgRect[2], _svgRect[3]);
-            StateHasChanged();
+            ScheduleViewportFrame();
         }
 
         _panLast = (e.ClientX, e.ClientY);
@@ -383,8 +441,13 @@
             return;
         }
 
-        // Gesture over. A tap — one pointer, no pinch, minimal movement —
-        // selects the county under it, converted with the CURRENT viewBox
+        // Gesture over. Snap the displayed window to the target first,
+        // so the tap (if any) resolves against the exact final view.
+        _viewport.SnapToTarget();
+        StateHasChanged();
+
+        // A tap — one pointer, no pinch, minimal movement — selects the
+        // county under it, converted with the CURRENT viewBox
         // (zoomed and panned).
         var rect = _svgRect;
         bool isTap = !_pinchGesture && !_downMoved && rect is not null;
@@ -408,6 +471,9 @@
         {
             _pinchGesture = false;
             _svgRect = null;
+            // Gesture over: snap the displayed window to the target.
+            _viewport.SnapToTarget();
+            StateHasChanged();
         }
     }
 
