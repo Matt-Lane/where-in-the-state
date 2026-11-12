@@ -421,6 +421,25 @@
 
                 return { attach: attach, reset: reset, detach: detach };
             })(),
+            // Thin wrappers over mapGesture, named for the calls Blazor
+            // makes (whereInTheState.mapGestureAttach / Reset / Detach).
+            // Each is guarded: a missing element or a bad ref must never
+            // break the game. The IIFE above does the real work.
+            mapGestureAttach: function (svgEl, dotNetRef, mode) {
+                try {
+                    window.whereInTheState.mapGesture.attach(svgEl, dotNetRef, mode);
+                } catch (e) { /* Gesture attach must never break the game. */ }
+            },
+            mapGestureReset: function (svgEl) {
+                try {
+                    window.whereInTheState.mapGesture.reset(svgEl);
+                } catch (e) { /* Gesture reset must never break the game. */ }
+            },
+            mapGestureDetach: function (svgEl) {
+                try {
+                    window.whereInTheState.mapGesture.detach(svgEl);
+                } catch (e) { /* Gesture detach must never break the game. */ }
+            },
             // Analytics (PostHog) — see GAME-SPEC §13. captureEvent is the
             // only way the game talks to PostHog. It is fully guarded: if
             // an ad blocker stops the library loading, or the network is
