@@ -11,15 +11,19 @@
 
 <PageTitle>@PageTitleText</PageTitle>
 
-@* The edition badge: directly beneath the header, at the top of the
-   game page content, so the player knows which edition they are
-   playing before they start — on the start screen and during play.
-   Only for the Risk Pool edition (the default); the All edition shows
-   no badge. Not shown on the not-found screen or before the pack
-   loads. *@
+@* The edition badge: centred on the header's bottom border, at the
+   top of the game page content, so the player knows which edition
+   they are playing before they start — on the start screen and
+   during play. The wrapper pulls it up to the border and the badge's
+   own translateY(-50%) centres it on that edge, so the line reads
+   as a stick through the badge (a corndog). Only for the Risk Pool
+   edition (the default); the All edition shows no badge. Not shown
+   on the not-found screen or before the pack loads. *@
 @if (_pack is not null && _edition == Edition.RiskPool && _pack.RiskPool is not null)
 {
-    <p class="edition-badge">Risk Pool Edition</p>
+    <div class="edition-badge-wrap">
+        <p class="edition-badge">Risk Pool Edition</p>
+    </div>
 }
 
 @if (_loadFailed)
