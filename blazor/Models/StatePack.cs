@@ -60,6 +60,17 @@ public sealed record UsaState(
     IReadOnlyList<IReadOnlyList<(double Lon, double Lat)>> Parts);
 
 /// <summary>
+/// A named subset of a pack's cities and counties, by name, for an
+/// edition that limits the question pool (see GAME-SPEC §4.6): the
+/// Risk Pool edition. The names must match the pack's city/county
+/// names exactly (county names carry the " County" suffix). A pack
+/// without a risk-pool file has no Risk Pool edition.
+/// </summary>
+public sealed record RiskPool(
+    IReadOnlyList<string> Cities,
+    IReadOnlyList<string> Counties);
+
+/// <summary>
 /// A state pack: everything the game needs to play one state.
 /// The game logic knows nothing about Oregon (or any other state) — it
 /// only knows how to load a <see cref="StatePack"/> and play from it.
@@ -74,4 +85,5 @@ public sealed record StatePack(
     IReadOnlyList<MapFeature> Landmarks,
     IReadOnlyList<MapFeature> Counties,
     IReadOnlyList<LandmarkLayer> Layers,
-    MapBounds Bounds);
+    MapBounds Bounds,
+    RiskPool? RiskPool = null);
