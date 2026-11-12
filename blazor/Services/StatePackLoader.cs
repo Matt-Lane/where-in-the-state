@@ -106,6 +106,19 @@ public sealed class StatePackLoader
             $"{basePath}/{manifest.Files.Cities}", JsonOptions)
             ?? throw new InvalidOperationException($"Missing or invalid {basePath}/{manifest.Files.Cities}.");
 
+        // The risk pool is optional: a pack without a risk-pool file
+        // simply has no Risk Pool edition (see GAME-SPEC §4.6).
+        RiskPool? riskPool = null;
+        if (manifest.Files.RiskPool is not null)
+        {
+            var riskPoolDto = await _http.GetFromJsonAsync<RiskPoolDto>(
+                $"{basePath}/{manifest.Files.RiskPool}", JsonOptions);
+            if (riskPoolDto is not null)
+            {
+                riskPool = new RiskPool(riskPoolDto.Cities ?? [], riskPoolDto.Counties ?? []);
+            }
+        }
+
         var outline = await LoadGeoJsonAsync($"{basePath}/{manifest.Files.Outline}", layerFallback: "outline");
         var landmarks = await LoadGeoJsonAsync($"{basePath}/{manifest.Files.Landmarks}", layerFallback: null);
         // Counties are optional: a pack without a counties file still loads,
@@ -123,7 +136,8 @@ public sealed class StatePackLoader
             Landmarks: landmarks,
             Counties: counties,
             Layers: manifest.Layers.Select(l => new LandmarkLayer(l.Id, l.Label, l.VisibleByDefault)).ToList(),
-            Bounds: new MapBounds(manifest.Bounds.LonMin, manifest.Bounds.LonMax, manifest.Bounds.LatMin, manifest.Bounds.LatMax));
+            Bounds: new MapBounds(manifest.Bounds.LonMin, manifest.Bounds.LonMax, manifest.Bounds.LatMin, manifest.Bounds.LatMax),
+            RiskPool: riskPool);
     }
 
     /// <summary>
@@ -254,5 +268,8 @@ public sealed class StatePackLoader
 
     private sealed record ManifestLayer(string Id, string Label, bool VisibleByDefault);
 
-    private sealed record ManifestFiles(string Cities, string Outline, string Landmarks, string? Counties = null);
+    private sealed record ManifestFiles(string Cities, string Outline, string Landmarks, string? Counties = null, string? RiskPool = null);
+
+    /// <summary>The risk-pool file's shape: city and county names only.</summary>
+    private sealed record RiskPoolDto(List<string>? Cities, List<string>? Counties);
 }

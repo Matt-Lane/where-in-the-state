@@ -15,17 +15,26 @@ outline = json.load(open(os.path.join(BASE, "data/oregon/outline.geojson")))
 landmarks = json.load(open(os.path.join(BASE, "data/oregon/landmarks.geojson")))
 counties = json.load(open(os.path.join(BASE, "data/oregon/counties.geojson")))
 usa_states = json.load(open(os.path.join(BASE, "data/usa-states.geojson")))
+# The Risk Pool edition's member lists (from the GitHub wiki, canonical
+# game names — see GAME-SPEC §4.6). The single source of truth is the
+# pack file; this build reads it from there.
+risk_pool = json.load(open(os.path.join(BASE, "blazor/wwwroot/data/states/oregon/risk-pool.json")))
 assert len(cities) == 241, len(cities)
 assert len(outline["features"]) == 1
 assert len(landmarks["features"]) == 224, len(landmarks["features"])
 assert len(counties["features"]) == 36, len(counties["features"])
 assert len(usa_states["features"]) == 51, len(usa_states["features"])
+assert len(risk_pool["cities"]) == 236, len(risk_pool["cities"])
+assert len(risk_pool["counties"]) == 28, len(risk_pool["counties"])
+assert all(c in {x["name"] for x in cities} for c in risk_pool["cities"])
+assert all(c in {f["properties"]["name"] for f in counties["features"]} for c in risk_pool["counties"])
 
 CITIES_JSON = json.dumps(cities, separators=(",", ":"))
 OUTLINE_JSON = json.dumps(outline, separators=(",", ":"))
 LANDMARKS_JSON = json.dumps(landmarks, separators=(",", ":"))
 COUNTIES_JSON = json.dumps(counties, separators=(",", ":"))
 USA_STATES_JSON = json.dumps(usa_states, separators=(",", ":"))
+RISK_POOL_JSON = json.dumps(risk_pool, separators=(",", ":"))
 
 # PostHog analytics (see GAME-SPEC §13): the project API key and host.
 # The key is a public client key, designed to be embedded in frontend
@@ -403,6 +412,16 @@ HTML = r"""<!doctype html>
     border: 1px solid var(--line); background: var(--panel-soft);
     border-radius: 8px; padding: 10px 16px; margin-bottom: 4px;
   }
+  /* The edition badge: a pill directly beneath the header, at the top of
+     the game page content, naming the edition being played ("Risk Pool
+     Edition"). Pale green fill and dark green text, like the selected
+     mode button. Only shown for the Risk Pool edition; the All edition
+     shows no badge. */
+  .edition-badge {
+    display: inline-block; font-weight: 700; font-size: 14px; color: #173f31;
+    background: #c8e6cf; border: 1px solid var(--accent); border-radius: 999px;
+    padding: 5px 14px; margin: 0 0 12px;
+  }
   .toggle-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .toggle {
     font: inherit; font-size: 13.5px; font-weight: 600; min-height: 44px;
@@ -641,6 +660,13 @@ HTML = r"""<!doctype html>
   <header>
     <h1 id="game-title"><svg class="wordmark-logo" viewBox="0 0 96 96" aria-hidden="true"><path class="pin-fill" d="M48 8 C32.5 8 20 20.5 20 34 C20 55 48 86 48 86 C48 86 76 55 76 34 C76 20.5 63.5 8 48 8 Z" /><text class="mark-fill" x="48" y="46" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="34">?!</text></svg><span id="game-title-text">Where in the State</span></h1>
   </header>
+  <!-- The edition badge: directly beneath the header, at the top of the
+       game page content, so the player knows which edition they are
+       playing before they start — on the start screen and during play.
+       Only for the Risk Pool edition (the default); the All edition
+       shows no badge. Hidden on the splash page (no game in progress),
+       shown by updateEditionBadge when a game screen is shown. -->
+  <p id="edition-badge" class="edition-badge" hidden>Risk Pool Edition</p>
 
   <!-- ================= SPLASH / WELCOME ================= -->
   <section id="screen-splash" class="screen" aria-label="Welcome">
@@ -772,6 +798,12 @@ HTML = r"""<!doctype html>
         <button type="button" class="toggle" data-layer="lake" aria-pressed="true"><span class="swatch fill"></span>Lakes</button>
       </div>
       <p class="muted small" style="margin-top:12px">Landmarks are for orientation only — they don&rsquo;t affect scoring. Your choices stay in effect during play.</p>
+      <h2>City &amp; County List</h2>
+      <div class="mode-switch-row" role="group" aria-label="City and county list">
+        <button type="button" class="mode-switch" data-edition="risk-pool" aria-pressed="true">Risk Pool</button>
+        <button type="button" class="mode-switch" data-edition="all" aria-pressed="false">All</button>
+      </div>
+      <p class="muted small" style="margin-top:12px" id="edition-hint">Risk Pool limits the game to the risk pool&rsquo;s 236 cities and 28 counties. All uses the full list of 241 cities and 36 counties.</p>
       </div>
     </div>
   </section>
@@ -881,13 +913,15 @@ HTML = r"""<!doctype html>
     1,000 points maximum.<br />
     Game # shuffle: this web version hashes the Game # with SHA-256 (WebCrypto) and uses the first 4 bytes as a
     signed 32-bit integer to drive a mulberry32 PRNG through a Fisher&ndash;Yates shuffle of the 241-city pool
-    (or the 36-county pool in either county mode).
+    (or the 36-county pool in either county mode) — or, in the Risk Pool edition (the default), the 236-city
+    and 28-county risk pool (see the edition option in Advanced options; the pool is filtered before the
+    shuffle, so the same Game # picks different questions in the two editions).
     The Blazor C# version (spec &sect;5) uses the same SHA-256 hash with <code>System.Random(seedInt)</code>
     instead of mulberry32, so the 10 cities picked for a given Game # may differ between the JavaScript and C#
     versions — but the format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.33.
+    Version 0.34.
   </footer>
 </div>
 
@@ -896,6 +930,7 @@ HTML = r"""<!doctype html>
 <script type="application/json" id="data-landmarks">__LANDMARKS__</script>
 <script type="application/json" id="data-counties">__COUNTIES__</script>
 <script type="application/json" id="data-usa-states">__USA_STATES__</script>
+<script type="application/json" id="data-risk-pool">__RISK_POOL__</script>
 
 <script>
 (function () {
@@ -970,6 +1005,59 @@ __PURE_JS__
     });
   });
 
+  /* ============ Edition: Risk Pool vs All (see GAME-SPEC §4.6) ============
+     The edition limits the pool the game draws from. Risk Pool (the
+     default) draws only from the risk pool's 236 cities and 28 counties;
+     All draws from the full 241 cities and 36 counties. The filter
+     applies BEFORE the seeded shuffle, so the same Game # picks different
+     questions in the two editions. The edition is carried in the share
+     link as ?list=all (All only — Risk Pool, the default, has no
+     parameter), and read back on load. */
+  var riskPoolData = JSON.parse(document.getElementById("data-risk-pool").textContent);
+  var riskPoolCityNames = {};
+  riskPoolData.cities.forEach(function (n) { riskPoolCityNames[n] = true; });
+  var riskPoolCountyNames = {};
+  riskPoolData.counties.forEach(function (n) { riskPoolCountyNames[n] = true; });
+  var riskPoolCities = cities.filter(function (c) { return riskPoolCityNames[c.name]; });
+  var riskPoolCounties = counties.features.filter(function (f) { return riskPoolCountyNames[f.properties.name]; });
+  var currentEdition = "risk-pool";
+  (function () {
+    try {
+      if (new URLSearchParams(window.location.search).get("list") === "all") currentEdition = "all";
+    } catch (e) {}
+  })();
+  function editionPools() {
+    return currentEdition === "all"
+      ? { cities: cities, counties: counties.features }
+      : { cities: riskPoolCities, counties: riskPoolCounties };
+  }
+  function editionLabel(edition) { return edition === "all" ? "All Edition" : "Risk Pool Edition"; }
+  var editionBadge = document.getElementById("edition-badge");
+  function updateEditionBadge(which) {
+    /* The badge names the edition being played, directly beneath the
+       header. It shows on the start, game and results screens when the
+       edition is Risk Pool, and never on the splash page or in the All
+       edition. */
+    if (!editionBadge) return;
+    editionBadge.hidden = which === "splash" || currentEdition !== "risk-pool";
+  }
+  function setEdition(edition) {
+    currentEdition = edition;
+    document.querySelectorAll(".mode-switch[data-edition]").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", String(btn.getAttribute("data-edition") === edition));
+    });
+    /* The buttons live on the start screen, where the badge shows iff
+       the edition is Risk Pool. */
+    if (editionBadge) editionBadge.hidden = edition !== "risk-pool";
+  }
+  document.querySelectorAll(".mode-switch[data-edition]").forEach(function (btn) {
+    btn.addEventListener("click", function () { setEdition(btn.getAttribute("data-edition")); });
+  });
+  /* Sync the buttons with the edition the URL asked for (?list=all). */
+  document.querySelectorAll(".mode-switch[data-edition]").forEach(function (btn) {
+    btn.setAttribute("aria-pressed", String(btn.getAttribute("data-edition") === currentEdition));
+  });
+
   /* ============ Screens ============ */
   var screenSplash = document.getElementById("screen-splash");
   var screenStart = document.getElementById("screen-start");
@@ -989,6 +1077,7 @@ __PURE_JS__
     var title = which === "splash" ? "Where in the State" : "Where in the " + STATE_NAME + "?!";
     document.getElementById("game-title-text").textContent = title;
     document.title = title;
+    updateEditionBadge(which);
     window.scrollTo(0, 0);
   }
 
@@ -1331,7 +1420,12 @@ __PURE_JS__
      which is not a shareable game link. */
   var LIVE_SITE_BASE = "https://matt-lane.github.io/where-in-the-state/";
   function gameLink() {
-    return LIVE_SITE_BASE + "oregon/" + game.mode + "/" + encodeURIComponent(game.seed);
+    /* The shareable game link: /oregon/{mode}/{seed}, plus ?list=all
+       when the edition is All. The Risk Pool edition (the default)
+       carries no parameter, so its URLs stay exactly as before. The
+       same seed with a different edition picks different questions, so
+       the link must carry the edition to reproduce the same game. */
+    return LIVE_SITE_BASE + "oregon/" + game.mode + "/" + encodeURIComponent(game.seed) + (game.edition === "all" ? "?list=all" : "");
   }
   var game = null; /* { seed, mode, cities, counties, rounds (city-county only), roundIndex, results, total } */
   var guess = null; /* { lat, lon, x, y } */
@@ -1353,7 +1447,7 @@ __PURE_JS__
   }
   /* Common properties for every game event. */
   function baseProps() {
-    return { state: STATE_NAME.toLowerCase(), mode: game.mode, seed: game.seed };
+    return { state: STATE_NAME.toLowerCase(), mode: game.mode, edition: game.edition, seed: game.seed };
   }
   /* A round was revealed (confirmed or passed). `extra` holds the
      round-type properties; the common fields are added here. */
@@ -2204,6 +2298,11 @@ __PURE_JS__
     if (!seed) seed = randomSeed();
     var seedInt = await seedIntFromString(seed);
     var mode = selectedMode();
+    /* The pools are the edition's pools: the filter applies before the
+       seeded shuffle, so the seed + edition together determine the
+       game. The edition is stored on the game object (for the summary
+       link, the results text, and the analytics events). */
+    var pools = editionPools();
     if (mode === "city-county") {
       /* 7 cities and 3 counties, then the 10 rounds interleaved by a
          seeded shuffle — genuinely mixed, not 7-then-3. The same seed
@@ -2213,28 +2312,29 @@ __PURE_JS__
          same seed generally picks different cities/counties here than on
          the live site, and the interleaving order can differ too —
          accepted, same as the existing C#/JS divergence. */
-      var mixedCities = selectItems(seedInt, cities, 7);
-      var mixedCounties = selectItems(seedInt, counties.features, 3);
+      var mixedCities = selectItems(seedInt, pools.cities, 7);
+      var mixedCounties = selectItems(seedInt, pools.counties, 3);
       var rounds = mixedCities.map(function (c) { return { type: "city", city: c }; })
         .concat(mixedCounties.map(function (c) { return { type: "county", county: c }; }));
       rounds = shuffleItems(seedInt, rounds);
-      game = { seed: seed, mode: "city-county", cities: mixedCities, counties: mixedCounties, rounds: rounds, roundIndex: 0, results: [], total: 0 };
+      game = { seed: seed, mode: "city-county", edition: currentEdition, cities: mixedCities, counties: mixedCounties, rounds: rounds, roundIndex: 0, results: [], total: 0 };
     } else if (mode === "counties") {
-      var pickedCounties = selectItems(seedInt, counties.features, QUESTION_COUNT);
-      game = { seed: seed, mode: "counties", cities: [], counties: pickedCounties, roundIndex: 0, results: [], total: 0 };
+      var pickedCounties = selectItems(seedInt, pools.counties, QUESTION_COUNT);
+      game = { seed: seed, mode: "counties", edition: currentEdition, cities: [], counties: pickedCounties, roundIndex: 0, results: [], total: 0 };
     } else if (mode === "name-the-county") {
       /* Same pool and same selection as the Counties drag mode, so the
          same seed picks the same 10 counties in both county modes. */
-      var namedCounties = selectItems(seedInt, counties.features, QUESTION_COUNT);
-      game = { seed: seed, mode: "name-the-county", cities: [], counties: namedCounties, roundIndex: 0, results: [], total: 0 };
+      var namedCounties = selectItems(seedInt, pools.counties, QUESTION_COUNT);
+      game = { seed: seed, mode: "name-the-county", edition: currentEdition, cities: [], counties: namedCounties, roundIndex: 0, results: [], total: 0 };
     } else {
-      var pickedCities = selectItems(seedInt, cities, QUESTION_COUNT);
-      game = { seed: seed, mode: "cities", cities: pickedCities, counties: [], roundIndex: 0, results: [], total: 0 };
+      var pickedCities = selectItems(seedInt, pools.cities, QUESTION_COUNT);
+      game = { seed: seed, mode: "cities", edition: currentEdition, cities: pickedCities, counties: [], roundIndex: 0, results: [], total: 0 };
     }
     try {
       /* The game URL is /{state}/{mode}/{seed}, so a shared link (and a
-         refresh) replays the same mode and seed. */
-      history.replaceState(null, "", "/oregon/" + mode + "/" + encodeURIComponent(seed));
+         refresh) replays the same mode and seed — plus ?list=all when
+         the edition is All, so it replays the same edition too. */
+      history.replaceState(null, "", "/oregon/" + mode + "/" + encodeURIComponent(seed) + (currentEdition === "all" ? "?list=all" : ""));
     } catch (e) {}
     showScreen("game");
     startRound();
@@ -2501,7 +2601,7 @@ __PURE_JS__
     });
     document.getElementById("summary-text").textContent =
       "I scored " + game.total + "/1000 on Where in the " + STATE_NAME + "?!" +
-      (isMixed ? " (City/County)" : isCounties ? " (Counties)" : isName ? " (County)" : "") + ", Game # " + game.seed + "\nPlay the same game: " + gameLink();
+      (isMixed ? " (City/County)" : isCounties ? " (Counties)" : isName ? " (County)" : "") + ", Game # " + game.seed + "\n" + editionLabel(game.edition) + "\nPlay the same game: " + gameLink();
   }
 
   function copyText(text, noteEl) {
@@ -2543,6 +2643,7 @@ html = (HTML
         .replace("__LANDMARKS__", LANDMARKS_JSON)
         .replace("__COUNTIES__", COUNTIES_JSON)
         .replace("__USA_STATES__", USA_STATES_JSON)
+        .replace("__RISK_POOL__", RISK_POOL_JSON)
         .replace("__POSTHOG_KEY__", POSTHOG_KEY)
         .replace("__POSTHOG_HOST__", POSTHOG_HOST)
         .replace("__PURE_JS__", PURE_JS))

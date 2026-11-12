@@ -11,6 +11,17 @@
 
 <PageTitle>@PageTitleText</PageTitle>
 
+@* The edition badge: directly beneath the header, at the top of the
+   game page content, so the player knows which edition they are
+   playing before they start — on the start screen and during play.
+   Only for the Risk Pool edition (the default); the All edition shows
+   no badge. Not shown on the not-found screen or before the pack
+   loads. *@
+@if (_pack is not null && _edition == Edition.RiskPool && _pack.RiskPool is not null)
+{
+    <p class="edition-badge">Risk Pool Edition</p>
+}
+
 @if (_loadFailed)
 {
     <div class="card error-card">
@@ -219,6 +230,22 @@ else if (_phase == Phase.Start)
                     <button type="button" class="toggle" data-layer="lake" aria-pressed="@(_showLakes ? "true" : "false")" @onclick="() => _showLakes = !_showLakes"><span class="swatch fill"></span>Lakes</button>
                 </div>
             </fieldset>
+            @if (_pack.RiskPool is not null)
+            {
+            @* Which cities and counties the game draws from. Only offered
+               when the pack has a risk pool; a pack without one plays the
+               full list and has no Risk Pool edition. The default is Risk
+               Pool. Changing it updates the badge above and the pool the
+               next game draws from. *@
+            <fieldset>
+                <legend>City &amp; County List</legend>
+                <div class="mode-switch-row" role="group" aria-label="City and county list">
+                    <button type="button" class="mode-switch" aria-pressed="@(_edition == Edition.RiskPool ? "true" : "false")" @onclick="() => _edition = Edition.RiskPool">Risk Pool</button>
+                    <button type="button" class="mode-switch" aria-pressed="@(_edition == Edition.All ? "true" : "false")" @onclick="() => _edition = Edition.All">All</button>
+                </div>
+                <p class="hint">Risk Pool limits the game to the risk pool's @_pack.RiskPool.Cities.Count cities and @_pack.RiskPool.Counties.Count counties. All uses the full list of @_pack.Cities.Count cities and @_pack.Counties.Count counties.</p>
+            </fieldset>
+            }
             }
         </div>
     </div>
@@ -449,6 +476,7 @@ else if (_phase == Phase.Results)
         <div class="summary-row">
             <div class="summary-box">
                 <p>I scored @_totalScore/@MaxScore on Where in the @(_pack?.Name ?? "Oregon")?!@ModeSummaryLabel, Game # @_seed</p>
+                <p>@EditionSummaryLabel</p>
                 <p>Play the same game: <a href="@GameLink">@GameLink</a></p>
             </div>
             <button @onclick="CopySummary">Copy</button>
@@ -591,6 +619,14 @@ else if (_phase == Phase.Results)
     /// <summary>Which game is being played: pin a city, place a county, name a county, or the City County mix.</summary>
     private enum GameMode { CityCounty, Cities, Counties, NameTheCounty }
 
+    /// <summary>
+    /// Which list of cities and counties the game draws from (see
+    /// GAME-SPEC §4.6). Risk Pool limits the pool to the pack's
+    /// risk-pool members; All uses the full list. The default is Risk
+    /// Pool when the pack has one, All otherwise.
+    /// </summary>
+    private enum Edition { RiskPool, All }
+
     // Route parameters for the /{state}/{mode}/{seed} URL form, e.g.
     // /oregon/cities/2026-11-06. The mode segment is one of the mode
     // slugs (cities, counties, name-the-county, city-county); /{state}/{mode}
@@ -621,6 +657,10 @@ else if (_phase == Phase.Results)
     // one shown in the big preview on first load). A bare /{state}/ URL
     // therefore starts in City County Mode; a mode in the URL overrides it.
     private GameMode _mode = GameMode.CityCounty;
+    // The default edition is Risk Pool (when the pack has one). A
+    // ?list=all in the URL overrides it to All. Set in
+    // OnInitializedAsync, once the pack is loaded.
+    private Edition _edition = Edition.RiskPool;
     // "How to play" and "Advanced options" on the start screen are both
     // collapsed (minimized) by default; tapping their buttons expands them.
     private bool _showHowToPlay;
@@ -711,6 +751,7 @@ else if (_phase == Phase.Results)
             {
                 ["state"] = _stateId,
                 ["mode"] = ModeSlug,
+                ["edition"] = EditionSlug,
                 ["seed"] = _seed,
                 ["rounds_completed"] = CompletedRounds,
                 ["score_so_far"] = _totalScore
@@ -739,6 +780,7 @@ else if (_phase == Phase.Results)
     {
         ["state"] = _stateId,
         ["mode"] = ModeSlug,
+        ["edition"] = EditionSlug,
         ["seed"] = _seed
     };
 
@@ -824,6 +866,57 @@ else if (_phase == Phase.Results)
         _ => null
     };
 
+    // The edition as a URL slug / analytics value: "risk-pool" or "all".
+    // (The URL parameter is named "list": ?list=all. See GAME-SPEC §4.6.)
+    private string EditionSlug => _edition == Edition.All ? "all" : "risk-pool";
+
+    // The value of the "list" query parameter in a URL, or null when
+    // there is none. Parsed by hand (no WebUtilities dependency): the
+    // parameter is a plain token ("all"), so a split on '&' and '='
+    // is enough.
+    private static string? ListQueryParam(string uri)
+    {
+        var queryStart = uri.IndexOf('?');
+        if (queryStart < 0)
+        {
+            return null;
+        }
+        var query = uri[(queryStart + 1)..];
+        var hashStart = query.IndexOf('#');
+        if (hashStart >= 0)
+        {
+            query = query[..hashStart];
+        }
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eq = pair.IndexOf('=');
+            var key = eq < 0 ? pair : pair[..eq];
+            if (string.Equals(Uri.UnescapeDataString(key), "list", StringComparison.OrdinalIgnoreCase))
+            {
+                return eq < 0 ? "" : Uri.UnescapeDataString(pair[(eq + 1)..]);
+            }
+        }
+        return null;
+    }
+
+    // The edition as shown in the results summary: "Risk Pool Edition"
+    // or "All Edition", on its own line so it reads at a glance.
+    private string EditionSummaryLabel => _edition == Edition.All ? "All Edition" : "Risk Pool Edition";
+
+    // The pools the next game draws from. In the Risk Pool edition the
+    // pool is the pack's risk-pool members only, filtered by exact name
+    // against the pack's cities/counties — the filter applies BEFORE
+    // the seeded shuffle, so the seed + edition together determine the
+    // game. In the All edition (or a pack without a risk pool) the pool
+    // is the full list. No names are hard-coded here.
+    private IReadOnlyList<City> CityPool => _edition == Edition.RiskPool && _pack?.RiskPool is not null
+        ? _pack.Cities.Where(c => _pack.RiskPool.Cities.Contains(c.Name, StringComparer.Ordinal)).ToList()
+        : _pack?.Cities ?? [];
+
+    private IReadOnlyList<MapFeature> CountyPool => _edition == Edition.RiskPool && _pack?.RiskPool is not null
+        ? _pack.Counties.Where(c => c.Name is not null && _pack.RiskPool.Counties.Contains(c.Name, StringComparer.Ordinal)).ToList()
+        : _pack?.Counties ?? [];
+
     private string ModeSummaryLabel => _mode switch
     {
         GameMode.CityCounty => " (City/County)",
@@ -851,14 +944,20 @@ else if (_phase == Phase.Results)
     // Points for one correct answer in the current mode: 100 everywhere.
     private int PointsPerRound => 100;
 
+    // The shareable game link: /{state}/{mode}/{seed}, plus ?list=all
+    // when the edition is All. The Risk Pool edition (the default)
+    // carries no parameter, so its URLs stay exactly as before — the
+    // same seed with a different edition picks different questions, so
+    // the link must carry the edition to reproduce the same game.
     private string GameLink =>
         Navigation.ToAbsoluteUri(
-            $"{Uri.EscapeDataString(_stateId)}/{ModeSlug}/{Uri.EscapeDataString(_seed)}").ToString();
+            $"{Uri.EscapeDataString(_stateId)}/{ModeSlug}/{Uri.EscapeDataString(_seed)}" +
+            (_edition == Edition.All ? "?list=all" : "")).ToString();
 
     private string SummaryText =>
         $"I scored {_totalScore}/{MaxScore} on Where in the {_pack?.Name ?? "Oregon"}?!" +
         ModeSummaryLabel +
-        $", Game # {_seed}\nPlay the same game: {GameLink}";
+        $", Game # {_seed}\n{EditionSummaryLabel}\nPlay the same game: {GameLink}";
 
     // Once a game starts, the header shows the in-game title, derived
     // from the pack name so a future state gets its own title with no
@@ -962,6 +1061,17 @@ else if (_phase == Phase.Results)
             _mode = GameMode.Cities;
         }
 
+        // The default edition is Risk Pool when the pack has one; a pack
+        // without a risk pool has no Risk Pool edition and plays All.
+        // ?list=all in the URL overrides the default to All, so a shared
+        // All-edition link opens in the All edition. Any other value (or
+        // none) leaves the default.
+        _edition = _pack.RiskPool is not null ? Edition.RiskPool : Edition.All;
+        if (string.Equals(ListQueryParam(Navigation.Uri), "all", StringComparison.OrdinalIgnoreCase))
+        {
+            _edition = Edition.All;
+        }
+
         _seed = !string.IsNullOrWhiteSpace(SeedParam)
             ? SeedParam
             : GameService.DailySeed();
@@ -1017,8 +1127,11 @@ else if (_phase == Phase.Results)
             // a seeded shuffle — genuinely mixed, not 7-then-3. The same
             // seed picks the same 7 cities and 3 counties (same selection
             // as the single-type modes), only their order is shuffled.
-            _gameCities = GameService.SelectCities(_pack.Cities, _seed, count: 7).ToList();
-            _gameCounties = GameService.SelectItems(_pack.Counties, _seed, count: 3).ToList();
+            // The pools are the edition's pools (CityPool/CountyPool):
+            // the filter applies before the shuffle, so the seed +
+            // edition together determine the game.
+            _gameCities = GameService.SelectCities(CityPool, _seed, count: 7).ToList();
+            _gameCounties = GameService.SelectItems(CountyPool, _seed, count: 3).ToList();
             if (_gameCities.Count == 0 || _gameCounties.Count == 0)
             {
                 return;
@@ -1031,7 +1144,7 @@ else if (_phase == Phase.Results)
         }
         else if (_mode == GameMode.Counties || _mode == GameMode.NameTheCounty)
         {
-            _gameCounties = GameService.SelectItems(_pack.Counties, _seed, count: 10).ToList();
+            _gameCounties = GameService.SelectItems(CountyPool, _seed, count: 10).ToList();
             if (_gameCounties.Count == 0)
             {
                 return;
@@ -1041,7 +1154,7 @@ else if (_phase == Phase.Results)
         }
         else
         {
-            _gameCities = GameService.SelectCities(_pack.Cities, _seed, count: 10).ToList();
+            _gameCities = GameService.SelectCities(CityPool, _seed, count: 10).ToList();
             if (_gameCities.Count == 0)
             {
                 return;
@@ -1404,8 +1517,11 @@ else if (_phase == Phase.Results)
         // and seed). Force a full reload so the page re-initializes to
         // the start screen: an in-app navigation to the same component
         // would not re-run OnInitializedAsync, so the phase would stay
-        // on Results.
-        Navigation.NavigateTo(Navigation.ToAbsoluteUri($"{Uri.EscapeDataString(_stateId)}/").ToString(), forceLoad: true);
+        // on Results. The ?list=all suffix is kept when the edition is
+        // All, so going back does not silently reset the edition.
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri(
+            $"{Uri.EscapeDataString(_stateId)}/" +
+            (_edition == Edition.All ? "?list=all" : "")).ToString(), forceLoad: true);
     }
 
     private async Task CopySummary()

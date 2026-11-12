@@ -229,6 +229,22 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     padding: 0.6rem 1rem;
     margin-bottom: 0.25rem;
 }
+/* The edition badge: a pill directly beneath the header, at the top of
+   the game page content, naming the edition being played ("Risk Pool
+   Edition"). Pale green fill and dark green text, like the selected
+   mode button, so it reads as part of the game. Only shown for the
+   Risk Pool edition; the All edition shows no badge. */
+.edition-badge {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--green-dark);
+    background: #c8e6cf;
+    border: 1px solid var(--green);
+    border-radius: 999px;
+    padding: 0.3rem 0.9rem;
+    margin: 0 0 0.75rem;
+}
 /* Game mode options: one per line. (The generic fieldset label is
    inline-flex, so the mode labels get their own class to stack.) */
 .mode-option { display: block; font-weight: 600; padding: 0.4rem 0; cursor: pointer; }
