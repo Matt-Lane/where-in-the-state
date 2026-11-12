@@ -329,6 +329,10 @@ HTML = r"""<!doctype html>
      (a corndog): 2px, matching the Blazor .site-header, with the same
      24px (1.5rem) margin below it that the badge wrapper pulls back up. */
   header { border-bottom: 2px solid var(--ink); margin-bottom: 24px; }
+  /* The game title (pin logo + "Where in the Oregon?!") is centred in
+     the header, so the pin + title read as one centred unit above the
+     border the edition badge straddles. */
+  #game-title { text-align: center; }
   /* Header logo: a solid green pin with a white "?!" inside, next to the
      title. The title text lives in #game-title-text so showScreen can
      retitle the game without wiping out the logo. */
@@ -942,7 +946,7 @@ HTML = r"""<!doctype html>
     versions — but the format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.35.
+    Version 0.36.
   </footer>
 </div>
 
@@ -1059,9 +1063,16 @@ __PURE_JS__
        bottom border. It shows on the start, game and results screens
        when the edition is Risk Pool, and never on the splash page or
        in the All edition. The id is on the wrapper, so hiding it hides
-       the whole badge (and its negative margin) at once. */
+       the whole badge (and its negative margin) at once. The hiding is
+       set two ways — the hidden attribute (backed by the
+       .edition-badge-wrap[hidden] CSS rule) and an inline display —
+       so no part of the badge can peek out if one mechanism is missed:
+       the pill's translateY(-50%) lifts its top ~17px above the border,
+       and a half-hidden badge would show exactly that top edge. */
     if (!editionBadge) return;
-    editionBadge.hidden = which === "splash" || currentEdition !== "risk-pool";
+    var hide = which === "splash" || currentEdition !== "risk-pool";
+    editionBadge.hidden = hide;
+    editionBadge.style.display = hide ? "none" : "";
   }
   function setEdition(edition) {
     currentEdition = edition;
@@ -1069,8 +1080,13 @@ __PURE_JS__
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-edition") === edition));
     });
     /* The buttons live on the start screen, where the badge shows iff
-       the edition is Risk Pool. */
-    if (editionBadge) editionBadge.hidden = edition !== "risk-pool";
+       the edition is Risk Pool. Hidden two ways, as in
+       updateEditionBadge, so the badge is fully gone in All. */
+    if (editionBadge) {
+      var hide = edition !== "risk-pool";
+      editionBadge.hidden = hide;
+      editionBadge.style.display = hide ? "none" : "";
+    }
   }
   document.querySelectorAll(".mode-switch[data-edition]").forEach(function (btn) {
     btn.addEventListener("click", function () { setEdition(btn.getAttribute("data-edition")); });
@@ -1338,7 +1354,14 @@ __PURE_JS__
   function selectedMode() { return currentMode; }
   function setMode(mode) {
     currentMode = mode;
-    document.querySelectorAll(".mode-switch").forEach(function (btn) {
+    /* Only the mode buttons carry data-mode. The edition buttons share
+       the .mode-switch class but have data-edition instead; scoping to
+       [data-mode] keeps setMode from touching them. (An unscoped
+       selector used to call setMode(null) on every edition click: the
+       edition buttons have no data-mode, so currentMode became null,
+       updateModeUI threw on MODE_COPY[null], and both edition buttons
+       ended up aria-pressed=true because null === null.) */
+    document.querySelectorAll('.mode-switch[data-mode]').forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-mode") === mode));
     });
     document.querySelectorAll(".mode-preview-set").forEach(function (set) {
@@ -1407,7 +1430,10 @@ __PURE_JS__
     });
   }
   buildModeVariants();
-  document.querySelectorAll(".mode-switch").forEach(function (btn) {
+  /* Scoped to [data-mode]: the edition buttons share .mode-switch but
+     have no data-mode, so an unscoped selector called setMode(null)
+     on every edition click (see setMode). */
+  document.querySelectorAll('.mode-switch[data-mode]').forEach(function (btn) {
     btn.addEventListener("click", function () { setMode(btn.getAttribute("data-mode")); });
   });
   /* The county modes are only offered when the pack has counties; this file
