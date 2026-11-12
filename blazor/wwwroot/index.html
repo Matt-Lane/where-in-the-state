@@ -67,6 +67,21 @@
             capturePointer: function (el, pointerId) {
                 try { el.setPointerCapture(pointerId); } catch (e) {}
             },
+            // Schedule one animation frame of viewport smoothing: the map
+            // components ease the displayed viewBox toward the pinch/pan
+            // target on the display refresh (see MapViewport), instead of
+            // re-rendering on every pointermove. The .NET side calls
+            // ViewportFrame on the given reference once per frame and
+            // re-schedules while the view is still moving. Fully guarded:
+            // a disposed reference just stops the loop.
+            requestViewportFrame: function (dotNetRef) {
+                requestAnimationFrame(function () {
+                    try {
+                        var p = dotNetRef.invokeMethodAsync("ViewportFrame");
+                        if (p && p.catch) { p.catch(function () {}); }
+                    } catch (e) {}
+                });
+            },
             // Analytics (PostHog) — see GAME-SPEC §13. captureEvent is the
             // only way the game talks to PostHog. It is fully guarded: if
             // an ad blocker stops the library loading, or the network is
