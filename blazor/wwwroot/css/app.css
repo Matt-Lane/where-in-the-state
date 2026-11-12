@@ -229,11 +229,23 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     padding: 0.6rem 1rem;
     margin-bottom: 0.25rem;
 }
-/* The edition badge: a pill directly beneath the header, at the top of
-   the game page content, naming the edition being played ("Risk Pool
-   Edition"). Pale green fill and dark green text, like the selected
-   mode button, so it reads as part of the game. Only shown for the
-   Risk Pool edition; the All edition shows no badge. */
+/* The edition badge: a pill centred on the header's bottom border,
+   at the top of the game page content, naming the edition being
+   played ("Risk Pool Edition") — the line reads as a stick through
+   the badge, like a corndog. The wrapper pulls the badge up to the
+   border (the header's margin-bottom is 1.5rem, so a -1.5rem top
+   margin lands the wrapper's top edge exactly on the border) and
+   centres it horizontally; the badge's translateY(-50%) then shifts
+   it up by half its own height, so its centre sits on the border
+   whatever the badge's font or padding. The badge's opaque pale-green
+   background covers the line behind it. Only shown for the Risk Pool
+   edition; the All edition shows no badge. */
+.edition-badge-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: -1.5rem;
+    margin-bottom: 0.75rem;
+}
 .edition-badge {
     display: inline-block;
     font-weight: 700;
@@ -243,7 +255,8 @@ fieldset input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: v
     border: 1px solid var(--green);
     border-radius: 999px;
     padding: 0.3rem 0.9rem;
-    margin: 0 0 0.75rem;
+    margin: 0;
+    transform: translateY(-50%);
 }
 /* Game mode options: one per line. (The generic fieldset label is
    inline-flex, so the mode labels get their own class to stack.) */

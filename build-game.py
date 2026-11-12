@@ -325,6 +325,10 @@ HTML = r"""<!doctype html>
   }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 40px; }
   h1 { font-family: Georgia, serif; font-weight: 600; font-size: 30px; line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.01em; }
+  /* The header's bottom border is the line the edition badge straddles
+     (a corndog): 2px, matching the Blazor .site-header, with the same
+     24px (1.5rem) margin below it that the badge wrapper pulls back up. */
+  header { border-bottom: 2px solid var(--ink); margin-bottom: 24px; }
   /* Header logo: a solid green pin with a white "?!" inside, next to the
      title. The title text lives in #game-title-text so showScreen can
      retitle the game without wiping out the logo. */
@@ -412,15 +416,27 @@ HTML = r"""<!doctype html>
     border: 1px solid var(--line); background: var(--panel-soft);
     border-radius: 8px; padding: 10px 16px; margin-bottom: 4px;
   }
-  /* The edition badge: a pill directly beneath the header, at the top of
-     the game page content, naming the edition being played ("Risk Pool
-     Edition"). Pale green fill and dark green text, like the selected
-     mode button. Only shown for the Risk Pool edition; the All edition
-     shows no badge. */
+  /* The edition badge: a pill centred on the header's bottom border,
+     at the top of the game page content, naming the edition being
+     played ("Risk Pool Edition") — the line reads as a stick through
+     the badge, like a corndog. The wrapper pulls the badge up to the
+     border (the header's margin-bottom is 24px, so a -24px top margin
+     lands the wrapper's top edge exactly on the border) and centres it
+     horizontally; the badge's translateY(-50%) then shifts it up by
+     half its own height, so its centre sits on the border whatever the
+     badge's font or padding. The badge's opaque pale-green background
+     covers the line behind it. Only shown for the Risk Pool edition;
+     the All edition shows no badge. The [hidden] rule is needed because
+     the wrapper's display:flex would otherwise override the hidden
+     attribute's display:none. */
+  .edition-badge-wrap {
+    display: flex; justify-content: center; margin-top: -24px; margin-bottom: 12px;
+  }
+  .edition-badge-wrap[hidden] { display: none; }
   .edition-badge {
     display: inline-block; font-weight: 700; font-size: 14px; color: #173f31;
     background: #c8e6cf; border: 1px solid var(--accent); border-radius: 999px;
-    padding: 5px 14px; margin: 0 0 12px;
+    padding: 5px 14px; margin: 0; transform: translateY(-50%);
   }
   .toggle-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .toggle {
@@ -660,13 +676,18 @@ HTML = r"""<!doctype html>
   <header>
     <h1 id="game-title"><svg class="wordmark-logo" viewBox="0 0 96 96" aria-hidden="true"><path class="pin-fill" d="M48 8 C32.5 8 20 20.5 20 34 C20 55 48 86 48 86 C48 86 76 55 76 34 C76 20.5 63.5 8 48 8 Z" /><text class="mark-fill" x="48" y="46" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="34">?!</text></svg><span id="game-title-text">Where in the State</span></h1>
   </header>
-  <!-- The edition badge: directly beneath the header, at the top of the
-       game page content, so the player knows which edition they are
-       playing before they start — on the start screen and during play.
-       Only for the Risk Pool edition (the default); the All edition
-       shows no badge. Hidden on the splash page (no game in progress),
-       shown by updateEditionBadge when a game screen is shown. -->
-  <p id="edition-badge" class="edition-badge" hidden>Risk Pool Edition</p>
+  <!-- The edition badge: centred on the header's bottom border, at the
+       top of the game page content, so the player knows which edition
+       they are playing before they start — on the start screen and
+       during play. The wrapper pulls it up to the border and the
+       badge's own translateY(-50%) centres it on that edge, so the
+       line reads as a stick through the badge (a corndog). Only for
+       the Risk Pool edition (the default); the All edition shows no
+       badge. Hidden on the splash page (no game in progress), shown
+       by updateEditionBadge when a game screen is shown. The id is on
+       the wrapper so hiding it hides the whole badge (and its negative
+       margin) at once. -->
+  <div id="edition-badge" class="edition-badge-wrap" hidden><p class="edition-badge">Risk Pool Edition</p></div>
 
   <!-- ================= SPLASH / WELCOME ================= -->
   <section id="screen-splash" class="screen" aria-label="Welcome">
@@ -921,7 +942,7 @@ HTML = r"""<!doctype html>
     versions — but the format, scoring, and projection are the same.<br />
     Map data: state outline &copy; U.S. Census Bureau (public domain); interstates, highways, rivers and lakes
     from Natural Earth (public domain). City coordinates for the 241 incorporated Oregon cities via OpenStreetMap / Nominatim.<br />
-    Version 0.34.
+    Version 0.35.
   </footer>
 </div>
 
@@ -1034,10 +1055,11 @@ __PURE_JS__
   function editionLabel(edition) { return edition === "all" ? "All Edition" : "Risk Pool Edition"; }
   var editionBadge = document.getElementById("edition-badge");
   function updateEditionBadge(which) {
-    /* The badge names the edition being played, directly beneath the
-       header. It shows on the start, game and results screens when the
-       edition is Risk Pool, and never on the splash page or in the All
-       edition. */
+    /* The badge names the edition being played, centred on the header's
+       bottom border. It shows on the start, game and results screens
+       when the edition is Risk Pool, and never on the splash page or
+       in the All edition. The id is on the wrapper, so hiding it hides
+       the whole badge (and its negative margin) at once. */
     if (!editionBadge) return;
     editionBadge.hidden = which === "splash" || currentEdition !== "risk-pool";
   }
